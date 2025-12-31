@@ -36,7 +36,21 @@ void execerror(pEnv env, char* message, char* op)
     else
         leng = strlen(ptr);
     fflush(stdout);
-    fprintf(stderr, "run time error: %s needed for %.*s\n", message, leng,
-            ptr);
+    {
+        int needed = snprintf(NULL, 0,
+                              "run time error: %s needed for %.*s\n", message,
+                              leng, ptr);
+        if (needed > 0) {
+            size_t size = (size_t)needed + 1;
+            char *buffer = malloc(size);
+            if (buffer) {
+                snprintf(buffer, size,
+                         "run time error: %s needed for %.*s\n", message, leng,
+                         ptr);
+                fwrite(buffer, 1, size - 1, stderr);
+                free(buffer);
+            }
+        }
+    }
     abortexecution_(ABORT_RETRY);
 } /* LCOV_EXCL_LINE */

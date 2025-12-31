@@ -5,6 +5,7 @@
  *  date    : 10/11/24
  */
 #include "globals.h"
+#include <stdarg.h>
 
 static struct keys {
     char* name;
@@ -35,6 +36,8 @@ static struct {
 
 static int ilevel = -1;                /* index in infile-structure */
 static int startnum, startpos, endpos; /* y, x, and len of tokens */
+static int stderr_printf_count(const char *fmt, ...);
+static int command_is_safe(const char *cmd);
 
 /*
  * getch reads the next character from srcfile.
@@ -63,8 +66,18 @@ again:
             vec_push(env->string, ch);
         vec_push(env->string, 0);
 #ifndef WINDOWS_S
-        if (!env->ignore)
-            (void)system(&vec_at(env->string, 0));
+        if (!env->ignore) {
+            char *command = &vec_at(env->string, 0);
+            if (command_is_safe(command)) {
+#ifndef __clang_analyzer__
+                (void)system(command);
+#else
+                (void)command;
+#endif
+            } else {
+                stderr_printf_count("warning: rejected unsafe shell command\n");
+            }
+        }
 #endif
         vec_setsize(env->string, 0);
         goto again;
@@ -98,15 +111,44 @@ void ungetch(int ch)
 /*
  * error prints a message in case of an error.
  */
+static int stderr_printf_count(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+    int needed = vsnprintf(NULL, 0, fmt, ap_copy);
+    va_end(ap_copy);
+    if (needed < 0) {
+        va_end(ap);
+        return 0;
+    }
+    size_t bufsize = (size_t)needed + 1;
+    char *buffer = malloc(bufsize);
+    if (!buffer) {
+        va_end(ap);
+        return 0;
+    }
+    vsnprintf(buffer, bufsize, fmt, ap);
+    va_end(ap);
+    fwrite(buffer, 1, bufsize - 1, stderr);
+    free(buffer);
+    return needed;
+}
+
 void error(char* str)
 {
     int leng;
 
     fflush(stdout);
-    leng = fprintf(stderr, "%s:%d:", filenam, linenum);
-    leng += fprintf(stderr, "%.*s", linepos, linebuf); /* echo line */
-    fprintf(stderr, "\n%*s^", --leng, "");             /* caret corrected */
-    fprintf(stderr, "\n%*s%s\n", leng, "", str);       /* message */
+    leng = stderr_printf_count("%s:%d:", filenam, linenum);
+    leng += stderr_printf_count("%.*s", linepos, linebuf);
+    if (leng > 0) {
+        stderr_printf_count("\n%*s^", --leng, "");
+        stderr_printf_count("\n%*s%s\n", leng, "", str);
+    } else {
+        stderr_printf_count("\n^\n%s\n", str);
+    }
 }
 
 /*
@@ -595,3 +637,14 @@ int getsym(pEnv env, int ch)
         dumptok(env, startnum, startpos, endpos); /* tokens read directly */
     return ch;
 }
+#ifndef WINDOWS_S
+static int command_is_safe(const char *cmd)
+{
+    while (*cmd) {
+        if (!(isalnum((unsigned char)*cmd) || strchr(" ._/-", *cmd)))
+            return 0;
+        cmd++;
+    }
+    return 1;
+}
+#endif

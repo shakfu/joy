@@ -41,7 +41,7 @@ int Compare(pEnv env, Index first, Index second)
     int type1, type2;
     double dbl1 = 0, dbl2 = 0;
     int64_t num1 = 0, num2 = 0;
-    char *name1 = "", *name2 = "";
+    const char *name1 = 0, *name2 = 0;
 
     if (is_null(env, first) && is_null(env, second)) /* only one nothing */
         return 0;
@@ -185,6 +185,10 @@ cmpnum:
 cmpdbl:
     return dbl1 < dbl2 ? -1 : dbl1 > dbl2;
 cmpstr:
+    if (!name1)
+        name1 = "";
+    if (!name2)
+        name2 = "";
     num1 = strcmp(name1, name2);
     return num1 < 0 ? -1 : num1 > 0;
 }

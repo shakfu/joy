@@ -120,7 +120,7 @@ start:
         case ILLEGAL_:
         case COPIED_:
             fflush(stdout);
-            fprintf(stderr, "exeterm: attempting to execute bad node\n");
+            fputs("exeterm: attempting to execute bad node\n", stderr);
 #ifdef TRACEGC
             printnode(env, p);
 #endif

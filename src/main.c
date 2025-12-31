@@ -115,12 +115,14 @@ some of the code.
 Manfred von Thun, 2006
 */
 #include "globals.h"
+#include <stdarg.h>
 
 static jmp_buf begin; /* restart with empty program */
 
 char* bottom_of_stack; /* needed in gc.c */
 
 static void stats(pEnv env), dump(pEnv env);
+static void stderr_printf(const char *fmt, ...);
 #ifdef MALLOC_DEBUG
 static void mem_free(pEnv env);
 #endif
@@ -141,10 +143,30 @@ void abortexecution_(int num)
 void fatal(char* str)
 {
     fflush(stdout);
-    fprintf(stderr, "fatal error: %s\n", str);
+    stderr_printf("fatal error: %s\n", str);
     abortexecution_(ABORT_QUIT);
 }
 #endif
+
+static void stderr_printf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+    int needed = vsnprintf(NULL, 0, fmt, ap_copy);
+    va_end(ap_copy);
+    if (needed >= 0) {
+        size_t bufsize = (size_t)needed + 1;
+        char *buffer = malloc(bufsize);
+        if (buffer) {
+            vsnprintf(buffer, bufsize, fmt, ap);
+            fwrite(buffer, 1, bufsize - 1, stderr);
+            free(buffer);
+        }
+    }
+    va_end(ap);
+}
 
 /*
  * banner - print the banner that was present in joy0; the banner is only
@@ -423,14 +445,13 @@ static void my_main(int argc, char** argv)
 #ifdef BYTECODE
             if (!joy) {
                 if ((fp = fopen(env.filename = argv[i], "rb")) == 0) {
-                    fprintf(stderr, "failed to open the file '%s'.\n",
-                            argv[i]);
+                    stderr_printf("failed to open the file '%s'.\n", argv[i]);
                     return;
                 }
             } else
 #endif
                 if (include(&env, env.filename = argv[i])) {
-                fprintf(stderr, "failed to open the file '%s'.\n", argv[i]);
+                stderr_printf("failed to open the file '%s'.\n", argv[i]);
                 return;
             }
             /*

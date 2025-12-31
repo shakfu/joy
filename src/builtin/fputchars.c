@@ -22,6 +22,6 @@ void fputchars_(pEnv env) /* suggested by Heiko Kuhrt, as "fputstring_" */
     POP(env->stck);
     ISFILE("fputchars");
     fp = nodevalue(env->stck).fil;
-    fprintf(fp, "%s", str);
+    fputs(str, fp);
 }
 #endif

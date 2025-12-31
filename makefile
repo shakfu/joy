@@ -26,4 +26,4 @@ clang-format-check:
 
 clang-tidy:
 	cmake -S . -B $(BUILD_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-	$(CLANG_TIDY) -p $(BUILD_DIR) $(FORMAT_FILES)
+	python3 tools/run_clang_tidy.py $(BUILD_DIR) $(CLANG_TIDY)

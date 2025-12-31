@@ -4,6 +4,27 @@
  *  date    : 09/16/24
  */
 #include "globals.h"
+#include <stdarg.h>
+
+static void stderr_printf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+    int needed = vsnprintf(NULL, 0, fmt, ap_copy);
+    va_end(ap_copy);
+    if (needed >= 0) {
+        size_t size = (size_t)needed + 1;
+        char *buffer = malloc(size);
+        if (buffer) {
+            vsnprintf(buffer, size, fmt, ap);
+            fwrite(buffer, 1, size - 1, stderr);
+            free(buffer);
+        }
+    }
+    va_end(ap);
+}
 
 /*
  * enterglobal stores an unknown global identifier in the symbol table.
@@ -108,7 +129,7 @@ static int definition(pEnv env, int ch)
     ent = vec_at(env->symtab, index);
     if (!ent.is_user && env->overwrite) {
         fflush(stdout);
-        fprintf(stderr, "warning: overwriting inbuilt '%s'\n", ent.name);
+        stderr_printf("warning: overwriting inbuilt '%s'\n", ent.name);
     }
     ent.is_user = 1;
     ent.u.body = nodevalue(env->stck).lis;
@@ -167,7 +188,7 @@ int compound_def(pEnv env, int ch)
 
     default:
         fflush(stdout);
-        fprintf(stderr, "warning: empty compound definition\n");
+        stderr_printf("warning: empty compound definition\n");
         break;
     }
     return ch;

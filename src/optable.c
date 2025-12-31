@@ -149,10 +149,23 @@ void addsymbol(pEnv env, Entry ent, int index)
     khint_t key;
 
 #ifdef USE_KHASHL
+    if (!env->hash)
+        env->hash = symtab_init();
     key = symtab_put(env->hash, ent.name, &rv);
 #else
+    if (!env->hash)
+        env->hash = kh_init(Symtab);
+    {
+        khint_t desired = kh_size(env->hash) + 1;
+        if (desired < 4)
+            desired = 4;
+        if (kh_resize_Symtab(env->hash, desired) < 0)
+            execerror(env, "symbol table overflow", ent.name);
+    }
     key = kh_put(Symtab, env->hash, ent.name, &rv);
 #endif
+    if (rv < 0)
+        execerror(env, "symbol table overflow", ent.name);
     kh_val(env->hash, key) = index;
 }
 
@@ -204,12 +217,27 @@ void inisymboltable(pEnv env) /* initialise */
                 ent.u.proc = __dump_;
                 break;
             }
+        if (!ent.name)
+            continue;
         addsymbol(env, ent, i);
 #ifdef USE_KHASHL
+        if (!env->prim)
+            env->prim = funtab_init();
         key = funtab_put(env->prim, (uint64_t)ent.u.proc, &rv);
 #else
+        if (!env->prim)
+            env->prim = kh_init(Funtab);
+        {
+            khint_t desired = kh_size(env->prim) + 1;
+            if (desired < 4)
+                desired = 4;
+            if (kh_resize_Funtab(env->prim, desired) < 0)
+                execerror(env, "function table overflow", ent.name);
+        }
         key = kh_put(Funtab, env->prim, (uint64_t)ent.u.proc, &rv);
 #endif
+        if (rv < 0)
+            execerror(env, "function table overflow", ent.name);
         kh_val(env->prim, key) = i;
         vec_push(env->symtab, ent);
     }

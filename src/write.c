@@ -4,6 +4,31 @@
  *  date    : 10/11/24
  */
 #include "globals.h"
+#include <stdarg.h>
+
+static void safe_fprintf(FILE *fp, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+    int needed = vsnprintf(NULL, 0, fmt, ap_copy);
+    va_end(ap_copy);
+    if (needed < 0) {
+        va_end(ap);
+        return;
+    }
+    size_t size = (size_t)needed + 1;
+    char *buffer = malloc(size);
+    if (!buffer) {
+        va_end(ap);
+        return;
+    }
+    vsnprintf(buffer, size, fmt, ap);
+    va_end(ap);
+    fwrite(buffer, 1, size - 1, fp);
+    free(buffer);
+}
 
 /*
  * writefactor - print a factor in readable format to stdout.
@@ -25,35 +50,35 @@ void writefactor(pEnv env, Index n, FILE* fp)
 #endif
     switch (nodetype(n)) {
     case USR_:
-        fprintf(fp, "%s", vec_at(env->symtab, nodevalue(n).ent).name);
+        fputs(vec_at(env->symtab, nodevalue(n).ent).name, fp);
         break;
 
     case ANON_FUNCT_:
-        fprintf(fp, "%s", opername(operindex(env, nodevalue(n).proc)));
+        fputs(opername(operindex(env, nodevalue(n).proc)), fp);
         break;
 
     case BOOLEAN_:
-        fprintf(fp, "%s", nodevalue(n).num ? "true" : "false");
+        fputs(nodevalue(n).num ? "true" : "false", fp);
         break;
 
     case CHAR_:
         if (nodevalue(n).num >= 8 && nodevalue(n).num <= 13)
-            fprintf(fp, "'\\%c", "btnvfr"[nodevalue(n).num - 8]);
+            safe_fprintf(fp, "'\\%c", "btnvfr"[nodevalue(n).num - 8]);
         else if (iscntrl(nodevalue(n).num) || nodevalue(n).num == 32)
-            fprintf(fp, "'\\%03d", (int)nodevalue(n).num);
+            safe_fprintf(fp, "'\\%03d", (int)nodevalue(n).num);
         else
-            fprintf(fp, "'%c", (int)nodevalue(n).num);
+            safe_fprintf(fp, "'%c", (int)nodevalue(n).num);
         break;
 
     case INTEGER_:
-        fprintf(fp, "%" PRId64, nodevalue(n).num);
+        safe_fprintf(fp, "%" PRId64, nodevalue(n).num);
         break;
 
     case SET_:
         putc('{', fp);
         for (i = 0, j = 1, set = nodevalue(n).set; i < SETSIZE; i++, j <<= 1)
             if (set & j) {
-                fprintf(fp, "%d", i);
+                safe_fprintf(fp, "%d", i);
                 set &= ~j;
                 if (set)
                     putc(' ', fp);
@@ -69,11 +94,11 @@ void writefactor(pEnv env, Index n, FILE* fp)
         for (ptr = nodevalue(n).str; *ptr; ptr++)
 #endif
             if (*ptr == '"')
-                fprintf(fp, "\\\"");
+                fputs("\\\"", fp);
             else if (*ptr >= 8 && *ptr <= 13)
-                fprintf(fp, "\\%c", "btnvfr"[*ptr - 8]);
+                safe_fprintf(fp, "\\%c", "btnvfr"[*ptr - 8]);
             else if (iscntrl((int)*ptr))
-                fprintf(fp, "\\%03d", *ptr);
+                safe_fprintf(fp, "\\%03d", *ptr);
             else
                 putc(*ptr, fp);
         putc('"', fp);
@@ -87,38 +112,40 @@ void writefactor(pEnv env, Index n, FILE* fp)
 
     case FLOAT_:
         snprintf(buf, BUFFERMAX, "%g", nodevalue(n).dbl); /* exponent char e */
-        if ((ptr = strchr(buf, '.')) == 0) {     /* locate decimal point */
-            if ((ptr = strchr(buf, 'e')) == 0) { /* locate start of exponent */
+        ptr = strchr(buf, '.');               /* locate decimal point */
+        if (!ptr) {
+            char *exp_ptr = strchr(buf, 'e'); /* locate start of exponent */
+            if (!exp_ptr) {
                 i = buf[strlen(buf) - 1];
                 if (isdigit(i))        /* check digit present */
                     strcat(buf, ".0"); /* add decimal point and 0 */
             } else {
-                strcpy(tmp, ptr);  /* save exponent */
-                strcpy(ptr, ".0"); /* add decimal point and 0 */
+                strcpy(tmp, exp_ptr);  /* save exponent */
+                strcpy(exp_ptr, ".0"); /* add decimal point and 0 */
                 strcat(buf, tmp);  /* restore exponent */
             }
         }
-        fprintf(fp, "%s", buf);
+        fputs(buf, fp);
         break;
 
     case FILE_:
         if (!nodevalue(n).fil)
-            fprintf(fp, "NULL");
+            fputs("NULL", fp);
         else if (nodevalue(n).fil == stdin)
-            fprintf(fp, "stdin");
+            fputs("stdin", fp);
         else if (nodevalue(n).fil == stdout)
-            fprintf(fp, "stdout");
+            fputs("stdout", fp);
         else if (nodevalue(n).fil == stderr)
-            fprintf(fp, "stderr");
+            fputs("stderr", fp);
         else
-            fprintf(fp, "%p", (void*)nodevalue(n).fil);
+            safe_fprintf(fp, "%p", (void*)nodevalue(n).fil);
         break;
 
     case BIGNUM_:
 #ifdef NOBDW
-        fprintf(fp, "%s", (char*)&nodevalue(n));
+        fputs((char*)&nodevalue(n), fp);
 #else
-        fprintf(fp, "%s", nodevalue(n).str);
+        fputs(nodevalue(n).str, fp);
 #endif
         break;
 

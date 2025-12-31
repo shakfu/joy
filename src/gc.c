@@ -171,9 +171,9 @@ static void mark_ptr(char* ptr)
 {
     khint_t key;
     size_t i, size;
-    uint64_t value;
+    uintptr_t value;
 
-    value = (uint64_t)ptr;
+    value = (uintptr_t)ptr;
     if (value < lower || value >= upper)
         return;
     if ((key = kh_get(Backup, MEM, value)) != kh_end(MEM)) {
@@ -182,9 +182,20 @@ static void mark_ptr(char* ptr)
         kh_val(MEM, key).flags |= GC_MARK;
         if (kh_val(MEM, key).flags & GC_LEAF)
             return;
-        size = kh_val(MEM, key).size / sizeof(char*);
-        for (i = 0; i < size; i++)
-            mark_ptr(((char**)value)[i]); /* recursion is suspicious */
+        size = kh_val(MEM, key).size;
+        if (value + size > upper)
+            size = upper - value;
+        size /= sizeof(char*);
+        if (size == 0)
+            return;
+        for (i = 0; i < size; i++) {
+            uintptr_t slot_addr = value + i * sizeof(char*);
+            char *child;
+            if (slot_addr + sizeof(char*) > upper)
+                break;
+            memcpy(&child, (void *)slot_addr, sizeof(char*));
+            mark_ptr(child); /* recursion is suspicious */
+        }
     }
 }
 
