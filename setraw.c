@@ -110,7 +110,7 @@ static int sizeScreen(int *rows, int *cols)
 /*
  * initScreen - make rows and cols available.
  */
-static void initScreen()
+static void initScreen(void)
 {
     int rows, cols;
 
@@ -144,7 +144,7 @@ static void initScreen()
 /*
  * Undo the machinations of SetRaw.
  */
-void SetNormal()
+void SetNormal(void)
 {
     if (!raw_mode)
 	return;
@@ -202,7 +202,7 @@ void SetNormal()
 /*
  * SetRaw sets the terminal in raw mode and also calls initScreen.
  */
-void SetRaw()
+void SetRaw(void)
 {
 #ifdef ATARI
     struct sgttyb new_tty;

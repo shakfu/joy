@@ -364,8 +364,8 @@ void print(pEnv env);
 /* repl.c */
 void repl(pEnv env);
 /* setraw.c */
-void SetRaw();
-void SetNormal();
+void SetRaw(void);
+void SetNormal(void);
 /* symbol.c */
 int lookup(pEnv env, char *name);
 int enteratom(pEnv env, char *name);
