@@ -6,5 +6,5 @@ platform:
 
 build_script:
   - call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
-  - cmake .
-  - cmake --build .
+  - cmake -S . -B build
+  - cmake --build build --config Release

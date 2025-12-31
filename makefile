@@ -1,33 +1,17 @@
 #
 #   module  : makefile
-#   version : 1.18
-#   date    : 12/14/24
+#   version : 2.0
+#   date    : 02/18/25
 #
-.POSIX:
-.SUFFIXES:
+.PHONY: all joy clean
 
-# Use CC environment variable
-# CC = gcc -pg
-CF = -DNOBDW -O3 -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter
-LF = -lm
-CFLAGS = $(CF) -DCOMP="\"$(CF)\"" -DLINK="\"$(LF)\"" -DVERS="\"NOBDW Release 1.0\""
-HDRS = globals.h
-OBJS = main.o interp.o scan.o utils.o factor.o module.o optable.o symbol.o \
-       undefs.o setraw.o repl.o write.o error.o print.o gc.o
+BUILD_DIR ?= build
 
-joy:	prep $(OBJS)
-	$(CC) -o$@ $(OBJS) $(LF)
+all: joy
 
-$(OBJS): $(HDRS)
-
-prep:
-	sh prims.sh .
-	sh table.sh .
+joy:
+	cmake -S . -B $(BUILD_DIR)
+	cmake --build $(BUILD_DIR) --target $@
 
 clean:
-	rm -f $(OBJS) builtin.* table.c
-
-.SUFFIXES: .c .o
-
-.c.o:
-	$(CC) -o$@ $(CFLAGS) -c $<
+	rm -rf $(BUILD_DIR)

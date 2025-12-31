@@ -3,11 +3,13 @@
 #   version : 1.15
 #   date    : 08/29/24
 #
+set(JOY_EXECUTABLE $<TARGET_FILE:joy>)
+
 macro(exe9 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test2
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test2/${src}.joy
-		  COMMAND joy ${CMAKE_SOURCE_DIR}/test2/${src}.joy >${src}.out)
+		  COMMAND ${JOY_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test2/${src}.joy >${src}.out)
 endmacro(exe9)
 
 exe9(__dump)

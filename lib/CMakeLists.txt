@@ -3,22 +3,24 @@
 #   version : 1.7
 #   date    : 09/24/24
 #
+set(JOY_EXECUTABLE $<TARGET_FILE:joy>)
+
 macro(exe9 src)
 add_custom_target(${src}.old ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/${src}.joy
-		  COMMAND joy ${CMAKE_SOURCE_DIR}/lib/${src}.joy 24 54 >${src}.old)
+		  COMMAND ${JOY_EXECUTABLE} ${CMAKE_SOURCE_DIR}/lib/${src}.joy 24 54 >${src}.old)
 endmacro(exe9)
 
 add_custom_target(tutinp.old ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/tutinp.joy
-		  COMMAND joy <${CMAKE_SOURCE_DIR}/lib/tutinp.joy >tutinp.old)
+		  COMMAND ${JOY_EXECUTABLE} <${CMAKE_SOURCE_DIR}/lib/tutinp.joy >tutinp.old)
 
 add_custom_target(lsptst.old ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/lsptst.joy
-		  COMMAND joy <${CMAKE_SOURCE_DIR}/lib/lsptst.joy >tutinp.old)
+		  COMMAND ${JOY_EXECUTABLE} <${CMAKE_SOURCE_DIR}/lib/lsptst.joy >tutinp.old)
 
 exe9(jp-joytst)
 exe9(laztst)

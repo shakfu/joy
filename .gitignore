@@ -9,6 +9,7 @@ build/
 *.a
 
 joy
+generated/
 
 # cache
 .*_cache

@@ -1,49 +1,123 @@
 #
 #   module  : CMakeLists.txt
-#   version : 1.36
-#   date    : 12/17/24
+#   version : 1.37
+#   date    : 02/18/25
 #
 cmake_minimum_required(VERSION 3.29)
-project(Joy VERSION 1.0)
-if("${CMAKE_BUILD_TYPE}" STREQUAL "")
-  set(CMAKE_BUILD_TYPE "Release")
+project(Joy VERSION 1.0 LANGUAGES C)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_BINARY_DIR)
+  message(FATAL_ERROR "In-source builds are not supported. Use cmake -S . -B build")
 endif()
+
+if("${CMAKE_BUILD_TYPE}" STREQUAL "")
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "" FORCE)
+endif()
+
 if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
   option(RUN_TESTS "Run standard tests" ON)
 else()
   option(RUN_TESTS "Run standard tests" OFF)
 endif()
-add_executable(joy main.c interp.c scan.c utils.c factor.c module.c optable.c
-	       symbol.c undefs.c setraw.c repl.c write.c error.c print.c gc.c)
-add_definitions(-DLINK="\\"${CMAKE_EXE_LINKER_FLAGS}\\"")
-add_definitions(-DVERS="NOBDW ${CMAKE_BUILD_TYPE} ${CMAKE_PROJECT_VERSION}")
-#
-#    MSVC: cmake --build . --config Release
-#
-if(CMAKE_CXX_COMPILER_ID MATCHES "MSVC")
-  set(CMAKE_VERBOSE_MAKEFILE ON)
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNOBDW -D_CRT_SECURE_NO_DEPRECATE")
-  add_definitions(-DCOMP="\\"${CMAKE_C_FLAGS}\\"")
+
+set(JOY_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
+file(MAKE_DIRECTORY "${JOY_GENERATED_DIR}")
+
+file(GLOB JOY_PRIMITIVE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/builtin/*.c" "${CMAKE_SOURCE_DIR}/src/builtin/*.h")
+
+add_custom_command(
+  OUTPUT "${JOY_GENERATED_DIR}/builtin.c" "${JOY_GENERATED_DIR}/builtin.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${JOY_GENERATED_DIR}"
+  COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen_builtins.py"
+          "${CMAKE_SOURCE_DIR}" "${JOY_GENERATED_DIR}"
+  DEPENDS ${JOY_PRIMITIVE_SOURCES} "${CMAKE_SOURCE_DIR}/tools/gen_builtins.py"
+  VERBATIM
+)
+
+add_custom_command(
+  OUTPUT "${JOY_GENERATED_DIR}/table.c"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${JOY_GENERATED_DIR}"
+  COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen_table.py"
+          "${CMAKE_SOURCE_DIR}" "${JOY_GENERATED_DIR}/table.c"
+  DEPENDS ${JOY_PRIMITIVE_SOURCES} "${CMAKE_SOURCE_DIR}/tools/gen_table.py"
+  VERBATIM
+)
+
+add_custom_target(joy_generated
+  DEPENDS
+    "${JOY_GENERATED_DIR}/builtin.c"
+    "${JOY_GENERATED_DIR}/builtin.h"
+    "${JOY_GENERATED_DIR}/table.c")
+
+set(JOY_CORE_SOURCES
+  src/error.c
+  src/factor.c
+  src/gc.c
+  src/interp.c
+  src/module.c
+  src/optable.c
+  src/print.c
+  src/repl.c
+  src/scan.c
+  src/setraw.c
+  src/symbol.c
+  src/undefs.c
+  src/utils.c
+  src/write.c
+)
+
+add_library(joycore_static STATIC ${JOY_CORE_SOURCES})
+add_library(joycore_shared SHARED ${JOY_CORE_SOURCES})
+
+add_dependencies(joycore_static joy_generated)
+add_dependencies(joycore_shared joy_generated)
+
+set(JOY_PUBLIC_INCLUDES "${CMAKE_SOURCE_DIR}/include")
+
+foreach(target joycore_static joycore_shared)
+  target_include_directories(${target}
+    PUBLIC "${JOY_PUBLIC_INCLUDES}"
+    PRIVATE "${JOY_GENERATED_DIR}" "${CMAKE_SOURCE_DIR}")
+  target_compile_features(${target} PUBLIC c_std_11)
+endforeach()
+
+if(MSVC)
+  set(JOY_RELEASE_COMPILER_FLAGS "/DNOBDW /W4 /WX")
+  set(JOY_DEBUG_COMPILER_FLAGS "${JOY_RELEASE_COMPILER_FLAGS}")
+  foreach(target joycore_static joycore_shared)
+    target_compile_definitions(${target}
+      PUBLIC NOBDW _CRT_SECURE_NO_DEPRECATE)
+    target_compile_definitions(${target}
+      PUBLIC
+        VERS="NOBDW $<CONFIG> ${PROJECT_VERSION}"
+        LINK="${CMAKE_EXE_LINKER_FLAGS}"
+        COMP="$<IF:$<CONFIG:Debug>,${JOY_DEBUG_COMPILER_FLAGS},${JOY_RELEASE_COMPILER_FLAGS}>")
+  endforeach()
 else()
-  add_dependencies(joy always)
-  add_custom_target(always
-		    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-		    COMMAND sh prims.sh .
-		    COMMAND sh table.sh .)
-  set(CF "-DNOBDW -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter -Wno-unused-result")
-  if("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${CF}")
-    add_definitions(-DCOMP="\\"${CMAKE_C_FLAGS_RELEASE}\\"")
-  else()
-    set(CMAKE_C_FLAGS_DEBUG	# debug, enabling coverage
-  "${CMAKE_C_FLAGS_DEBUG} ${CF} -O3 --coverage -fprofile-arcs -ftest-coverage")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
-    add_definitions(-DCOMP="\\"${CMAKE_C_FLAGS_DEBUG}\\"")
-  endif()
-  target_link_libraries(joy m)
-  if(RUN_TESTS)
-    add_subdirectory(lib)
-    add_subdirectory(test2)
-    add_subdirectory(test4)
-  endif()
+  set(JOY_RELEASE_COMPILER_FLAGS "-DNOBDW -O3 -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter -Wno-unused-result")
+  set(JOY_DEBUG_COMPILER_FLAGS "${JOY_RELEASE_COMPILER_FLAGS} --coverage -fprofile-arcs -ftest-coverage")
+  foreach(target joycore_static joycore_shared)
+    target_compile_options(${target}
+      PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter -Wno-unused-result)
+    target_compile_definitions(${target}
+      PUBLIC NOBDW
+      PUBLIC
+        VERS="NOBDW $<CONFIG> ${PROJECT_VERSION}"
+        LINK="${CMAKE_EXE_LINKER_FLAGS}"
+        COMP="$<IF:$<CONFIG:Debug>,${JOY_DEBUG_COMPILER_FLAGS},${JOY_RELEASE_COMPILER_FLAGS}>")
+  endforeach()
+  foreach(target joycore_static joycore_shared)
+    target_link_libraries(${target} PUBLIC m)
+  endforeach()
+endif()
+
+add_executable(joy src/main.c)
+target_link_libraries(joy PRIVATE joycore_static)
+add_dependencies(joy joy_generated)
+
+if(RUN_TESTS)
+  add_subdirectory(lib)
+  add_subdirectory(test2)
+  add_subdirectory(test4)
 endif()

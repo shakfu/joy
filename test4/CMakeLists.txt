@@ -1,20 +1,21 @@
-#
 #   module  : CMakeLists.txt
 #   version : 1.2
 #   date    : 10/29/24
 #
+set(JOY_EXECUTABLE $<TARGET_FILE:joy>)
+
 macro(exe9 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy >${src}.out)
+		  COMMAND ${JOY_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test4/${src}.joy >${src}.out)
 endmacro(exe9)
 
 macro(exe8 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy -x ${CMAKE_SOURCE_DIR}/test4/${src}.joy
+		  COMMAND ${JOY_EXECUTABLE} -x ${CMAKE_SOURCE_DIR}/test4/${src}.joy
 		  	  >${src}.out)
 endmacro(exe8)
 
@@ -22,7 +23,7 @@ macro(exe7 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy -t ${CMAKE_SOURCE_DIR}/test4/${src}.joy
+		  COMMAND ${JOY_EXECUTABLE} -t ${CMAKE_SOURCE_DIR}/test4/${src}.joy
 		  	  >${src}.out)
 endmacro(exe7)
 
@@ -30,14 +31,14 @@ macro(exe6 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy -kh ${CMAKE_SOURCE_DIR}/test4/${src}.joy)
+		  COMMAND ${JOY_EXECUTABLE} -kh ${CMAKE_SOURCE_DIR}/test4/${src}.joy)
 endmacro(exe6)
 
 macro(exe5 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy -y ${CMAKE_SOURCE_DIR}/test4/${src}.joy
+		  COMMAND ${JOY_EXECUTABLE} -y ${CMAKE_SOURCE_DIR}/test4/${src}.joy
 		  	  >${src}.out)
 endmacro(exe5)
 
@@ -45,7 +46,7 @@ macro(exe4 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy -adegiluvw ${CMAKE_SOURCE_DIR}/test4/${src}.joy
+		  COMMAND ${JOY_EXECUTABLE} -adegiluvw ${CMAKE_SOURCE_DIR}/test4/${src}.joy
 		  	  >${src}.out)
 endmacro(exe4)
 
@@ -53,7 +54,7 @@ macro(exe3 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy dummy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
+		  COMMAND ${JOY_EXECUTABLE} dummy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
 		  	  >${src}.out)
 endmacro(exe3)
 
@@ -61,14 +62,14 @@ macro(exe2 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy <${CMAKE_SOURCE_DIR}/test4/${src}.joy >${src}.out)
+		  COMMAND ${JOY_EXECUTABLE} <${CMAKE_SOURCE_DIR}/test4/${src}.joy >${src}.out)
 endmacro(exe2)
 
 macro(exe1 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy -s ${CMAKE_SOURCE_DIR}/test4/${src}.joy
+		  COMMAND ${JOY_EXECUTABLE} -s ${CMAKE_SOURCE_DIR}/test4/${src}.joy
 		  	  >${src}.out)
 endmacro(exe1)
 
@@ -76,7 +77,7 @@ macro(exe0 src)
 add_custom_target(${src}.out ALL
 		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/test4
 		  DEPENDS joy ${CMAKE_SOURCE_DIR}/test4/${src}.joy
-		  COMMAND joy -p ${CMAKE_SOURCE_DIR}/test4/${src}.joy
+		  COMMAND ${JOY_EXECUTABLE} -p ${CMAKE_SOURCE_DIR}/test4/${src}.joy
 		  	  >${src}.out)
 endmacro(exe0)
 
