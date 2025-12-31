@@ -10,8 +10,5 @@
 Q0  IGNORE_OK  3130  quit  :  ->
 [IMPURE] Exit from Joy.
 */
-void quit_(pEnv env)
-{
-    abortexecution_(ABORT_QUIT);
-}	/* LCOV_EXCL_LINE */
+void quit_(pEnv env) { abortexecution_(ABORT_QUIT); } /* LCOV_EXCL_LINE */
 #endif

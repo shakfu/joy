@@ -13,5 +13,4 @@ Numeric N is the predecessor of numeric M.
 PREDSUCC(pred_, "pred", -)
 
 
-
 #endif

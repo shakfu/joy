@@ -12,7 +12,7 @@ Q0  OK  1940  fput  :  S X  ->  S
 */
 void fput_(pEnv env)
 {
-    FILE *fp;
+    FILE* fp;
     Index node;
 
     TWOPARAMS("fput");

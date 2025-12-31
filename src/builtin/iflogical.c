@@ -13,5 +13,4 @@ If X is a logical or truth value, executes T else executes E.
 IF_TYPE(iflogical_, "iflogical", BOOLEAN_)
 
 
-
 #endif

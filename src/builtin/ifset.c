@@ -13,5 +13,4 @@ If X is a set, executes T else executes E.
 IF_TYPE(ifset_, "ifset", SET_)
 
 
-
 #endif

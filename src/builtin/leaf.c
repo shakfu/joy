@@ -13,5 +13,4 @@ Tests whether X is not a list.
 TYPE(leaf_, "leaf", !=, LIST_)
 
 
-
 #endif

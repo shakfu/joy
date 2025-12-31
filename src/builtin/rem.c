@@ -16,7 +16,7 @@ void rem_(pEnv env)
     FLOAT_P(fmod);
     INTEGERS2("rem");
     CHECKZERO("rem");
-    BINARY(INTEGER_NEWNODE, nodevalue(nextnode1(env->stck)).num %
-		    nodevalue(env->stck).num);
+    BINARY(INTEGER_NEWNODE,
+           nodevalue(nextnode1(env->stck)).num % nodevalue(env->stck).num);
 }
 #endif

@@ -17,9 +17,9 @@ void abs_(pEnv env)
     /* start new */
     FLOAT("abs");
     if (nodetype(env->stck) == INTEGER_) {
-	if (nodevalue(env->stck).num < 0)
-	    UNARY(INTEGER_NEWNODE, -nodevalue(env->stck).num);
-	return;
+        if (nodevalue(env->stck).num < 0)
+            UNARY(INTEGER_NEWNODE, -nodevalue(env->stck).num);
+        return;
     }
     /* end new */
     FLOAT_U(fabs);

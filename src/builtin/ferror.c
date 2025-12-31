@@ -13,5 +13,4 @@ Q0  OK  1850  ferror  :  S  ->  S B
 FILEGET(ferror_, "ferror", BOOLEAN_NEWNODE, ferror(nodevalue(env->stck).fil))
 
 
-
 #endif

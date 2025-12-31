@@ -13,5 +13,4 @@ X (= A[I]) is the I-th member of aggregate A.
 OF_AT(of_, "of", env->stck, nextnode1(env->stck))
 
 
-
 #endif

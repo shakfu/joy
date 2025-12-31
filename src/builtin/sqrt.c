@@ -13,5 +13,4 @@ G is the square root of F.
 UFLOAT(sqrt_, "sqrt", sqrt)
 
 
-
 #endif

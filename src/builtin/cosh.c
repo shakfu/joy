@@ -13,5 +13,4 @@ G is the hyperbolic cosine of F.
 UFLOAT(cosh_, "cosh", cosh)
 
 
-
 #endif

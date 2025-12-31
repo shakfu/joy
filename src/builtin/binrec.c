@@ -24,17 +24,17 @@ void binrecaux(pEnv env)
     env->stck = DMP1;
     POP(env->dump1);
     if (result)
-	exeterm(env, nodevalue(SAVED3).lis);
+        exeterm(env, nodevalue(SAVED3).lis);
     else {
-	exeterm(env, nodevalue(SAVED2).lis);	/* split */
-	env->dump2 = newnode2(env, env->stck, env->dump2);
-	POP(env->stck);
-	binrecaux(env);	/* first */
-	GNULLARY(env->dump2);
-	POP(env->dump2);
-	binrecaux(env);	/* second */
-	exeterm(env, nodevalue(SAVED1).lis);
-    }	/* combine */
+        exeterm(env, nodevalue(SAVED2).lis); /* split */
+        env->dump2 = newnode2(env, env->stck, env->dump2);
+        POP(env->stck);
+        binrecaux(env); /* first */
+        GNULLARY(env->dump2);
+        POP(env->dump2);
+        binrecaux(env); /* second */
+        exeterm(env, nodevalue(SAVED1).lis);
+    } /* combine */
 }
 
 void binrec_(pEnv env)

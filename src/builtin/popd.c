@@ -15,5 +15,4 @@ As if defined by:   popd  ==  [pop] dip
 DIPPED(popd_, "popd", TWOPARAMS, pop_)
 
 
-
 #endif

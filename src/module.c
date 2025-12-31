@@ -21,7 +21,7 @@ static int module_index = -1;
 /*
  * savemod saves the global variables, to be restored later with undomod.
  */
-void savemod(int *hide, int *modl, int *hcnt)
+void savemod(int* hide, int* modl, int* hcnt)
 {
     *hide = hide_index;
     *modl = module_index;
@@ -39,10 +39,10 @@ void undomod(int hide, int modl, int hcnt)
  * initmod registers name as a module name. Modules within modules are
  * supported. Up to a certain extent, that is.
  */
-void initmod(pEnv env, char *name)
+void initmod(pEnv env, char* name)
 {
     if (module_index + 1 == DISPLAYMAX)
-	execerror(env, "index", "display");
+        execerror(env, "index", "display");
     env->module_stack[++module_index].name = name;
     env->module_stack[module_index].hide = hide_index;
 }
@@ -59,7 +59,7 @@ void initmod(pEnv env, char *name)
 void initpriv(pEnv env)
 {
     if (hide_index + 1 == DISPLAYMAX)
-	execerror(env, "index", "display");
+        execerror(env, "index", "display");
     env->hide_stack[++hide_index] = ++hide_count;
     inside_hide = 1;
 }
@@ -80,10 +80,10 @@ void stoppriv(void)
 void exitpriv(void)
 {
     if (!been_inside)
-	return;
+        return;
     been_inside = 0;
     if (hide_index >= 0)
-	hide_index--;
+        hide_index--;
 }
 
 /*
@@ -92,23 +92,23 @@ void exitpriv(void)
 void exitmod(void)
 {
     if (module_index >= 0)
-	module_index--;
+        module_index--;
     if (module_index < 0)
-	exitpriv();
+        exitpriv();
 }
 
 /*
  * classify prepends name with private section or module name, whichever
  * comes first. Names are stored in the symbol table together with this prefix,
- * allowing the same names to be used in different private sections and modules.
- * The symbol table is flat, in the sense that it has no hierarchy. For that
- * reason names must be made unique with this prefix. For public names it is
- * sufficient that they are preceded by the module name; for private names it
- * is ok to have the private number as a prefix.
+ * allowing the same names to be used in different private sections and
+ * modules. The symbol table is flat, in the sense that it has no hierarchy.
+ * For that reason names must be made unique with this prefix. For public names
+ * it is sufficient that they are preceded by the module name; for private
+ * names it is ok to have the private number as a prefix.
  *
  * classify is used when entering the name that has a definition.
  */
-char *classify(pEnv env, char *name)
+char* classify(pEnv env, char* name)
 {
     size_t leng;
     char temp[MAXNUM], *buf = 0, *str;
@@ -117,14 +117,14 @@ char *classify(pEnv env, char *name)
      * if name already has a prefix, there is no need to add another one.
      */
     if (strchr(name, '.'))
-	return name;
+        return name;
     /*
      * inside a private section, names that are to be entered in the symbol
      * table should get the hide number as a prefix.
      */
     if (inside_hide) {
-	snprintf(temp, MAXNUM, "%d", env->hide_stack[hide_index]);
-	buf = temp;
+        snprintf(temp, MAXNUM, "%d", env->hide_stack[hide_index]);
+        buf = temp;
     }
     /*
      * inside a module, public names that are to be entered in the symbol table
@@ -132,17 +132,17 @@ char *classify(pEnv env, char *name)
      * accessing the symbol.
      */
     else if (module_index >= 0)
-	buf = env->module_stack[module_index].name;
+        buf = env->module_stack[module_index].name;
     /*
      * buf, when filled, contains either a module identifier, or a number
      * string.
      */
     if (buf) {
-	leng = strlen(buf) + strlen(name) + 2;
-	str = GC_malloc_atomic(leng);
-	snprintf(str, leng, "%s.%s", buf, name);
+        leng = strlen(buf) + strlen(name) + 2;
+        str = GC_malloc_atomic(leng);
+        snprintf(str, leng, "%s.%s", buf, name);
     } else
-	str = name;
+        str = name;
     /*
      * str will contain either the unadorned name, or a classified name.
      */
@@ -160,7 +160,7 @@ char *classify(pEnv env, char *name)
  *
  * qualify is used when reading a name, as part of a definition.
  */
-int qualify(pEnv env, char *name)
+int qualify(pEnv env, char* name)
 {
     khint_t key;
     size_t leng;
@@ -174,12 +174,12 @@ int qualify(pEnv env, char *name)
      */
     if (strchr(name, '.')) {
 #ifdef USE_KHASHL
-	if ((key = symtab_get(env->hash, name)) != kh_end(env->hash))
+        if ((key = symtab_get(env->hash, name)) != kh_end(env->hash))
 #else
         if ((key = kh_get(Symtab, env->hash, name)) != kh_end(env->hash))
 #endif
             return kh_val(env->hash, key);
-	return 0;
+        return 0;
     }
     /*
      * the hide stack is searched, trying each of the hidden sections. The
@@ -188,38 +188,38 @@ int qualify(pEnv env, char *name)
      * the search through the hide stack of enclosing modules.
      */
     if (hide_index >= 0) {
-	if (module_index >= 0)
-	    limit = env->module_stack[module_index].hide;
-	else
-	    limit = -1;
-	for (index = hide_index; index > limit; index--) {
-	    snprintf(temp, MAXNUM, "%d", env->hide_stack[index]);
-	    leng = strlen(temp) + strlen(name) + 2;
-	    str = GC_malloc_atomic(leng);
-	    snprintf(str, leng, "%s.%s", temp, name);
+        if (module_index >= 0)
+            limit = env->module_stack[module_index].hide;
+        else
+            limit = -1;
+        for (index = hide_index; index > limit; index--) {
+            snprintf(temp, MAXNUM, "%d", env->hide_stack[index]);
+            leng = strlen(temp) + strlen(name) + 2;
+            str = GC_malloc_atomic(leng);
+            snprintf(str, leng, "%s.%s", temp, name);
 #ifdef USE_KHASHL
-	    if ((key = symtab_get(env->hash, str)) != kh_end(env->hash))
+            if ((key = symtab_get(env->hash, str)) != kh_end(env->hash))
 #else
-	    if ((key = kh_get(Symtab, env->hash, str)) != kh_end(env->hash))
+            if ((key = kh_get(Symtab, env->hash, str)) != kh_end(env->hash))
 #endif
-		return kh_val(env->hash, key);
-	}
+                return kh_val(env->hash, key);
+        }
     }
     /*
      * if the name can not be found in the local tables, it should be searched
      * in the currently active module, if there is one.
      */
     if (module_index >= 0) {
-	buf = env->module_stack[module_index].name;
-	leng = strlen(buf) + strlen(name) + 2;
-	str = GC_malloc_atomic(leng);
-	snprintf(str, leng, "%s.%s", buf, name);
+        buf = env->module_stack[module_index].name;
+        leng = strlen(buf) + strlen(name) + 2;
+        str = GC_malloc_atomic(leng);
+        snprintf(str, leng, "%s.%s", buf, name);
 #ifdef USE_KHASHL
-	if ((key = symtab_get(env->hash, str)) != kh_end(env->hash))
+        if ((key = symtab_get(env->hash, str)) != kh_end(env->hash))
 #else
         if ((key = kh_get(Symtab, env->hash, str)) != kh_end(env->hash))
 #endif
-	    return kh_val(env->hash, key);
+            return kh_val(env->hash, key);
     }
     /*
      * if the name is not fully classified, cannot be found in the local tables
@@ -231,6 +231,6 @@ int qualify(pEnv env, char *name)
 #else
     if ((key = kh_get(Symtab, env->hash, name)) != kh_end(env->hash))
 #endif
-	return kh_val(env->hash, key);
+        return kh_val(env->hash, key);
     return 0;
 }

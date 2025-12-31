@@ -19,20 +19,20 @@ void sign_(pEnv env)
     /* start new */
     FLOAT("sign");
     if (nodetype(env->stck) == INTEGER_) {
-	if (nodevalue(env->stck).num != 0 && nodevalue(env->stck).num != 1)
-	    UNARY(INTEGER_NEWNODE, nodevalue(env->stck).num > 0 ? 1 : -1);
-	return;
+        if (nodevalue(env->stck).num != 0 && nodevalue(env->stck).num != 1)
+            UNARY(INTEGER_NEWNODE, nodevalue(env->stck).num > 0 ? 1 : -1);
+        return;
     }
     /* end new */
     if (FLOATABLE) {
-	dbl = FLOATVAL;
-	if (dbl > 0.0)
-	    dbl = 1.0;
-	else if (dbl < 0.0)
-	    dbl = -1.0;
-	else
-	    dbl = 0.0;
-	UNARY(FLOAT_NEWNODE, dbl);
+        dbl = FLOATVAL;
+        if (dbl > 0.0)
+            dbl = 1.0;
+        else if (dbl < 0.0)
+            dbl = -1.0;
+        else
+            dbl = 0.0;
+        UNARY(FLOAT_NEWNODE, dbl);
     }
 }
 #endif

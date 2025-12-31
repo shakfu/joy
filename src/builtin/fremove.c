@@ -13,7 +13,7 @@ system. B is a boolean indicating success or failure.
 */
 void fremove_(pEnv env)
 {
-    char *str;
+    char* str;
 
     ONEPARAM("fremove");
     STRING("fremove");

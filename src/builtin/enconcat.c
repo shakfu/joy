@@ -6,9 +6,9 @@
 #ifndef ENCONCAT_C
 #define ENCONCAT_C
 
-#include "swapd.c"
-#include "cons.c"
 #include "concat.c"
+#include "cons.c"
+#include "swapd.c"
 
 /**
 Q0  OK  2160  enconcat  :  X S T  ->  U

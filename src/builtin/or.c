@@ -13,5 +13,4 @@ Z is the union of sets X and Y, logical disjunction for truth values.
 ANDORXOR(or_, "or", |, ||)
 
 
-
 #endif

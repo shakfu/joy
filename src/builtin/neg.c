@@ -16,9 +16,9 @@ void neg_(pEnv env)
     /* start new */
     FLOAT("neg");
     if (nodetype(env->stck) == INTEGER_) {
-	if (nodevalue(env->stck).num)
-	    UNARY(INTEGER_NEWNODE, -nodevalue(env->stck).num);
-	return;
+        if (nodevalue(env->stck).num)
+            UNARY(INTEGER_NEWNODE, -nodevalue(env->stck).num);
+        return;
     }
     /* end new */
     FLOAT_U(-);

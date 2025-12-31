@@ -13,5 +13,4 @@ G is the cosine of F.
 UFLOAT(cos_, "cos", cos)
 
 
-
 #endif

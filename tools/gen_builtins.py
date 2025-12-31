@@ -23,12 +23,17 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
     builtin_c = output_dir / "builtin.c"
     with builtin_c.open("w") as bc_file:
         for src in sources:
-            bc_file.write(f'#include "{src.resolve().as_posix()}"\n')
+            rel = src.resolve().relative_to(source_dir.resolve())
+            bc_file.write(f'#include "{rel.as_posix()}"\n')
 
     builtin_h = output_dir / "builtin.h"
     with builtin_h.open("w") as bh_file:
+        bh_file.write("#ifndef JOY_BUILTIN_GENERATED_H\n")
+        bh_file.write("#define JOY_BUILTIN_GENERATED_H\n\n")
+        bh_file.write('#include "globals.h"\n\n')
         for src in sources:
             bh_file.write(f"void {src.stem}_(pEnv env);\n")
+        bh_file.write("\n#endif /* JOY_BUILTIN_GENERATED_H */\n")
 
 
 def main() -> None:

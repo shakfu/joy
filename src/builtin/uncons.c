@@ -13,35 +13,35 @@ F and R are the first and the rest of non-empty aggregate A.
 void uncons_(pEnv env)
 {
     int i = 0;
-    char *str;
+    char* str;
     uint64_t set;
 
     ONEPARAM("uncons");
     switch (nodetype(env->stck)) {
     case SET_:
-	set = nodevalue(env->stck).set;
-	CHECKEMPTYSET(set, "uncons");
-	while (!(set & ((int64_t)1 << i)))
-	    i++;
-	UNARY(INTEGER_NEWNODE, i);
-	NULLARY(SET_NEWNODE, set & ~((int64_t)1 << i));
-	break;
+        set = nodevalue(env->stck).set;
+        CHECKEMPTYSET(set, "uncons");
+        while (!(set & ((int64_t)1 << i)))
+            i++;
+        UNARY(INTEGER_NEWNODE, i);
+        NULLARY(SET_NEWNODE, set & ~((int64_t)1 << i));
+        break;
     case STRING_:
-	str = strdup((char *)&nodevalue(env->stck));
-	CHECKEMPTYSTRING(str, "uncons");
-	UNARY(CHAR_NEWNODE, *str);
-	NULLARY(STRING_NEWNODE, str + 1);
-	free(str);
-	break;
+        str = strdup((char*)&nodevalue(env->stck));
+        CHECKEMPTYSTRING(str, "uncons");
+        UNARY(CHAR_NEWNODE, *str);
+        NULLARY(STRING_NEWNODE, str + 1);
+        free(str);
+        break;
     case LIST_:
-	SAVESTACK;
-	CHECKEMPTYLIST(nodevalue(SAVED1).lis, "uncons");
-	GUNARY(nodevalue(SAVED1).lis);
-	NULLARY(LIST_NEWNODE, nextnode1(nodevalue(SAVED1).lis));
-	POP(env->dump);
-	break;
+        SAVESTACK;
+        CHECKEMPTYLIST(nodevalue(SAVED1).lis, "uncons");
+        GUNARY(nodevalue(SAVED1).lis);
+        NULLARY(LIST_NEWNODE, nextnode1(nodevalue(SAVED1).lis));
+        POP(env->dump);
+        break;
     default:
-	BADAGGREGATE("uncons");
+        BADAGGREGATE("uncons");
     }
 }
 #endif

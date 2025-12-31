@@ -18,23 +18,23 @@ void size_(pEnv env)
     ONEPARAM("size");
     switch (nodetype(env->stck)) {
     case SET_:
-	for (i = 0; i < SETSIZE; i++)
-	    if (nodevalue(env->stck).set & ((int64_t)1 << i))
-		size++;
-	break;
+        for (i = 0; i < SETSIZE; i++)
+            if (nodevalue(env->stck).set & ((int64_t)1 << i))
+                size++;
+        break;
     case STRING_:
 #ifdef NOBDW
-	size = nodeleng(env->stck);
+        size = nodeleng(env->stck);
 #else
-	size = strlen(nodevalue(env->stck).str);
+        size = strlen(nodevalue(env->stck).str);
 #endif
-	break;
+        break;
     case LIST_:
-	for (list = nodevalue(env->stck).lis; list; list = nextnode1(list))
-	    size++;
-	break;
+        for (list = nodevalue(env->stck).lis; list; list = nextnode1(list))
+            size++;
+        break;
     default:
-	BADAGGREGATE("size");
+        BADAGGREGATE("size");
     }
     UNARY(INTEGER_NEWNODE, size);
 }

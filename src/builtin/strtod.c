@@ -12,7 +12,7 @@ String S is converted to the float R.
 */
 void strtod_(pEnv env)
 {
-    char *str;
+    char* str;
 
     ONEPARAM("strtod");
     STRING("strtod");

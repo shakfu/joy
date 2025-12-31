@@ -14,10 +14,10 @@ Q0  OK  3160  filetime  :  F  ->  T
 */
 void filetime_(pEnv env)
 {
-    FILE *fp;
-    char *str;
-    time_t mtime;	/* modification time */
-    struct stat *buf;	/* struct stat is big */
+    FILE* fp;
+    char* str;
+    time_t mtime;     /* modification time */
+    struct stat* buf; /* struct stat is big */
 
     ONEPARAM("filetime");
     STRING("filetime");
@@ -25,16 +25,16 @@ void filetime_(pEnv env)
     mtime = 0;
     if ((fp = fopen(str, "r")) != 0) {
 #ifdef NOBDW
-	buf = malloc(sizeof(struct stat));
+        buf = malloc(sizeof(struct stat));
 #else
-	buf = GC_malloc_atomic(sizeof(struct stat));
+        buf = GC_malloc_atomic(sizeof(struct stat));
 #endif
-	if (fstat(fileno(fp), buf) >= 0)
-	    mtime = buf->st_mtime;
+        if (fstat(fileno(fp), buf) >= 0)
+            mtime = buf->st_mtime;
 #ifdef NOBDW
-	free(buf);
+        free(buf);
 #endif
-	fclose(fp);
+        fclose(fp);
     }
     UNARY(INTEGER_NEWNODE, mtime);
 }

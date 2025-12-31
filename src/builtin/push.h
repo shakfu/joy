@@ -6,6 +6,6 @@
 #ifndef PUSH_H
 #define PUSH_H
 
-#define PUSH(PROCEDURE, CONSTRUCTOR, VALUE)				\
+#define PUSH(PROCEDURE, CONSTRUCTOR, VALUE)                                   \
     void PROCEDURE(pEnv env) { NULLARY(CONSTRUCTOR, VALUE); }
 #endif

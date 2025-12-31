@@ -14,5 +14,4 @@ Also supports float.
 PLUSMINUS(minus_, "-", -)
 
 
-
 #endif

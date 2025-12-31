@@ -13,5 +13,4 @@ Q0  OK  1050  __symtabmax  :  ->  I
 PUSH(__symtabmax_, INTEGER_NEWNODE, vec_max(env->symtab))
 
 
-
 #endif

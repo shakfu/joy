@@ -13,5 +13,4 @@ H is F raised to the Gth power.
 BFLOAT(pow_, "pow", pow)
 
 
-
 #endif

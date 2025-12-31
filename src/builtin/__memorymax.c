@@ -10,8 +10,5 @@
 Q0  IGNORE_PUSH  1160  __memorymax  :  ->  I
 [IMPURE] Pushes value of total size of memory.
 */
-void __memorymax_(pEnv env)
-{
-    my_memorymax(env);
-}
+void __memorymax_(pEnv env) { my_memorymax(env); }
 #endif

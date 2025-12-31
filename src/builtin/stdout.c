@@ -13,5 +13,4 @@ Q0  IMMEDIATE  1180  stdout  :  ->  S
 PUSH(stdout_, FILE_NEWNODE, stdout)
 
 
-
 #endif

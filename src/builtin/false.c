@@ -13,5 +13,4 @@ Pushes the value false.
 PUSH(false_, BOOLEAN_NEWNODE, 0)
 
 
-
 #endif

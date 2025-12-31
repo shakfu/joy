@@ -13,5 +13,4 @@ Tests whether X is a string.
 TYPE(string_, "string", ==, STRING_)
 
 
-
 #endif

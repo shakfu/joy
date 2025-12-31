@@ -13,5 +13,4 @@ G is the hyperbolic tangent of F.
 UFLOAT(tanh_, "tanh", tanh)
 
 
-
 #endif

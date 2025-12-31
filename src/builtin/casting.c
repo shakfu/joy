@@ -18,11 +18,11 @@ void casting_(pEnv env)
     node.op = nodevalue(env->stck).num;
     POP(env->stck);
     if (node.op == STRING_ || node.op == BIGNUM_)
-	node.u.str = strdup((char *)&nodevalue(env->stck));
+        node.u.str = strdup((char*)&nodevalue(env->stck));
     else
-	node.u = nodevalue(env->stck);
+        node.u = nodevalue(env->stck);
     env->stck = newnode(env, node.op, node.u, nextnode1(env->stck));
     if (node.op == STRING_ || node.op == BIGNUM_)
-	free(node.u.str);
+        free(node.u.str);
 }
 #endif

@@ -13,5 +13,4 @@ G is the float ceiling of F.
 UFLOAT(ceil_, "ceil", ceil)
 
 
-
 #endif

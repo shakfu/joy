@@ -13,5 +13,4 @@ Q2  OK  2680  iffile  :  X [T] [E]  ->  ...
 IF_TYPE(iffile_, "iffile", FILE_)
 
 
-
 #endif

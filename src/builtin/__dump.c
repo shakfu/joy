@@ -13,5 +13,4 @@ Q0  OK  1070  __dump  :  ->  [..]
 PUSH(__dump_, INTEGER_NEWNODE, 0) /* variables */
 
 
-
 #endif

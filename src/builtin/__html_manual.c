@@ -12,8 +12,5 @@
 Q0  IGNORE_OK  2940  __html_manual  :  ->
 [IMPURE] Writes this manual of all Joy primitives to output file in HTML style.
 */
-void __html_manual_(pEnv env)
-{
-    make_manual(1);
-}
+void __html_manual_(pEnv env) { make_manual(1); }
 #endif

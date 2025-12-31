@@ -21,17 +21,17 @@ void case_(pEnv env)
     n = nodevalue(env->stck).lis;
     CHECKEMPTYLIST(n, "case");
     while (nextnode1(n) && nodetype(n) == LIST_) {
-	if (!Compare(env, nodevalue(n).lis, nextnode1(env->stck)))
-	    break;
-	n = nextnode1(n);
+        if (!Compare(env, nodevalue(n).lis, nextnode1(env->stck)))
+            break;
+        n = nextnode1(n);
     }
     CHECKLIST(nodetype(n), "case");
     if (nextnode1(n)) {
-	env->stck = nextnode2(env->stck);
-	exeterm(env, nextnode1(nodevalue(n).lis));
+        env->stck = nextnode2(env->stck);
+        exeterm(env, nextnode1(nodevalue(n).lis));
     } else {
-	env->stck = nextnode1(env->stck);
-	exeterm(env, nodevalue(n).lis);
+        env->stck = nextnode1(env->stck);
+        exeterm(env, nodevalue(n).lis);
     }
 }
 #endif

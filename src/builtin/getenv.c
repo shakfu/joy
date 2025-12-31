@@ -12,13 +12,13 @@ Q0  OK  3030  getenv  :  "variable"  ->  "value"
 */
 void getenv_(pEnv env)
 {
-    char *str;
+    char* str;
 
     ONEPARAM("getenv");
     STRING("getenv");
     str = GETSTRING(env->stck);
     if ((str = getenv(str)) == 0)
-	str = "";
+        str = "";
     UNARY(STRING_NEWNODE, str);
 }
 #endif

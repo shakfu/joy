@@ -13,5 +13,4 @@ C is the character whose Ascii value is integer I (or logical or character).
 ORDCHR(chr_, "chr", CHAR_NEWNODE)
 
 
-
 #endif

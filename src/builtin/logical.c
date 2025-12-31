@@ -13,5 +13,4 @@ Tests whether X is a logical.
 TYPE(logical_, "logical", ==, BOOLEAN_)
 
 
-
 #endif

@@ -13,13 +13,13 @@ On end-of-file returns to previous input file.
 */
 void include_(pEnv env)
 {
-    char *str;
+    char* str;
 
     ONEPARAM("include");
     STRING("include");
     str = GETSTRING(env->stck);
     if (include(env, str))
-	execerror(env, "valid file name", "include");
+        execerror(env, "valid file name", "include");
     POP(env->stck);
-} 
+}
 #endif

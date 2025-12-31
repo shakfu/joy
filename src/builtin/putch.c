@@ -11,7 +11,7 @@ Q0  IGNORE_POP  3090  putch  :  N  ->
 [IMPURE] N : numeric, writes character whose ASCII is N.
 */
 USETOP(putch_, "putch", NUMERICTYPE,
-	printf("%c", (int)nodevalue(env->stck).num))
+       printf("%c", (int)nodevalue(env->stck).num))
 
 
 #endif

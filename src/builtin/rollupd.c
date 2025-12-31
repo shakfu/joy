@@ -15,5 +15,4 @@ As if defined by:   rollupd  ==  [rollup] dip
 DIPPED(rollupd_, "rollupd", FOURPARAMS, rollup_)
 
 
-
 #endif

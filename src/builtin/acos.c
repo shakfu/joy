@@ -13,5 +13,4 @@ G is the arc cosine of F.
 UFLOAT(acos_, "acos", acos)
 
 
-
 #endif

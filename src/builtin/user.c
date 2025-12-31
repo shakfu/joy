@@ -13,5 +13,4 @@ Tests whether X is a user-defined symbol.
 TYPE(user_, "user", ==, USR_)
 
 
-
 #endif

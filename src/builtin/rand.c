@@ -13,5 +13,4 @@ Q0  IGNORE_PUSH  1150  rand  :  ->  I
 PUSH(rand_, INTEGER_NEWNODE, rand())
 
 
-
 #endif

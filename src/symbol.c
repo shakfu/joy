@@ -8,18 +8,18 @@
 /*
  * enterglobal stores an unknown global identifier in the symbol table.
  */
-static int enterglobal(pEnv env, char *name)
+static int enterglobal(pEnv env, char* name)
 {
     Entry ent;
     int index;
 
     index = vec_size(env->symtab);
-    memset(&ent, 0, sizeof(ent));	/* make sure that all fields are 0 */
-    ent.name = strdup(name);		/* copy to permanent memory */
+    memset(&ent, 0, sizeof(ent)); /* make sure that all fields are 0 */
+    ent.name = strdup(name);      /* copy to permanent memory */
     ent.is_user = 1;
     ent.flags = env->inlining ? IMMEDIATE : OK;
-    ent.u.body = 0;			/* may be assigned in definition */
-    addsymbol(env, ent, index);		/* add symbol entry to hash table */
+    ent.u.body = 0;             /* may be assigned in definition */
+    addsymbol(env, ent, index); /* add symbol entry to hash table */
     vec_push(env->symtab, ent);
     return index;
 }
@@ -28,7 +28,7 @@ static int enterglobal(pEnv env, char *name)
  * Lookup first searches name in the local symbol tables, if not found in the
  * global symbol table, if still not found enters name in the global table.
  */
-int lookup(pEnv env, char *name)
+int lookup(pEnv env, char* name)
 {
     int index;
 
@@ -43,9 +43,9 @@ int lookup(pEnv env, char *name)
      * added during the first time read of private sections.
      */
     if ((index = qualify(env, name)) == 0)
-	/* not found, enter in global, unless it is a module-member */
-	if (strchr(name, '.') == 0)
-	    index = enterglobal(env, name);
+        /* not found, enter in global, unless it is a module-member */
+        if (strchr(name, '.') == 0)
+            index = enterglobal(env, name);
     return index;
 }
 
@@ -53,7 +53,7 @@ int lookup(pEnv env, char *name)
  * Enteratom enters a symbol in the symbol table, maybe a local symbol. This
  * local symbol is also added to the hash table, but in its classified form.
  */
-int enteratom(pEnv env, char *name)
+int enteratom(pEnv env, char* name)
 {
     int index;
 
@@ -63,7 +63,7 @@ int enteratom(pEnv env, char *name)
      * They should be found during the second read.
      */
     if ((index = qualify(env, name)) == 0)
-	index = enterglobal(env, classify(env, name));
+        index = enterglobal(env, classify(env, name));
     return index;
 }
 
@@ -75,40 +75,40 @@ static int definition(pEnv env, int ch)
 {
     int index;
     Entry ent;
-    char *name;
+    char* name;
 
     if (env->sym == LIBRA || env->sym == PRIVATE || env->sym == HIDE
-			  || env->sym == MODULE_ || env->sym == CONST_) {
-	ch = compound_def(env, ch);
-	if (env->sym == '.')
-	    ch = getsym(env, ch);
-	else
-	    error("END or period '.' expected in compound definition");
-	return ch;
+        || env->sym == MODULE_ || env->sym == CONST_) {
+        ch = compound_def(env, ch);
+        if (env->sym == '.')
+            ch = getsym(env, ch);
+        else
+            error("END or period '.' expected in compound definition");
+        return ch;
     }
 
     if (env->sym != USR_)
-	/*   NOW ALLOW EMPTY DEFINITION:
-	      { error("atom expected at start of definition");
-		abortexecution_(); }
-	*/
-	return ch;
+        /*   NOW ALLOW EMPTY DEFINITION:
+              { error("atom expected at start of definition");
+            abortexecution_(); }
+        */
+        return ch;
 
     /* sym == USR_ : */
     name = GC_strdup(env->str);
 
     ch = getsym(env, ch);
     if (env->sym == EQDEF)
-	ch = getsym(env, ch);
+        ch = getsym(env, ch);
     else
-	error("== expected in definition");
+        error("== expected in definition");
     ch = readterm(env, ch);
 
     index = enteratom(env, name);
     ent = vec_at(env->symtab, index);
     if (!ent.is_user && env->overwrite) {
-	fflush(stdout);
-	fprintf(stderr, "warning: overwriting inbuilt '%s'\n", ent.name);
+        fflush(stdout);
+        fprintf(stderr, "warning: overwriting inbuilt '%s'\n", ent.name);
     }
     ent.is_user = 1;
     ent.u.body = nodevalue(env->stck).lis;
@@ -124,10 +124,10 @@ static int definition(pEnv env, int ch)
 static int defsequence(pEnv env, int ch)
 {
     if (env->sym == CONST_)
-	env->inlining = 1;
+        env->inlining = 1;
     do {
-	ch = getsym(env, ch);
-	ch = definition(env, ch);
+        ch = getsym(env, ch);
+        ch = definition(env, ch);
     } while (env->sym == ';');
     env->inlining = 0;
     return ch;
@@ -140,35 +140,35 @@ int compound_def(pEnv env, int ch)
 {
     switch (env->sym) {
     case MODULE_:
-	ch = getsym(env, ch);
-	if (env->sym != USR_)
-	    abortexecution_(ABORT_RETRY);
-	initmod(env, env->str);	/* initmod adds name to the module */
-	ch = getsym(env, ch);
-	ch = compound_def(env, ch);
-	exitmod();		/* exitmod deregisters a module */
-	break;
+        ch = getsym(env, ch);
+        if (env->sym != USR_)
+            abortexecution_(ABORT_RETRY);
+        initmod(env, env->str); /* initmod adds name to the module */
+        ch = getsym(env, ch);
+        ch = compound_def(env, ch);
+        exitmod(); /* exitmod deregisters a module */
+        break;
 
     case PRIVATE:
     case HIDE:
-	initpriv(env);		/* initpriv increases the hide number */
-	ch = defsequence(env, ch);
-	stoppriv();		/* stoppriv changes private to public */
-	ch = compound_def(env, ch);
-	exitpriv();		/* exitpriv lowers the hide stack */
-	break;
+        initpriv(env); /* initpriv increases the hide number */
+        ch = defsequence(env, ch);
+        stoppriv(); /* stoppriv changes private to public */
+        ch = compound_def(env, ch);
+        exitpriv(); /* exitpriv lowers the hide stack */
+        break;
 
     case PUBLIC:
     case LIBRA:
     case IN__:
     case CONST_:
-	ch = defsequence(env, ch);
-	break;
+        ch = defsequence(env, ch);
+        break;
 
     default:
-	fflush(stdout);
-	fprintf(stderr, "warning: empty compound definition\n");
-	break;
+        fflush(stdout);
+        fprintf(stderr, "warning: empty compound definition\n");
+        break;
     }
     return ch;
 }

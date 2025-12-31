@@ -13,5 +13,4 @@ Tests whether R is a float.
 TYPE(float_, "float", ==, FLOAT_)
 
 
-
 #endif

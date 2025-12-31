@@ -23,22 +23,22 @@ void cond_(pEnv env)
     CHECKEMPTYLIST(nodevalue(env->stck).lis, "cond");
     /* must check for QUOTES in list */
     for (my_dump = nodevalue(env->stck).lis; nextnode1(my_dump);
-	 my_dump = nextnode1(my_dump))
-	CHECKLIST(nodetype(nodevalue(my_dump).lis), "cond");
+         my_dump = nextnode1(my_dump))
+        CHECKLIST(nodetype(nodevalue(my_dump).lis), "cond");
     SAVESTACK;
     env->dump1 = LIST_NEWNODE(nodevalue(env->stck).lis, env->dump1);
     for (; DMP1 && nextnode1(DMP1); DMP1 = nextnode1(DMP1)) {
-	env->stck = SAVED2;
-	exeterm(env, nodevalue(nodevalue(DMP1).lis).lis);
-	result = get_boolean(env, env->stck);
-	if (result)
-	    break;
+        env->stck = SAVED2;
+        exeterm(env, nodevalue(nodevalue(DMP1).lis).lis);
+        result = get_boolean(env, env->stck);
+        if (result)
+            break;
     }
     env->stck = SAVED2;
     if (result)
-	exeterm(env, nextnode1(nodevalue(DMP1).lis));
+        exeterm(env, nextnode1(nodevalue(DMP1).lis));
     else
-	exeterm(env, nodevalue(DMP1).lis);	/* default */
+        exeterm(env, nodevalue(DMP1).lis); /* default */
     POP(env->dump1);
     POP(env->dump);
 }

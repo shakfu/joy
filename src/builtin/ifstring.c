@@ -13,5 +13,4 @@ If X is a string, executes T else executes E.
 IF_TYPE(ifstring_, "ifstring", STRING_)
 
 
-
 #endif

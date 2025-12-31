@@ -15,5 +15,4 @@ As if defined by:   swapd  ==  [swap] dip
 DIPPED(swapd_, "swapd", THREEPARAMS, swap_)
 
 
-
 #endif

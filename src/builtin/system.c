@@ -15,7 +15,7 @@ When that has finished, the process returns to Joy.
 void system_(pEnv env)
 {
 #ifndef WINDOWS_S
-    char *str;
+    char* str;
 #endif
     ONEPARAM("system");
     STRING("system");

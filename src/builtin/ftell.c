@@ -13,5 +13,4 @@ Q0  OK  1990  ftell  :  S  ->  S I
 FILEGET(ftell_, "ftell", INTEGER_NEWNODE, ftell(nodevalue(env->stck).fil))
 
 
-
 #endif

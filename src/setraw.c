@@ -27,13 +27,13 @@
 
 #ifdef WINDOWS
 #define WIN32_LEAN_AND_MEAN
-#include <windows.h>	/* pollute name space as much as possible */
-#include <io.h>		/* also import deprecated POSIX names */
+#include <io.h>      /* also import deprecated POSIX names */
+#include <windows.h> /* pollute name space as much as possible */
 #endif
 
 #ifdef UNIX
-#include <termios.h>
 #include <sys/ioctl.h>
+#include <termios.h>
 #endif
 
 #ifdef NPROTO
@@ -67,10 +67,9 @@ static struct termios orig_mode;
 /*
  * Abort program execution when a fatal error occurs.
  */
-static void die(s)
-char *s;
+static void die(s) char* s;
 {
-    printf("\033[2J\033[H");	/* assume VT100 escape codes are supported */
+    printf("\033[2J\033[H"); /* assume VT100 escape codes are supported */
     perror(s);
     abort();
 }
@@ -80,7 +79,7 @@ char *s;
 /*
  * Retrieve or calculate the screen dimensions.
  */
-static int sizeScreen(int *rows, int *cols)
+static int sizeScreen(int* rows, int* cols)
 {
 #ifdef EXPECT_ERROR
     int num;
@@ -91,14 +90,14 @@ static int sizeScreen(int *rows, int *cols)
     ws.ws_row = ws.ws_col = 0;
     if (ioctl(1, TIOCGWINSZ, &ws) < 0 || !ws.ws_row) {
 #ifdef EXPECT_ERROR
-	printf("\033[999C\033[999B\033[6n\r");
-	fflush(stdout);
-	if ((num = fread(buf, 1, sizeof(buf), stdin)) <= 0)
-	    return -1;
-	if (buf[0] == '\033' && buf[1] == '[' && buf[num - 1] == 'R') {
-	    sscanf(&buf[2], "%d;%d", rows, cols);
-	    return 0;
-	}
+        printf("\033[999C\033[999B\033[6n\r");
+        fflush(stdout);
+        if ((num = fread(buf, 1, sizeof(buf), stdin)) <= 0)
+            return -1;
+        if (buf[0] == '\033' && buf[1] == '[' && buf[num - 1] == 'R') {
+            sscanf(&buf[2], "%d;%d", rows, cols);
+            return 0;
+        }
 #endif
     }
     *rows = ws.ws_row;
@@ -116,7 +115,7 @@ static void initScreen(void)
 
     raw_mode = 1;
 
-#ifdef ATARI    
+#ifdef ATARI
     rows = 25;
     cols = 80;
 #endif
@@ -126,10 +125,10 @@ static void initScreen(void)
     cols = size_x;
 #endif
 
-#ifdef UNIX    
+#ifdef UNIX
     if (sizeScreen(&rows, &cols) < 0) {
 #ifdef EXPECT_ERROR
-	die("sizeScreen");
+        die("sizeScreen");
 #endif
     }
 #endif
@@ -147,7 +146,7 @@ static void initScreen(void)
 void SetNormal(void)
 {
     if (!raw_mode)
-	return;
+        return;
     raw_mode = 0;
 #ifdef ATARI
     ioctl(0, TIOCSETP, &old_tty);
@@ -167,7 +166,7 @@ void SetNormal(void)
 #ifdef UNIX
     if (tcsetattr(0, TCSAFLUSH, &orig_mode) < 0) {
 #ifdef EXPECT_ERROR
-	die("SetNormal");
+        die("SetNormal");
 #endif
     }
 #endif
@@ -187,7 +186,7 @@ void SetNormal(void)
 #define ENABLE_AUTO_POSITION			0x100
  */
 #ifndef ENABLE_VIRTUAL_TERMINAL_INPUT
-#define ENABLE_VIRTUAL_TERMINAL_INPUT		0x200
+#define ENABLE_VIRTUAL_TERMINAL_INPUT 0x200
 #endif
 /*
 #define ENABLE_PROCESSED_OUTPUT			0x1
@@ -196,7 +195,7 @@ void SetNormal(void)
 #define ENABLE_LVB_GRID_WORLDWIDE		0x10
  */
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
-#define ENABLE_VIRTUAL_TERMINAL_PROCESSING	0x4
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x4
 #endif
 
 /*
@@ -233,7 +232,7 @@ void SetRaw(void)
 #ifndef __TINYC__
     hwnd = GetConsoleWindow();
     SetWindowLongA(hwnd, GWL_STYLE,
-		   GetWindowLongA(hwnd, GWL_STYLE) & ~WS_MAXIMIZEBOX);
+                   GetWindowLongA(hwnd, GWL_STYLE) & ~WS_MAXIMIZEBOX);
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_UNAWARE);
 #endif
     input = GetStdHandle(STD_INPUT_HANDLE);
@@ -253,20 +252,20 @@ void SetRaw(void)
     size_y = info.srWindow.Bottom - info.srWindow.Top + 1;
 #endif
 
-#ifdef UNIX    
+#ifdef UNIX
     struct termios raw;
 
     if (tcgetattr(0, &orig_mode) < 0) {
 #ifdef EXPECT_ERROR
-	die("GetNormal");
+        die("GetNormal");
 #endif
     }
     raw = orig_mode;
     /*
      * control chars: set return condition: min number of bytes and timer.
      */
-    raw.c_cc[VMIN] = 1;		/* return each byte. */
-    raw.c_cc[VTIME] = 0;	/* no timeout. */
+    raw.c_cc[VMIN] = 1;  /* return each byte. */
+    raw.c_cc[VTIME] = 0; /* no timeout. */
     /*
      * input modes: no break, no CR to NL, no parity check, no strip char,
      * no start/stop output control.
@@ -285,7 +284,7 @@ void SetRaw(void)
     raw.c_cflag |= CS8;
     if (tcsetattr(0, TCSAFLUSH, &raw) < 0) {
 #ifdef EXPECT_ERROR
-	die("SetRaw");
+        die("SetRaw");
 #endif
     }
 #endif

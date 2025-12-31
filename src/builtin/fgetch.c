@@ -13,5 +13,4 @@ Q0  OK  1870  fgetch  :  S  ->  S C
 FILEGET(fgetch_, "fgetch", CHAR_NEWNODE, getc(nodevalue(env->stck).fil))
 
 
-
 #endif

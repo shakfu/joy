@@ -13,5 +13,4 @@ Q0  OK  1840  feof  :  S  ->  S B
 FILEGET(feof_, "feof", BOOLEAN_NEWNODE, feof(nodevalue(env->stck).fil))
 
 
-
 #endif

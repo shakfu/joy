@@ -15,5 +15,4 @@ Applies test B to members of aggregate A, X = true if all pass.
 SOMEALL(all_, "all", 1)
 
 
-
 #endif

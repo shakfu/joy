@@ -14,18 +14,19 @@ Q0  OK  3170  finclude  :  S  ->  F ...
 */
 void finclude_(pEnv env)
 {
-    char *str;
+    char* str;
 
     ONEPARAM("finclude");
     STRING("finclude");
-    str = GETSTRING(env->stck);		/* read file name */
-    POP(env->stck);			/* remove file name from stack */
-    if (include(env, str))		/* include new file */
-	return;
-    env->finclude_busy = 1;		/* tell scanner about finclude */
+    str = GETSTRING(env->stck); /* read file name */
+    POP(env->stck);             /* remove file name from stack */
+    if (include(env, str))      /* include new file */
+        return;
+    env->finclude_busy = 1; /* tell scanner about finclude */
     if (setjmp(env->finclude))
-	env->finclude_busy = 0;		/* done with finclude */
-    else while (1)			/* read all factors from file */
-        get_(env);
+        env->finclude_busy = 0; /* done with finclude */
+    else
+        while (1) /* read all factors from file */
+            get_(env);
 }
 #endif

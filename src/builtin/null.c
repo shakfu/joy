@@ -25,30 +25,30 @@ void null_(pEnv env)
     case BOOLEAN_:
     case CHAR_:
     case INTEGER_:
-	UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).num));
-	break;
+        UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).num));
+        break;
     case SET_:
-	UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).set));
-	break;
+        UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).set));
+        break;
     case STRING_:
 #ifdef NOBDW
-	UNARY(BOOLEAN_NEWNODE, (!nodeleng(env->stck)));
+        UNARY(BOOLEAN_NEWNODE, (!nodeleng(env->stck)));
 #else
-	UNARY(BOOLEAN_NEWNODE, (!*(nodevalue(env->stck).str)));
+        UNARY(BOOLEAN_NEWNODE, (!*(nodevalue(env->stck).str)));
 #endif
-	break;
+        break;
     case LIST_:
-	UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).lis));
-	break;
+        UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).lis));
+        break;
     case FLOAT_:
-	UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).dbl));
-	break;
+        UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).dbl));
+        break;
     case FILE_:
-	UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).fil));
-	break;
+        UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).fil));
+        break;
     default:
-	UNARY(BOOLEAN_NEWNODE, 0);	/* false */
-	break;
+        UNARY(BOOLEAN_NEWNODE, 0); /* false */
+        break;
     }
 }
 #endif

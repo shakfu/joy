@@ -13,5 +13,4 @@ G is the sine of F.
 UFLOAT(sin_, "sin", sin)
 
 
-
 #endif

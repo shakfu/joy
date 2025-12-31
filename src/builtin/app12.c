@@ -6,9 +6,9 @@
 #ifndef APP12_C
 #define APP12_C
 
-#include "unary2.c"
-#include "rolldown.c"
 #include "pop.c"
+#include "rolldown.c"
+#include "unary2.c"
 
 /**
 Q1  OK  2460  app12  :  X Y1 Y2 [P]  ->  R1 R2

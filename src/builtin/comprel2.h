@@ -6,12 +6,12 @@
 #ifndef COMPREL2_H
 #define COMPREL2_H
 
-#define COMPREL2(PROCEDURE, NAME, CONSTRUCTOR, OPR)			\
-    void PROCEDURE(pEnv env)						\
-    {									\
-	int comp;							\
-	TWOPARAMS(NAME);						\
-	comp = Compare(env, nextnode1(env->stck), env->stck) OPR 0;	\
-	env->stck = CONSTRUCTOR(comp, nextnode2(env->stck));		\
+#define COMPREL2(PROCEDURE, NAME, CONSTRUCTOR, OPR)                           \
+    void PROCEDURE(pEnv env)                                                  \
+    {                                                                         \
+        int comp;                                                             \
+        TWOPARAMS(NAME);                                                      \
+        comp = Compare(env, nextnode1(env->stck), env->stck) OPR 0;           \
+        env->stck = CONSTRUCTOR(comp, nextnode2(env->stck));                  \
     }
 #endif

@@ -13,5 +13,4 @@ If X is a character, executes T else executes E.
 IF_TYPE(ifchar_, "ifchar", CHAR_)
 
 
-
 #endif

@@ -15,7 +15,7 @@ void mul_(pEnv env)
     TWOPARAMS("*");
     FLOAT_I(*);
     INTEGERS2("*");
-    BINARY(INTEGER_NEWNODE, nodevalue(nextnode1(env->stck)).num *
-		    nodevalue(env->stck).num);
+    BINARY(INTEGER_NEWNODE,
+           nodevalue(nextnode1(env->stck)).num * nodevalue(env->stck).num);
 }
 #endif

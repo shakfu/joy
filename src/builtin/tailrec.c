@@ -25,10 +25,10 @@ tailrec:
     env->stck = DMP1;
     POP(env->dump1);
     if (result)
-	exeterm(env, nodevalue(SAVED2).lis);
+        exeterm(env, nodevalue(SAVED2).lis);
     else {
-	exeterm(env, nodevalue(SAVED1).lis);
-	goto tailrec;
+        exeterm(env, nodevalue(SAVED1).lis);
+        goto tailrec;
     }
 }
 

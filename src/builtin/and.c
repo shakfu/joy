@@ -13,5 +13,4 @@ Z is the intersection of sets X and Y, logical conjunction for truth values.
 ANDORXOR(and_, "and", &, &&)
 
 
-
 #endif

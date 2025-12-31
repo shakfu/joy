@@ -14,15 +14,15 @@ for literals sym the result string is its type.
 void name_(pEnv env)
 {
     int op;
-    char *str;
+    char* str;
 
     ONEPARAM("name");
     if ((op = nodetype(env->stck)) == USR_)
-	str = vec_at(env->symtab, nodevalue(env->stck).ent).name;
+        str = vec_at(env->symtab, nodevalue(env->stck).ent).name;
     else if (op == ANON_FUNCT_)
-	str = nickname(operindex(env, nodevalue(env->stck).proc));
+        str = nickname(operindex(env, nodevalue(env->stck).proc));
     else
-	str = opername(op);
+        str = opername(op);
     UNARY(STRING_NEWNODE, str);
 }
 #endif

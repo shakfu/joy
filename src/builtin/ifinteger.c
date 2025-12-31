@@ -13,5 +13,4 @@ If X is an integer, executes T else executes E.
 IF_TYPE(ifinteger_, "ifinteger", INTEGER_)
 
 
-
 #endif

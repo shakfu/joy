@@ -13,5 +13,4 @@ Tests whether X is a set.
 TYPE(set_, "set", ==, SET_)
 
 
-
 #endif

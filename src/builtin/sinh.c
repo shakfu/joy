@@ -13,5 +13,4 @@ G is the hyperbolic sine of F.
 UFLOAT(sinh_, "sinh", sinh)
 
 
-
 #endif

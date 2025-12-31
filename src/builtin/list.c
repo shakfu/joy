@@ -13,5 +13,4 @@ Tests whether X is a list.
 TYPE(list_, "list", ==, LIST_)
 
 
-
 #endif

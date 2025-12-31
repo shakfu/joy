@@ -12,8 +12,5 @@
 Q0  IGNORE_OK  2930  manual  :  ->
 [IMPURE] Writes this manual of all Joy primitives to output file.
 */
-void manual_(pEnv env)
-{
-    make_manual(0);
-}
+void manual_(pEnv env) { make_manual(0); }
 #endif

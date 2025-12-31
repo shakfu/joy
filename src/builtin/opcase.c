@@ -21,17 +21,17 @@ void opcase_(pEnv env)
     n = nodevalue(env->stck).lis;
     CHECKEMPTYLIST(n, "opcase");
     if ((op = nodetype(nextnode1(env->stck))) == ANON_FUNCT_)
-	proc = nodevalue(nextnode1(env->stck)).proc;
+        proc = nodevalue(nextnode1(env->stck)).proc;
     while (nextnode1(n) && nodetype(n) == LIST_) {
-	temp = nodevalue(n).lis;
-	if (op == nodetype(temp)) {
-	    if (op != ANON_FUNCT_ || proc == nodevalue(temp).proc)
-		break;
-	}
-	n = nextnode1(n);
+        temp = nodevalue(n).lis;
+        if (op == nodetype(temp)) {
+            if (op != ANON_FUNCT_ || proc == nodevalue(temp).proc)
+                break;
+        }
+        n = nextnode1(n);
     }
     CHECKLIST(nodetype(n), "opcase");
     UNARY(LIST_NEWNODE,
-	nextnode1(n) ? nextnode1(nodevalue(n).lis) : nodevalue(n).lis);
+          nextnode1(n) ? nextnode1(nodevalue(n).lis) : nodevalue(n).lis);
 }
 #endif

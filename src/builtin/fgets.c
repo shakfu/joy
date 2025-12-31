@@ -12,9 +12,9 @@ Q0  OK  1880  fgets  :  S  ->  S L
 */
 void fgets_(pEnv env)
 {
-    char *buf;
+    char* buf;
 #ifdef NOBDW
-    char *tmp;
+    char* tmp;
 #endif
     size_t leng, size = INPLINEMAX;
 
@@ -27,14 +27,14 @@ void fgets_(pEnv env)
 #endif
     buf[leng = 0] = 0;
     while (fgets(buf + leng, size - leng, nodevalue(env->stck).fil)) {
-	if ((leng = strlen(buf)) > 0 && buf[leng - 1] == '\n')
-	    break;
+        if ((leng = strlen(buf)) > 0 && buf[leng - 1] == '\n')
+            break;
 #ifdef NOBDW
-	if ((tmp = realloc(buf, size <<= 1)) == 0)
-	    break;	/* LCOV_EXCL_LINE */
-	buf = tmp;
+        if ((tmp = realloc(buf, size <<= 1)) == 0)
+            break; /* LCOV_EXCL_LINE */
+        buf = tmp;
 #else
-	buf = GC_realloc(buf, size <<= 1);
+        buf = GC_realloc(buf, size <<= 1);
 #endif
     }
     NULLARY(STRING_NEWNODE, buf);

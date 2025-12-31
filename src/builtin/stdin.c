@@ -13,5 +13,4 @@ Q0  IMMEDIATE  1170  stdin  :  ->  S
 PUSH(stdin_, FILE_NEWNODE, stdin)
 
 
-
 #endif

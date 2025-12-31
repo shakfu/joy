@@ -16,9 +16,9 @@ void sametype_(pEnv env)
 
     TWOPARAMS("sametype");
     if ((op = nodetype(env->stck)) == ANON_FUNCT_)
-	op = nodevalue(env->stck).proc == nodevalue(nextnode1(env->stck)).proc;
+        op = nodevalue(env->stck).proc == nodevalue(nextnode1(env->stck)).proc;
     else
-	op = op == nodetype(nextnode1(env->stck));
+        op = op == nodetype(nextnode1(env->stck));
     BINARY(BOOLEAN_NEWNODE, op);
 }
 #endif

@@ -13,5 +13,4 @@ G is e (2.718281828...) raised to the Fth power.
 UFLOAT(exp_, "exp", exp)
 
 
-
 #endif

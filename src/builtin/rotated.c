@@ -15,5 +15,4 @@ As if defined by:   rotated  ==  [rotate] dip
 DIPPED(rotated_, "rotated", FOURPARAMS, rotate_)
 
 
-
 #endif

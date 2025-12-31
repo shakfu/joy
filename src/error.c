@@ -8,7 +8,7 @@
 /*
  * print a runtime error to stderr and abort the execution of current program.
  */
-void execerror(pEnv env, char *message, char *op)
+void execerror(pEnv env, char* message, char* op)
 {
     int leng = 0;
     char *ptr, *str;
@@ -16,26 +16,27 @@ void execerror(pEnv env, char *message, char *op)
     Entry ent;
 
     if (env->compiling > 0) {
-	leng = lookup(env, op);			/* locate in symbol table */
-	if (leng < tablesize())
-	    op = nickname(leng);
-	ent = vec_at(env->symtab, leng);
-	ent.flags |= IS_USED;
-	vec_at(env->symtab, leng) = ent;
-	printstack(env);
-	fprintf(env->outfp, "%s_(env);\n", op);
-	return;
+        leng = lookup(env, op); /* locate in symbol table */
+        if (leng < tablesize())
+            op = nickname(leng);
+        ent = vec_at(env->symtab, leng);
+        ent.flags |= IS_USED;
+        vec_at(env->symtab, leng) = ent;
+        printstack(env);
+        fprintf(env->outfp, "%s_(env);\n", op);
+        return;
     }
 #endif
     if ((ptr = strrchr(op, '/')) != 0)
-	ptr++;
+        ptr++;
     else
-	ptr = op;
+        ptr = op;
     if ((str = strrchr(ptr, '.')) != 0 && str[1] == 'c')
-	leng = str - ptr;
+        leng = str - ptr;
     else
-	leng = strlen(ptr);
+        leng = strlen(ptr);
     fflush(stdout);
-    fprintf(stderr, "run time error: %s needed for %.*s\n", message, leng, ptr);
+    fprintf(stderr, "run time error: %s needed for %.*s\n", message, leng,
+            ptr);
     abortexecution_(ABORT_RETRY);
-}	/* LCOV_EXCL_LINE */
+} /* LCOV_EXCL_LINE */

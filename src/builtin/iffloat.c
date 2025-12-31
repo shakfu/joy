@@ -13,5 +13,4 @@ If X is a float, executes T else executes E.
 IF_TYPE(iffloat_, "iffloat", FLOAT_)
 
 
-
 #endif

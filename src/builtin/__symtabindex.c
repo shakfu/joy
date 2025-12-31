@@ -13,5 +13,4 @@ Q0  OK  1060  __symtabindex  :  ->  I
 PUSH(__symtabindex_, INTEGER_NEWNODE, vec_size(env->symtab))
 
 
-
 #endif

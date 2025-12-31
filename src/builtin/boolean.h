@@ -22,27 +22,27 @@ static int get_boolean(pEnv env, Index node)
      */
     case USR_:
     case ANON_FUNCT_:
-	rv = 1;	/* assume true */
-	break;
+        rv = 1; /* assume true */
+        break;
     case BOOLEAN_:
     case CHAR_:
     case INTEGER_:
-	return nodevalue(node).num != 0;
+        return nodevalue(node).num != 0;
     case SET_:
-	return nodevalue(node).set != 0;
+        return nodevalue(node).set != 0;
     case STRING_:
     case BIGNUM_:
 #ifdef NOBDW
-	return nodeleng(node) != 0;
+        return nodeleng(node) != 0;
 #else
-	return *nodevalue(node).str != 0;
+        return *nodevalue(node).str != 0;
 #endif
     case LIST_:
-	return nodevalue(node).lis != 0;
+        return nodevalue(node).lis != 0;
     case FLOAT_:
-	return nodevalue(node).dbl != 0;
+        return nodevalue(node).dbl != 0;
     case FILE_:
-	return nodevalue(node).fil != 0;
+        return nodevalue(node).fil != 0;
     }
     return rv;
 }

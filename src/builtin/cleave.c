@@ -16,11 +16,11 @@ void cleave_(pEnv env)
     TWOQUOTES("cleave");
     SAVESTACK;
     env->stck = SAVED3;
-    exeterm(env, nodevalue(SAVED2).lis);	/* [P1] */
-    env->dump1 = newnode2(env, env->stck, env->dump1);	/* X1 */
+    exeterm(env, nodevalue(SAVED2).lis);               /* [P1] */
+    env->dump1 = newnode2(env, env->stck, env->dump1); /* X1 */
     env->stck = SAVED3;
-    exeterm(env, nodevalue(SAVED1).lis);	/* [P2] */
-    env->dump1 = newnode2(env, env->stck, env->dump1);	/* X2 */
+    exeterm(env, nodevalue(SAVED1).lis);               /* [P2] */
+    env->dump1 = newnode2(env, env->stck, env->dump1); /* X2 */
     env->stck = env->dump1;
     env->dump1 = nextnode2(env->dump1);
     nextnode2(env->stck) = SAVED4;

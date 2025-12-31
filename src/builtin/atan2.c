@@ -13,5 +13,4 @@ H is the arc tangent of F / G.
 BFLOAT(atan2_, "atan2", atan2)
 
 
-
 #endif

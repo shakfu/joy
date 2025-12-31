@@ -13,5 +13,4 @@ Q0  OK  1120  echo  :  ->  I
 PUSH(echo_, INTEGER_NEWNODE, env->echoflag)
 
 
-
 #endif

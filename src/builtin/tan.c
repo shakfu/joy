@@ -13,5 +13,4 @@ G is the tangent of F.
 UFLOAT(tan_, "tan", tan)
 
 
-
 #endif

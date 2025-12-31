@@ -13,5 +13,4 @@ G is the natural logarithm of F.
 UFLOAT(log_, "log", log)
 
 
-
 #endif

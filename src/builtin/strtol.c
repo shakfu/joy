@@ -15,7 +15,7 @@ but leading "0" means base 8 and leading "0x" means base 16.
 void strtol_(pEnv env)
 {
     int base;
-    char *str;
+    char* str;
 
     TWOPARAMS("strtol");
     INTEGER("strtol");

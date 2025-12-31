@@ -11,7 +11,7 @@ Q0  OK  1200  id  :  ->
 Identity function, does nothing.
 Any program of the form  P id Q  is equivalent to just  P Q.
 */
-void id_(pEnv env) { /* do nothing */}
+void id_(pEnv env) { /* do nothing */ }
 
 
 #endif

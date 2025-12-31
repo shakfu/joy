@@ -73,8 +73,8 @@ This processes in accordance with the grammar
 compound-definition :==
 ["MODULE" atomic symbol]
 ["PRIVATE" definition-sequence ]
-			       ^ (* ERROR: MISSING "compound_def"
-				    SEE DISGUST BELOW *)
+                   ^ (* ERROR: MISSING "compound_def"
+                    SEE DISGUST BELOW *)
 ["PUBLIC" definition-sequence]
 ("END" | ".")
 Each of the 3 parts is optional. Instead of "PRIVATE.. PUBLIC.."
@@ -116,9 +116,9 @@ Manfred von Thun, 2006
 */
 #include "globals.h"
 
-static jmp_buf begin;		/* restart with empty program */
+static jmp_buf begin; /* restart with empty program */
 
-char *bottom_of_stack;		/* needed in gc.c */
+char* bottom_of_stack; /* needed in gc.c */
 
 static void stats(pEnv env), dump(pEnv env);
 #ifdef MALLOC_DEBUG
@@ -138,7 +138,7 @@ void abortexecution_(int num)
  * fatal terminates the application with an error message.
  */
 #if defined(NOBDW) && defined(_MSC_VER)
-void fatal(char *str)
+void fatal(char* str)
 {
     fflush(stdout);
     fprintf(stderr, "fatal error: %s\n", str);
@@ -167,7 +167,7 @@ static void banner(void)
 static void options(int verbose)
 {
     if (!verbose)
-	banner();
+        banner();
     printf("Copyright 2001 by Manfred von Thun\n");
     printf("Usage: joy (options | filenames | parameters)*\n");
     printf("options, filenames, parameters can be given in any order\n");
@@ -222,7 +222,7 @@ static void options(int verbose)
 /*
  * unknown_opt - report unknown option and point out -h option.
  */
-static void unknown_opt(char *exe, int ch)
+static void unknown_opt(char* exe, int ch)
 {
     printf("Unknown option argument: \"-%c\"\n", ch);
     printf("More info with: \"%s -h\"\n", exe);
@@ -240,19 +240,19 @@ void do_push_int(int num)
     tmp_env->stck = newnode(tmp_env, INTEGER_, tmp_env->bucket, tmp_env->stck);
 }
 
-static void my_main(int argc, char **argv)
+static void my_main(int argc, char** argv)
 {
     static unsigned char psdump = 0, pstats = 0;
 #ifdef BYTECODE
-    static unsigned char joy = 1;	/* assume joy source code */
+    static unsigned char joy = 1; /* assume joy source code */
 #endif
-    Env env;				/* global variables */
+    Env env; /* global variables */
     int i, j, ch;
     char *ptr, *tmp, *exe;
     unsigned char helping = 0, unknown = 0, mustinclude = 1, verbose = 0,
-		  raw = 0;
+                  raw = 0;
 #ifdef BYTECODE
-    FILE *fp = 0;
+    FILE* fp = 0;
     unsigned char listing = 0, lining = 0, quick = 0;
 #endif
 
@@ -270,14 +270,14 @@ static void my_main(int argc, char **argv)
     ptr = strrchr(argv[0], '/');
 #ifdef WINDOWS
     if (!ptr)
-	ptr = strrchr(argv[0], '\\');
+        ptr = strrchr(argv[0], '\\');
 #endif
     if (ptr) {
-	vec_push(env.pathnames, argv[0]);
-	*ptr++ = 0;	/* split in directory */
-	argv[0] = ptr;	/* and basename */
+        vec_push(env.pathnames, argv[0]);
+        *ptr++ = 0;    /* split in directory */
+        argv[0] = ptr; /* and basename */
     }
-    exe = argv[0];	/* Joy binary */
+    exe = argv[0]; /* Joy binary */
     /*
      * These flags are initialized here, allowing them to be overruled by the
      * command line. When set on the command line, they can not be overruled
@@ -292,114 +292,162 @@ static void my_main(int argc, char **argv)
      * First look for options. They start with -.
      */
     for (i = 1; i < argc; i++) {
-	if (argv[i][0] == '-') {
-	    for (j = 1; argv[i][j]; j++) {
-		switch (argv[i][j]) {
-		case 'a' : ptr = &argv[i][j + 1];
-			   env.autoput = strtol(ptr, &tmp, 0);
-			   j += tmp - ptr;
-			   env.autoput_set = 1;		/* disable usrlib.joy */
-			   break;
+        if (argv[i][0] == '-') {
+            for (j = 1; argv[i][j]; j++) {
+                switch (argv[i][j]) {
+                case 'a':
+                    ptr = &argv[i][j + 1];
+                    env.autoput = strtol(ptr, &tmp, 0);
+                    j += tmp - ptr;
+                    env.autoput_set = 1; /* disable usrlib.joy */
+                    break;
 #ifdef BYTECODE
-		case 'b' : env.bytecoding = -1; break;	/* prepare & suspend */
+                case 'b':
+                    env.bytecoding = -1;
+                    break; /* prepare & suspend */
 #endif
 #ifdef COMPILER
-		case 'c' : env.compiling = -1; break;	/* compile for joy1 */
+                case 'c':
+                    env.compiling = -1;
+                    break; /* compile for joy1 */
 #endif
-		case 'd' : env.debugging = 1; break;
-		case 'e' : ptr = &argv[i][j + 1];
-			   env.echoflag = strtol(ptr, &tmp, 0);
-			   j += tmp - ptr;
-			   break;
+                case 'd':
+                    env.debugging = 1;
+                    break;
+                case 'e':
+                    ptr = &argv[i][j + 1];
+                    env.echoflag = strtol(ptr, &tmp, 0);
+                    j += tmp - ptr;
+                    break;
 #ifdef BYTECODE
-		case 'f' : listing = 1; joy = 0; break;
+                case 'f':
+                    listing = 1;
+                    joy = 0;
+                    break;
 #endif
-		case 'g' : ptr = &argv[i][j + 1];
-			   env.tracegc = strtol(ptr, &tmp, 0);
-			   j += tmp - ptr;
-			   break;
-		case 'h' : helping = 1; break;
-		case 'i' : env.ignore = 1; break;
+                case 'g':
+                    ptr = &argv[i][j + 1];
+                    env.tracegc = strtol(ptr, &tmp, 0);
+                    j += tmp - ptr;
+                    break;
+                case 'h':
+                    helping = 1;
+                    break;
+                case 'i':
+                    env.ignore = 1;
+                    break;
 #ifdef BYTECODE
-		case 'j' : joy = 0; break;		/* assume binary file */
+                case 'j':
+                    joy = 0;
+                    break; /* assume binary file */
 #endif
-		case 'k' : raw = 1; break;		/* terminal raw mode */
-		case 'l' : mustinclude = 0; break;
+                case 'k':
+                    raw = 1;
+                    break; /* terminal raw mode */
+                case 'l':
+                    mustinclude = 0;
+                    break;
 #ifdef COMPILER
-		case 'm' : env.compiling = -2; break;	/* compile for Roy */
-		case 'n' : env.compiling = -3; break;	/* compile for Soy */
+                case 'm':
+                    env.compiling = -2;
+                    break; /* compile for Roy */
+                case 'n':
+                    env.compiling = -3;
+                    break; /* compile for Soy */
 #endif
 #ifdef BYTECODE
-		case 'o' : lining = 1; joy = 0; break;	/* inlining */
+                case 'o':
+                    lining = 1;
+                    joy = 0;
+                    break; /* inlining */
 #endif
-		case 'p' : env.printing = 1; break;
+                case 'p':
+                    env.printing = 1;
+                    break;
 #ifdef BYTECODE
-		case 'q' : quick = 1; joy = 0; break;	/* const folding */
+                case 'q':
+                    quick = 1;
+                    joy = 0;
+                    break; /* const folding */
 #endif
-		case 's' : psdump = 1; break;
-		case 't' : env.debugging = 2; break;
-		case 'u' : ptr = &argv[i][j + 1];
-			   env.undeferror = strtol(ptr, &tmp, 0);
-			   j += tmp - ptr;
-			   env.undeferror_set = 1;	/* disable usrlib.joy */
-			   break;
-		case 'v' : verbose = 1; break;
-		case 'w' : env.overwrite = 0; break;
-		case 'x' : pstats = 1; break;
-		default  : unknown = argv[i][j]; break;
-		} /* end switch */
-	    } /* end for */
-	    /*
-	     * Overwrite the option(s) with subsequent parameters. Index i is
-	     * decreased, because the next parameter is copied to the current
-	     * index and i is increased in the for-loop.
-	     */
-	    for (--argc, j = i--; j < argc; j++)
-		argv[j] = argv[j + 1];
-	} /* end if */
+                case 's':
+                    psdump = 1;
+                    break;
+                case 't':
+                    env.debugging = 2;
+                    break;
+                case 'u':
+                    ptr = &argv[i][j + 1];
+                    env.undeferror = strtol(ptr, &tmp, 0);
+                    j += tmp - ptr;
+                    env.undeferror_set = 1; /* disable usrlib.joy */
+                    break;
+                case 'v':
+                    verbose = 1;
+                    break;
+                case 'w':
+                    env.overwrite = 0;
+                    break;
+                case 'x':
+                    pstats = 1;
+                    break;
+                default:
+                    unknown = argv[i][j];
+                    break;
+                } /* end switch */
+            } /* end for */
+            /*
+             * Overwrite the option(s) with subsequent parameters. Index i is
+             * decreased, because the next parameter is copied to the current
+             * index and i is increased in the for-loop.
+             */
+            for (--argc, j = i--; j < argc; j++)
+                argv[j] = argv[j + 1];
+        } /* end if */
     } /* end for */
     /*
      * Handle the banner now, before a possible error message is generated.
      */
     if (verbose)
-	banner();
+        banner();
     /*
      * Look for a possible filename parameter. Filenames cannot start with -
      * and cannot start with a digit, unless preceded by a path: e.g. './'.
      */
     for (i = 1; i < argc; i++) {
-	ch = argv[i][0];
-	if (!isdigit(ch)) {
-	    /*
-	     * The first file should also benefit from include logic.
-	     */
+        ch = argv[i][0];
+        if (!isdigit(ch)) {
+            /*
+             * The first file should also benefit from include logic.
+             */
 #ifdef BYTECODE
-	    if (!joy) {
-		if ((fp = fopen(env.filename = argv[i], "rb")) == 0) {
-		    fprintf(stderr, "failed to open the file '%s'.\n", argv[i]);
-		    return;
-		}
-	    } else
+            if (!joy) {
+                if ((fp = fopen(env.filename = argv[i], "rb")) == 0) {
+                    fprintf(stderr, "failed to open the file '%s'.\n",
+                            argv[i]);
+                    return;
+                }
+            } else
 #endif
-	    if (include(&env, env.filename = argv[i])) {
-		fprintf(stderr, "failed to open the file '%s'.\n", argv[i]);
-		return;
-	    }
-	    /*
-	     *  Overwrite argv[0] with the filename and shift subsequent
-	     *  parameters.
-	     */
-	    if ((ptr = strrchr(argv[0] = argv[i], '/')) != 0) {
-		*ptr++ = 0;
-		argv[0] = ptr;		/* Joy program basename */
-	    }
-	    for (--argc; i < argc; i++)
-		argv[i] = argv[i + 1];
-	    goto start;			/* only one filename; replaces stdin */
-	} /* end if */
+                if (include(&env, env.filename = argv[i])) {
+                fprintf(stderr, "failed to open the file '%s'.\n", argv[i]);
+                return;
+            }
+            /*
+             *  Overwrite argv[0] with the filename and shift subsequent
+             *  parameters.
+             */
+            if ((ptr = strrchr(argv[0] = argv[i], '/')) != 0) {
+                *ptr++ = 0;
+                argv[0] = ptr; /* Joy program basename */
+            }
+            for (--argc; i < argc; i++)
+                argv[i] = argv[i + 1];
+            goto start; /* only one filename; replaces stdin */
+        } /* end if */
     } /* end for */
-    inilinebuffer(&env);		/* initialize with stdin */
-start:    
+    inilinebuffer(&env); /* initialize with stdin */
+start:
     /*
      * determine argc and argv.
      */
@@ -420,106 +468,106 @@ start:
      * initialize stack before SetRaw.
      */
 #ifdef NOBDW
-    inimem1(&env, 0);		/* does not clear the stack */
+    inimem1(&env, 0); /* does not clear the stack */
     inimem2(&env);
 #endif
     /*
      * initialize standard output.
      */
-    if (raw && env.filename) {	/* raw requires a filename */
-	env.autoput = 0;	/* disable autoput in usrlib.joy */
-	env.autoput_set = 1;	/* prevent enabling autoput */
-	tmp_env = &env;
-	SetRaw();		/* keep output buffered */
-	tmp_env = 0;
+    if (raw && env.filename) { /* raw requires a filename */
+        env.autoput = 0;       /* disable autoput in usrlib.joy */
+        env.autoput_set = 1;   /* prevent enabling autoput */
+        tmp_env = &env;
+        SetRaw(); /* keep output buffered */
+        tmp_env = 0;
 #ifdef NOBDW
-	env.inits = env.stck;	/* remember initial stack */
-	inimem2(&env);		/* store initial stack in definition space */
+        env.inits = env.stck; /* remember initial stack */
+        inimem2(&env);        /* store initial stack in definition space */
 #endif
     } else
-	setbuf(stdout, 0);	/* disable output buffering (pipe) */
+        setbuf(stdout, 0); /* disable output buffering (pipe) */
     /*
      * read initial library.
      */
     if (mustinclude)
-	include(&env, "usrlib.joy");
+        include(&env, "usrlib.joy");
 #ifdef BYTECODE
     if (quick) {
-	compeval(&env, fp);	/* create .buc file, const folding */
-	goto einde;
+        compeval(&env, fp); /* create .buc file, const folding */
+        goto einde;
     }
     if (lining) {
-	optimize(&env, fp);	/* create .boc file, inlining */
-	goto einde;
+        optimize(&env, fp); /* create .boc file, inlining */
+        goto einde;
     }
     if (listing) {
-	dumpbyte(&env, fp);	/* display .bic, .boc, or .buc file */
-	goto einde;
+        dumpbyte(&env, fp); /* display .bic, .boc, or .buc file */
+        goto einde;
     }
     if (env.bytecoding && joy)
-	initbytes(&env);	/* create .bic file from joy source */
+        initbytes(&env); /* create .bic file from joy source */
 #endif
 #ifdef COMPILER
     if (env.compiling)
-	initcompile(&env);	/* create .c file */
+        initcompile(&env); /* create .c file */
 #endif
     /*
      * handle options, might print symbol table.
      */
     if (helping || unknown) {
-	helping ? options(verbose) : unknown_opt(exe, unknown);
-	goto einde;
+        helping ? options(verbose) : unknown_opt(exe, unknown);
+        goto einde;
     }
     /*
      * setup return address of error, abort, or quit.
      */
     if (setjmp(begin) == ABORT_QUIT)
-	goto einde;		/* return here after error or abort */
+        goto einde; /* return here after error or abort */
     /*
      * (re)initialize code.
      */
-    env.prog = 0;		/* clear program, just to be sure */
+    env.prog = 0; /* clear program, just to be sure */
 #ifdef BYTECODE
-    if (!joy) {			/* interprete or compile bytecode */
-	readbyte(&env, fp);
+    if (!joy) { /* interprete or compile bytecode */
+        readbyte(&env, fp);
 #ifdef COMPILER
-	if (env.compiling) {	/* compile one program */
-	    env.compiling = -env.compiling;
-	    compile(&env, env.prog);	/* compile to C code */
-	} else {
+        if (env.compiling) { /* compile one program */
+            env.compiling = -env.compiling;
+            compile(&env, env.prog); /* compile to C code */
+        } else {
 #endif
-	    exeterm(&env, env.prog);	/* execute main program */
-	    print(&env);	/* print result */
+            exeterm(&env, env.prog); /* execute main program */
+            print(&env);             /* print result */
 #ifdef COMPILER
-	}
+        }
 #endif
     } else
 #endif
-    repl(&env);			/* read-eval-print loop */
+        repl(&env); /* read-eval-print loop */
 einde:
 #ifdef BYTECODE
     if (env.bytecoding)
-	exitbytes(&env);
+        exitbytes(&env);
 #endif
 #ifdef COMPILER
     if (env.compiling)
-	exitcompile(&env);
+        exitcompile(&env);
 #endif
     if (pstats)
-	stats(&env);
+        stats(&env);
     if (psdump)
-	dump(&env);
+        dump(&env);
 #ifdef MALLOC_DEBUG
     mem_free(&env);
 #endif
-    SetNormal();		/* set the terminal back to normal */
+    SetNormal(); /* set the terminal back to normal */
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
-    void (*volatile m)(int, char **) = my_main;
+    void (*volatile m)(int, char**) = my_main;
 
-    bottom_of_stack = (char *)&argc;
+    bottom_of_stack = (char*)&argc;
     GC_INIT();
     (*m)(argc, argv);
     return 0;
@@ -536,14 +584,13 @@ static void stats(pEnv env)
     double diff;
 
     if ((diff = clock() - env->startclock) < 0)
-	diff = 0;
-    printf("%.0f milliseconds CPU to execute\n",
-	   diff * 1000 / CLOCKS_PER_SEC);
+        diff = 0;
+    printf("%.0f milliseconds CPU to execute\n", diff * 1000 / CLOCKS_PER_SEC);
 #ifdef NOBDW
     if (diff && env->gc_clock) {
-	perc = env->gc_clock * 100.0 / diff;
-	printf("%.0f milliseconds CPU for gc (=%.0f%%)\n",
-		env->gc_clock * 1000.0 / CLOCKS_PER_SEC, perc);
+        perc = env->gc_clock * 100.0 / diff;
+        printf("%.0f milliseconds CPU for gc (=%.0f%%)\n",
+               env->gc_clock * 1000.0 / CLOCKS_PER_SEC, perc);
     }
 #endif
     printf("%.0f nodes used\n", env->nodes);
@@ -565,14 +612,14 @@ static void dump(pEnv env)
     Entry ent;
 
     for (i = vec_size(env->symtab) - 1; i >= 0; i--) {
-	ent = vec_at(env->symtab, i);
-	if (!ent.is_user)
-	    printf("(%d) %s\n", i, ent.name);
-	else {
-	    printf("(%d) %s == ", i, ent.name);
-	    writeterm(env, ent.u.body, stdout);
-	    putchar('\n');
-	}
+        ent = vec_at(env->symtab, i);
+        if (!ent.is_user)
+            printf("(%d) %s\n", i, ent.name);
+        else {
+            printf("(%d) %s == ", i, ent.name);
+            writeterm(env, ent.u.body, stdout);
+            putchar('\n');
+        }
     }
 }
 
@@ -587,8 +634,8 @@ static void mem_free(pEnv env)
      * They need to be released explicitly.
      */
     for (i = tablesize(), j = vec_size(env->symtab); i < j; i++) {
-	ent = vec_at(env->symtab, i);
-	free(ent.name);
+        ent = vec_at(env->symtab, i);
+        free(ent.name);
     }
 #ifdef NOBDW
     free(env->memory);

@@ -19,8 +19,8 @@ void choice_(pEnv env)
     THREEPARAMS("choice");
     result = get_boolean(env, nextnode2(env->stck));
     if (result)
-	GTERNARY(nextnode1(env->stck));
+        GTERNARY(nextnode1(env->stck));
     else
-	GTERNARY(env->stck);
+        GTERNARY(env->stck);
 }
 #endif

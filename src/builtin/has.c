@@ -15,5 +15,4 @@ Tests whether aggregate A has X as a member.
 INHAS(has_, "has", nextnode1(env->stck), env->stck)
 
 
-
 #endif

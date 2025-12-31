@@ -19,30 +19,30 @@ void small_(pEnv env)
     case BOOLEAN_:
     case CHAR_:
     case INTEGER_:
-	small = nodevalue(env->stck).num < 2;
-	break;
+        small = nodevalue(env->stck).num < 2;
+        break;
     case SET_:
-	if (nodevalue(env->stck).set == 0)
-	    small = 1;
-	else {
-	    while (!(nodevalue(env->stck).set & ((int64_t)1 << i)))
-		i++;
-	    small = (nodevalue(env->stck).set & ~((int64_t)1 << i)) == 0;
-	}
-	break;
+        if (nodevalue(env->stck).set == 0)
+            small = 1;
+        else {
+            while (!(nodevalue(env->stck).set & ((int64_t)1 << i)))
+                i++;
+            small = (nodevalue(env->stck).set & ~((int64_t)1 << i)) == 0;
+        }
+        break;
     case STRING_:
 #ifdef NOBDW
-	small = nodeleng(env->stck) < 2;
+        small = nodeleng(env->stck) < 2;
 #else
-	small = !*nodevalue(env->stck).str || !nodevalue(env->stck).str[1];
+        small = !*nodevalue(env->stck).str || !nodevalue(env->stck).str[1];
 #endif
-	break;
+        break;
     case LIST_:
-	small = !nodevalue(env->stck).lis ||
-		!nextnode1(nodevalue(env->stck).lis);
-	break;
+        small = !nodevalue(env->stck).lis
+            || !nextnode1(nodevalue(env->stck).lis);
+        break;
     default:
-	BADDATA("small");
+        BADDATA("small");
     }
     UNARY(BOOLEAN_NEWNODE, small);
 }

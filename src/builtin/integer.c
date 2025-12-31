@@ -13,5 +13,4 @@ Tests whether X is an integer.
 TYPE(integer_, "integer", ==, INTEGER_)
 
 
-
 #endif

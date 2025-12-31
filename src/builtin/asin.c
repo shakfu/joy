@@ -13,5 +13,4 @@ G is the arc sine of F.
 UFLOAT(asin_, "asin", asin)
 
 
-
 #endif

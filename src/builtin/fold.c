@@ -6,8 +6,8 @@
 #ifndef FOLD_C
 #define FOLD_C
 
-#include "swapd.c"
 #include "step.c"
+#include "swapd.c"
 
 /**
 Q1  OK  2780  fold  :  A V0 [P]  ->  V

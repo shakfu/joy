@@ -13,5 +13,4 @@ G is the common logarithm of F.
 UFLOAT(log10_, "log10", log10)
 
 
-
 #endif

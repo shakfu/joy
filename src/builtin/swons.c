@@ -13,5 +13,4 @@ Aggregate B is A with a new member X (first member for sequences).
 CONS_SWONS(swons_, "swons", nextnode1(env->stck), env->stck)
 
 
-
 #endif

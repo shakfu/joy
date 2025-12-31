@@ -13,5 +13,4 @@ N is the maximum of numeric values N1 and N2.  Also supports float.
 MAXMIN(max_, "max", <)
 
 
-
 #endif

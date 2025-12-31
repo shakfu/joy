@@ -11,7 +11,7 @@ Q0  IGNORE_POP  3100  putchars  :  "abc.."  ->
 [IMPURE] Writes abc.. (without quotes)
 */
 USETOP(putchars_, "putchars", STRING,
-		printf("%s", (char *)&nodevalue(env->stck)))
+       printf("%s", (char*)&nodevalue(env->stck)))
 
 
 #endif

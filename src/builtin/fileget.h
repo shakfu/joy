@@ -6,11 +6,11 @@
 #ifndef FILEGET_H
 #define FILEGET_H
 
-#define FILEGET(PROCEDURE, NAME, CONSTRUCTOR, EXPR)			\
-    void PROCEDURE(pEnv env)						\
-    {									\
-	ONEPARAM(NAME);							\
-	ISFILE(NAME);							\
-	NULLARY(CONSTRUCTOR, EXPR);					\
+#define FILEGET(PROCEDURE, NAME, CONSTRUCTOR, EXPR)                           \
+    void PROCEDURE(pEnv env)                                                  \
+    {                                                                         \
+        ONEPARAM(NAME);                                                       \
+        ISFILE(NAME);                                                         \
+        NULLARY(CONSTRUCTOR, EXPR);                                           \
     }
 #endif

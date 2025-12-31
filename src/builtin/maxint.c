@@ -13,5 +13,4 @@ Pushes largest integer (platform dependent). Typically it is 32 bits.
 PUSH(maxint_, INTEGER_NEWNODE, MAXINT_)
 
 
-
 #endif

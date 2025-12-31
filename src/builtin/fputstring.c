@@ -12,8 +12,5 @@
 Q0  OK  1970  fputstring  :  S "abc.."  ->  S
 [FOREIGN] == fputchars, as a temporary alternative.
 */
-void fputstring_(pEnv env)
-{
-    fputchars_(env);
-}
+void fputstring_(pEnv env) { fputchars_(env); }
 #endif

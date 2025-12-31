@@ -6,11 +6,11 @@
 #ifndef UFLOAT_H
 #define UFLOAT_H
 
-#define UFLOAT(PROCEDURE, NAME, FUNC)					\
-    void PROCEDURE(pEnv env)						\
-    {									\
-	ONEPARAM(NAME);							\
-	FLOAT(NAME);							\
-	UNARY(FLOAT_NEWNODE, FUNC(FLOATVAL));				\
+#define UFLOAT(PROCEDURE, NAME, FUNC)                                         \
+    void PROCEDURE(pEnv env)                                                  \
+    {                                                                         \
+        ONEPARAM(NAME);                                                       \
+        FLOAT(NAME);                                                          \
+        UNARY(FLOAT_NEWNODE, FUNC(FLOATVAL));                                 \
     }
 #endif

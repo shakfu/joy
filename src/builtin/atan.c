@@ -13,5 +13,4 @@ G is the arc tangent of F.
 UFLOAT(atan_, "atan", atan)
 
 
-
 #endif

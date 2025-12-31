@@ -13,5 +13,4 @@ Tests whether X is a character.
 TYPE(char_, "char", ==, CHAR_)
 
 
-
 #endif

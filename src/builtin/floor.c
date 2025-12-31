@@ -13,5 +13,4 @@ G is the floor of F.
 UFLOAT(floor_, "floor", floor)
 
 
-
 #endif

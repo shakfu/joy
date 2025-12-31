@@ -16,7 +16,7 @@ void divide_(pEnv env)
     CHECKDIVISOR("divide");
     FLOAT_I(/);
     INTEGERS2("divide");
-    BINARY(INTEGER_NEWNODE, nodevalue(nextnode1(env->stck)).num /
-		    nodevalue(env->stck).num);
+    BINARY(INTEGER_NEWNODE,
+           nodevalue(nextnode1(env->stck)).num / nodevalue(env->stck).num);
 }
 #endif
