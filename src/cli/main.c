@@ -7,6 +7,7 @@
 
 #ifdef USE_LINENOISE
 #include "linenoise.h"
+#include <ctype.h>   /* for isspace() */
 #include <unistd.h>  /* for isatty() */
 #endif
 
@@ -246,6 +247,49 @@ static void unknown_opt(char* exe, int ch)
 
 #ifdef USE_LINENOISE
 /*
+ * completion_callback - provides tab completion for Joy words.
+ * Searches the symbol table for words matching the current prefix.
+ */
+static void completion_callback(const char *buf, linenoiseCompletions *lc)
+{
+    size_t len = strlen(buf);
+    const char *word_start;
+    size_t prefix_len;
+    int i, symtab_size;
+
+    if (!global_env || !global_env->symtab)
+        return;
+
+    /* Find the start of the current word (scan backwards for whitespace) */
+    word_start = buf + len;
+    while (word_start > buf && !isspace((unsigned char)word_start[-1]))
+        word_start--;
+    prefix_len = (buf + len) - word_start;
+
+    /* If no prefix, don't complete */
+    if (prefix_len == 0)
+        return;
+
+    /* Search symbol table for matching entries */
+    symtab_size = vec_size(global_env->symtab);
+    for (i = 0; i < symtab_size; i++) {
+        Entry ent = vec_at(global_env->symtab, i);
+        if (ent.name && strncmp(ent.name, word_start, prefix_len) == 0) {
+            /* Build completion: text before word + completed word */
+            size_t before_len = word_start - buf;
+            size_t name_len = strlen(ent.name);
+            char *completion = malloc(before_len + name_len + 1);
+            if (completion) {
+                memcpy(completion, buf, before_len);
+                memcpy(completion + before_len, ent.name, name_len + 1);
+                linenoiseAddCompletion(lc, completion);
+                free(completion);
+            }
+        }
+    }
+}
+
+/*
  * linenoise_repl - interactive REPL using linenoise for line editing.
  * Provides command history and line editing capabilities.
  */
@@ -263,6 +307,9 @@ static void linenoise_repl(pEnv env)
 
     /* Try to load history file */
     linenoiseHistoryLoad(".joy_history");
+
+    /* Set up tab completion using symbol table */
+    linenoiseSetCompletionCallback(completion_callback);
 
     while ((line = linenoise("joy> ")) != NULL) {
         /* Skip empty lines */
