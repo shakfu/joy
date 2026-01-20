@@ -27,21 +27,28 @@
 #include <time.h>
 
 /*
+ * Under Linux overcommit_memory can be turned off (value 2), or ulimit can be
+ * set and that way, malloc can return 0. The return value of GC_malloc is not
+ * tested, because, although BDW can announce that it will return NULL, it
+ * never does. This replaces the _MSC_VER-only checks with portable checking.
+ */
+#define TEST_MALLOC_RETURN
+
+/*
+ * A call to system() can be disabled for security. Set this to allow shell
+ * escape commands. When not defined, system() calls are blocked.
+ * Note: The fork already has command_is_safe() validation in scan.c which
+ * provides additional protection even when this is enabled.
+ */
+#define ALLOW_SYSTEM_CALLS
+
+/*
  * Certain compilers are likely to compile for the Windows platform and that
  * means that WINDOWS can be set. Other compilers need to set this explicitly,
  * if so desired.
  */
 #if defined(_MSC_VER) || defined(__MINGW64_VERSION_MAJOR) || defined(__TINYC__)
 #define WINDOWS
-#endif
-
-/*
- * The system call doesn't work when Windows is run in S-mode, so it might just
- * as well be disabled, regardless of the compiler that is used. It is a bit of
- * a security leak anyways.
- */
-#ifdef WINDOWS
-#define WINDOWS_S
 #endif
 
 #ifdef WINDOWS
@@ -363,6 +370,8 @@ void inimem1(pEnv env, int status);
 void inimem2(pEnv env);
 void printnode(pEnv env, Index p);
 void my_gc(pEnv env);
+char *check_strdup(char *str);
+void *check_malloc(size_t leng);
 #endif
 /* error.c */
 void execerror(pEnv env, char* message, char* op);

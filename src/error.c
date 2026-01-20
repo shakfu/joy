@@ -1,9 +1,20 @@
 /*
  *  module  : error.c
- *  version : 1.5
- *  date    : 01/20/26
+ *  version : 1.6
+ *  date    : 01/21/26
  */
 #include "globals.h"
+
+/*
+ * fatal terminates the application with an error message.
+ * This is called when memory allocation fails and there's no recovery.
+ */
+void fatal(char *str)
+{
+    fflush(stdout);
+    fprintf(stderr, "fatal error: %s\n", str);
+    exit(EXIT_FAILURE);
+}
 
 /*
  * abort execution and restart reading from srcfile; the stack is not cleared.

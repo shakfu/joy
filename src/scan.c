@@ -36,7 +36,9 @@ static struct keys {
  *   env->endpos      - position of token end
  */
 static int stderr_printf_count(const char *fmt, ...);
+#ifdef ALLOW_SYSTEM_CALLS
 static int command_is_safe(const char *cmd);
+#endif
 
 /*
  * getch reads the next character from srcfile.
@@ -64,7 +66,7 @@ again:
         while ((ch = joy_getc(env, env->srcfile)) != '\n' && ch != EOF)
             vec_push(env->string, ch);
         vec_push(env->string, 0);
-#ifndef WINDOWS_S
+#ifdef ALLOW_SYSTEM_CALLS
         if (!env->ignore) {
             char *command = &vec_at(env->string, 0);
             if (command_is_safe(command)) {
@@ -636,7 +638,7 @@ int getsym(pEnv env, int ch)
         dumptok(env, env->startnum, env->startpos, env->endpos); /* tokens read directly */
     return ch;
 }
-#ifndef WINDOWS_S
+#ifdef ALLOW_SYSTEM_CALLS
 static int command_is_safe(const char *cmd)
 {
     while (*cmd) {

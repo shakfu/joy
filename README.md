@@ -83,6 +83,7 @@ See also
 
 Implementation|Dependencies
 --------------|------------
+
 [42minjoy](https://github.com/Wodan58/42minjoy)|
 [joy0](https://github.com/Wodan58/joy0)|
 [joy1](https://github.com/Wodan58/joy1)|[BDW garbage collector](https://github.com/ivmai/bdwgc)
@@ -92,6 +93,7 @@ Implementation|Dependencies
 Documentation|Notes
 -------------|-----
 [Legacy Docs](https://wodan58.github.io)|Link in About section
+
 [User Manual](https://wodan58.github.io/j09imp.html)|
 [Comparison](https://github.com/Wodan58/HET/blob/master/doc/FIB.md)|Speed comparison
 [Main Manual (PDF)](https://github.com/Wodan58/G3/blob/master/JOP.pdf)|3rd edition

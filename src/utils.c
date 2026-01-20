@@ -49,6 +49,32 @@ static int nodesinspected, nodescopied;
 #endif
 
 /*
+ * Safe strdup wrapper - checks for allocation failure.
+ */
+char *check_strdup(char *str)
+{
+    char *ptr = strdup(str);
+#ifdef TEST_MALLOC_RETURN
+    if (!ptr)
+        fatal("memory exhausted");
+#endif
+    return ptr;
+}
+
+/*
+ * Safe malloc wrapper - checks for allocation failure.
+ */
+void *check_malloc(size_t leng)
+{
+    void *ptr = malloc(leng);
+#ifdef TEST_MALLOC_RETURN
+    if (!ptr)
+        fatal("memory exhausted");
+#endif
+    return ptr;
+}
+
+/*
  * Initialize memory at the start and before reading a definition.
  * Definitions clear all other memory; they are themselves permanent.
  * Memory is initialized with 1 node, acting as a null pointer.
@@ -57,12 +83,12 @@ static int nodesinspected, nodescopied;
 void inimem1(pEnv env, int status)
 {
 #ifdef TRACEGC
-    env->tracegc = 6; /* set to maximum */
+    env->tracegc = 4;                /* set to reasonable, max=6 */
 #endif
     if (!mem_low) {
         memoryindex = mem_low = 1;
         env->memory = calloc(memorymax = MEM_LOW, sizeof(Node));
-#ifdef _MSC_VER
+#ifdef TEST_MALLOC_RETURN
         if (!env->memory)
             fatal("memory exhausted");
 #endif
@@ -204,7 +230,7 @@ static void scan_roots(pEnv env)
     }
 }
 
-static void gc1(pEnv env)
+static void gc1(pEnv env, Index *l, Index *r)
 {
     start_gc_clock = clock(); /* statistics */
 #ifdef TRACEGC
@@ -228,11 +254,17 @@ static void gc1(pEnv env)
     COP1(env->dump3, "dump3");
     COP1(env->dump4, "dump4");
     COP1(env->dump5, "dump5");
+    if (l)
+        COP1(*l, "list");            /* copy parameters */
+    if (r)
+        COP1(*r, "next");
 #endif
     old_memory = env->memory; /* backup original memory */
-    /* allocate new memory with at least the same capacity as the original */
+    /*
+     * Allocate new memory with at least the same capacity as the original.
+     */
     env->memory = calloc(memorymax, sizeof(Node));
-#ifdef _MSC_VER
+#ifdef TEST_MALLOC_RETURN
     if (!env->memory)
         fatal("memory exhausted");
 #endif
@@ -262,6 +294,10 @@ static void gc1(pEnv env)
     COP2(env->dump3, "dump3");
     COP2(env->dump4, "dump4");
     COP2(env->dump5, "dump5");
+    if (l)
+        COP2(*l, "list");            /* copy parameters */
+    if (r)
+        COP2(*r, "next");
 
     if (env->variable_busy) /* also copy variables, if there are any */
         scan_roots(env);
@@ -272,15 +308,15 @@ static void gc2(pEnv env)
     clock_t this_gc_clock;
 
     free(old_memory);                         /* release old memory */
-                                              /*
-                                               * If memory is mostly occupied, it should be increased. If only a small
-                                               * amount                                           is occupied, it should be decreased.
-                                               */
+    /*
+     * If memory is mostly occupied, even after gc, it should be increased.
+     * If only a small amount is occupied after gc, it should be decreased.
+     */
     if (memoryindex * 100.0 / memorymax < 10) /* check decrease */
         memorymax *= 0.9;
     else if (memoryindex * 100.0 / memorymax > 90) { /* check increase */
         env->memory = realloc(env->memory, (memorymax *= 2) * sizeof(Node));
-#ifdef _MSC_VER
+#ifdef TEST_MALLOC_RETURN
         if (!env->memory)
             fatal("memory exhausted");
 #endif
@@ -299,8 +335,38 @@ static void gc2(pEnv env)
 
 void my_gc(pEnv env)
 {
-    gc1(env);
+    gc1(env, 0, 0);
     gc2(env);
+}
+
+/*
+ * Count the number of nodes that need to be copied during garbage collection.
+ */
+static int count(pEnv env, Index n)
+{
+    Operator op;
+    int size, num = 1;
+
+    /*
+     * If n is 0 or in the space reserved for definitions, it is not counted.
+     */
+    if (n < mem_low)
+        return 0;
+    op = env->memory[n].op;
+    /*
+     * If the node contains a string, then some more copying is needed.
+     */
+    if (op == STRING_ || op == BIGNUM_) {
+        size = env->memory[n].len + 1;
+        if ((size -= sizeof(Types)) > 0)        /* first part in Types */
+            num += (size + sizeof(Node) - 1) / sizeof(Node);    /* round up */
+    }
+    /*
+     * If the node contains a list, then the list needs to be counted.
+     */
+    if (op == LIST_)
+        num += count(env, env->memory[n].u.lis);
+    return num;
 }
 
 /*
@@ -311,7 +377,7 @@ void my_gc(pEnv env)
 Index newnode(pEnv env, Operator o, Types u, Index r)
 {
     Index p;
-    int size, leng = 0, num = 1; /* allocate at least one node */
+    int size, leng = 0, num = 1, numgc;  /* allocate at least one node */
 
     if (o == STRING_ || o == BIGNUM_) {
         size = leng = strlen(u.str) + 1;
@@ -319,19 +385,35 @@ Index newnode(pEnv env, Operator o, Types u, Index r)
             num += (size + sizeof(Node) - 1) / sizeof(Node); /* round up */
     }
     if (memoryindex + num >= memorymax) { /* space for new node */
+        /*
+         * No garbage collection during the read of definitions.
+         */
         if (env->flibrary_busy) {
             while (memoryindex + num >= memorymax)
                 memorymax *= 2;
             env->memory = realloc(env->memory, memorymax * sizeof(Node));
-#ifdef _MSC_VER
+#ifdef TEST_MALLOC_RETURN
             if (!env->memory)
                 fatal("memory exhausted");
 #endif
         } else {
-            gc1(env);       /* copy roots */
-            if (o == LIST_) /* copy parameters */
-                u.lis = copy(env, u.lis);
-            r = copy(env, r);
+            /*
+             * Make sure that, in the case of gc, enough nodes are available.
+             */
+            numgc = num;
+            if (o == LIST_)
+                numgc += count(env, u.lis);
+            numgc += count(env, r);
+            /*
+             * Increase memorymax, do not realloc. The new memory is allocated
+             * in gc1 before copying nodes to the new memory.
+             */
+            while (memoryindex + numgc >= memorymax)
+                memorymax *= 2;
+            if (o == LIST_)             /* copy parameters */
+                gc1(env, &u.lis, &r);
+            else                        /* copy roots */
+                gc1(env, 0, &r);
             gc2(env); /* finish copying */
         }
     }
@@ -363,13 +445,9 @@ Index newnode2(pEnv env, Index p, Index r)
     Types u;
     Operator o;
 
-    if ((o = env->memory[p].op) == STRING_ || o == BIGNUM_) {
-        u.str = strdup((char*)&env->memory[p].u);
-#ifdef _MSC_VER
-        if (!u.str)
-            fatal("memory exhausted");
-#endif
-    } else
+    if ((o = env->memory[p].op) == STRING_ || o == BIGNUM_)
+        u.str = check_strdup((char*)&env->memory[p].u);
+    else
         u = env->memory[p].u;
     p = newnode(env, o, u, r);
     if (o == STRING_ || o == BIGNUM_)

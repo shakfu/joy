@@ -19,8 +19,8 @@ endmacro(exe9)
 # Macro to add CTest test
 macro(joy_test src)
 add_test(NAME test2_${src}
-         COMMAND ${TEST_RUNNER} ${JOY_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/test2/${src}.joy
-         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests/test2)
+         COMMAND ${TEST_RUNNER} ${JOY_EXECUTABLE} ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests/test2/${src}.joy
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 endmacro(joy_test)
 
 # Generate output files (existing functionality)

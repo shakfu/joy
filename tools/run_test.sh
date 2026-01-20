@@ -1,9 +1,11 @@
 #!/bin/bash
 # Test runner script for Joy tests
-# Usage: run_test.sh <joy_executable> [flags] <test_file>
+# Usage: run_test.sh <joy_executable> <source_dir> [flags] <test_file>
 # Exit code: 0 if all assertions pass (only 'true' lines), 1 otherwise
 
 JOY_EXE="$1"
+shift
+SOURCE_DIR="$1"
 shift
 
 # Last argument is test file, rest are flags
@@ -13,6 +15,9 @@ while [ $# -gt 1 ]; do
     shift
 done
 TEST_FILE="$1"
+
+# Library init file sets up search paths for libload
+INILIB="$SOURCE_DIR/lib/inilib.joy"
 
 if [ ! -x "$JOY_EXE" ]; then
     echo "Error: Joy executable not found or not executable: $JOY_EXE"
@@ -25,10 +30,19 @@ if [ ! -f "$TEST_FILE" ]; then
 fi
 
 # Run the test and capture output
-if [ ${#FLAGS[@]} -gt 0 ]; then
-    OUTPUT=$("$JOY_EXE" "${FLAGS[@]}" "$TEST_FILE" 2>&1)
+# Include inilib.joy first to set up library search paths
+if [ -f "$INILIB" ]; then
+    if [ ${#FLAGS[@]} -gt 0 ]; then
+        OUTPUT=$("$JOY_EXE" "${FLAGS[@]}" "$INILIB" "$TEST_FILE" 2>&1)
+    else
+        OUTPUT=$("$JOY_EXE" "$INILIB" "$TEST_FILE" 2>&1)
+    fi
 else
-    OUTPUT=$("$JOY_EXE" "$TEST_FILE" 2>&1)
+    if [ ${#FLAGS[@]} -gt 0 ]; then
+        OUTPUT=$("$JOY_EXE" "${FLAGS[@]}" "$TEST_FILE" 2>&1)
+    else
+        OUTPUT=$("$JOY_EXE" "$TEST_FILE" 2>&1)
+    fi
 fi
 EXIT_CODE=$?
 
