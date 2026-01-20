@@ -104,14 +104,14 @@ static int definition(pEnv env, int ch)
         if (env->sym == '.')
             ch = getsym(env, ch);
         else
-            error("END or period '.' expected in compound definition");
+            error(env, "END or period '.' expected in compound definition");
         return ch;
     }
 
     if (env->sym != USR_)
         /*   NOW ALLOW EMPTY DEFINITION:
-              { error("atom expected at start of definition");
-            abortexecution_(); }
+              { error(env, "atom expected at start of definition");
+            abortexecution_(env, ABORT_RETRY); }
         */
         return ch;
 
@@ -122,7 +122,7 @@ static int definition(pEnv env, int ch)
     if (env->sym == EQDEF)
         ch = getsym(env, ch);
     else
-        error("== expected in definition");
+        error(env, "== expected in definition");
     ch = readterm(env, ch);
 
     index = enteratom(env, name);
@@ -163,7 +163,7 @@ int compound_def(pEnv env, int ch)
     case MODULE_:
         ch = getsym(env, ch);
         if (env->sym != USR_)
-            abortexecution_(ABORT_RETRY);
+            abortexecution_(env, ABORT_RETRY);
         initmod(env, env->str); /* initmod adds name to the module */
         ch = getsym(env, ch);
         ch = compound_def(env, ch);

@@ -17,6 +17,6 @@ void get_(pEnv env)
     ch = getch(env);
     ch = getsym(env, ch);
     ch = readfactor(env, ch, &rv);
-    ungetch(ch);
+    ungetch(env, ch);
 }
 #endif

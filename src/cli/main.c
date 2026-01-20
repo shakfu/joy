@@ -117,24 +117,13 @@ Manfred von Thun, 2006
 #include "globals.h"
 #include <stdarg.h>
 
-static jmp_buf begin; /* restart with empty program */
-
-char* bottom_of_stack; /* needed in gc.c */
+static pEnv global_env; /* for fatal() which has no env parameter */
 
 static void stats(pEnv env), dump(pEnv env);
 static void stderr_printf(const char *fmt, ...);
 #ifdef MALLOC_DEBUG
 static void mem_free(pEnv env);
 #endif
-
-/*
- * abort execution and restart reading from srcfile; the stack is not cleared.
- */
-void abortexecution_(int num)
-{
-    fflush(stdin);
-    longjmp(begin, num);
-}
 
 /*
  * fatal terminates the application with an error message.
@@ -144,7 +133,7 @@ void fatal(char* str)
 {
     fflush(stdout);
     stderr_printf("fatal error: %s\n", str);
-    abortexecution_(ABORT_QUIT);
+    abortexecution_(global_env, ABORT_QUIT);
 }
 #endif
 
@@ -250,18 +239,6 @@ static void unknown_opt(char* exe, int ch)
     printf("More info with: \"%s -h\"\n", exe);
 }
 
-/*
- * Push an integer on the stack. The stack is communicated through a global
- * variable that is only used here.
- */
-static pEnv tmp_env;
-
-void do_push_int(int num)
-{
-    tmp_env->bucket.num = num;
-    tmp_env->stck = newnode(tmp_env, INTEGER_, tmp_env->bucket, tmp_env->stck);
-}
-
 static void my_main(int argc, char** argv)
 {
     static unsigned char psdump = 0, pstats = 0;
@@ -279,6 +256,7 @@ static void my_main(int argc, char** argv)
 #endif
 
     memset(&env, 0, sizeof(env));
+    env.ilevel = -1; /* scanner: no include files yet */
     /*
      * Start the clock.
      */
@@ -498,9 +476,9 @@ start:
     if (raw && env.filename) { /* raw requires a filename */
         env.autoput = 0;       /* disable autoput in usrlib.joy */
         env.autoput_set = 1;   /* prevent enabling autoput */
-        tmp_env = &env;
+        set_push_int_env(&env);
         SetRaw(); /* keep output buffered */
-        tmp_env = 0;
+        set_push_int_env(0);
 #ifdef NOBDW
         env.inits = env.stck; /* remember initial stack */
         inimem2(&env);        /* store initial stack in definition space */
@@ -542,7 +520,8 @@ start:
     /*
      * setup return address of error, abort, or quit.
      */
-    if (setjmp(begin) == ABORT_QUIT)
+    global_env = &env; /* for fatal() which has no env parameter */
+    if (setjmp(env.error_jmp) == ABORT_QUIT)
         goto einde; /* return here after error or abort */
     /*
      * (re)initialize code.

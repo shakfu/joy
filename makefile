@@ -3,7 +3,7 @@
 #   version : 2.0
 #   date    : 02/18/25
 #
-.PHONY: all joy clean clang-format clang-format-check clang-tidy
+.PHONY: all joy clean test clang-format clang-format-check clang-tidy
 
 BUILD_DIR ?= build
 FORMAT_FILES := $(shell git ls-files '*.c' '*.h')
@@ -17,6 +17,11 @@ joy:
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+test:
+	cmake -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Debug
+	cmake --build $(BUILD_DIR)
+	cd $(BUILD_DIR) && ctest --output-on-failure
 
 clang-format:
 	clang-format -i $(FORMAT_FILES)

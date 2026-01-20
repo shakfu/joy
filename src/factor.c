@@ -17,12 +17,12 @@ static uint64_t list2set(pEnv env, Index n)
         case CHAR_:
         case INTEGER_:
             if (nodevalue(n).num < 0 || nodevalue(n).num >= SETSIZE)
-                error("small numeric expected in set");
+                error(env, "small numeric expected in set");
             else
                 set |= (uint64_t)1 << nodevalue(n).set;
             break;
         default:
-            error("numeric expected in set");
+            error(env, "numeric expected in set");
             break;
         }
     return set;
@@ -42,7 +42,7 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
     switch (env->sym) {
     case USR_:
         if ((index = lookup(env, env->str)) == 0) {
-            error("no such field in module");
+            error(env, "no such field in module");
             *rv = 0; /* no factor was read */
             break;
         }
@@ -88,23 +88,23 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
         set = list2set(env, nodevalue(env->stck).lis);
         UNARY(SET_NEWNODE, set);
         if (env->sym != '}')
-            error("'}' expected");
+            error(env, "'}' expected");
         break;
 
     case '[':
         ch = getsym(env, ch);
         ch = readterm(env, ch);
         if (env->sym != ']')
-            error("']' expected");
+            error(env, "']' expected");
         break;
 
     case '(':
-        error("'(' not implemented");
+        error(env, "'(' not implemented");
         *rv = 0; /* no factor was read */
         break;
 
     default:
-        error("a factor cannot begin with this symbol");
+        error(env, "a factor cannot begin with this symbol");
         *rv = 0; /* no factor was read */
         break;
     }

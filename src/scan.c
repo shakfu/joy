@@ -23,19 +23,18 @@ static struct keys {
                  /* possibly other uppers here */
                  { "==", EQDEF } };
 
-static FILE* srcfile;                /* FILE pointer to input file */
-static char* filenam;                /* name of input file in messages */
-static int linenum, linepos;         /* line number for errors */
-static char linebuf[INPLINEMAX + 1]; /* buffered input line */
-
-static struct {
-    FILE* fp;
-    int line;
-    char name[FILENAMEMAX + 1]; /* filename in error messages */
-} infile[INPSTACKMAX];
-
-static int ilevel = -1;                /* index in infile-structure */
-static int startnum, startpos, endpos; /* y, x, and len of tokens */
+/* Scanner state is now in Env struct:
+ *   env->srcfile     - FILE pointer to input file
+ *   env->srcfilename - name of input file in messages
+ *   env->linenum     - line number for errors
+ *   env->linepos     - position in line
+ *   env->linebuf     - buffered input line
+ *   env->infile[]    - include file stack
+ *   env->ilevel      - index in infile-structure (-1 = empty)
+ *   env->startnum    - line of token start
+ *   env->startpos    - position of token start
+ *   env->endpos      - position of token end
+ */
 static int stderr_printf_count(const char *fmt, ...);
 static int command_is_safe(const char *cmd);
 
@@ -49,20 +48,20 @@ int getch(pEnv env)
 again:
     if (vec_size(env->pushback))
         return vec_pop(env->pushback);
-    if ((ch = fgetc(srcfile)) == EOF) {
-        if (!ilevel)
-            abortexecution_(ABORT_QUIT);
-        fclose(srcfile);
+    if ((ch = joy_getc(env, env->srcfile)) == EOF) {
+        if (!env->ilevel)
+            abortexecution_(env, ABORT_QUIT);
+        fclose(env->srcfile);
         if (env->finclude_busy)
             longjmp(env->finclude, 1); /* back to finclude */
-        srcfile = infile[--ilevel].fp;
-        linenum = infile[ilevel].line;
-        filenam = infile[ilevel].name;
+        env->srcfile = env->infile[--env->ilevel].fp;
+        env->linenum = env->infile[env->ilevel].line;
+        env->srcfilename = env->infile[env->ilevel].name;
         goto again;
     }
-    if (!linepos && ch == SHELLESCAPE) {
+    if (!env->linepos && ch == SHELLESCAPE) {
         vec_setsize(env->string, 0);
-        while ((ch = fgetc(srcfile)) != '\n' && ch != EOF)
+        while ((ch = joy_getc(env, env->srcfile)) != '\n' && ch != EOF)
             vec_push(env->string, ch);
         vec_push(env->string, 0);
 #ifndef WINDOWS_S
@@ -84,28 +83,28 @@ again:
     }
     if (ch == '\n') {
         if (env->echoflag > 2)
-            printf("%4d", linenum);
+            joy_printf(env, "%4d", env->linenum);
         if (env->echoflag > 1)
-            putchar('\t');
+            joy_putchar(env, '\t');
         if (env->echoflag)
-            printf("%.*s\n", linepos, linebuf); /* echo line */
-        linenum++;
-        linepos = 0;
-    } else if (linepos < INPLINEMAX)
-        linebuf[linepos++] = ch;
-    linebuf[linepos] = 0;
+            joy_printf(env, "%.*s\n", env->linepos, env->linebuf); /* echo line */
+        env->linenum++;
+        env->linepos = 0;
+    } else if (env->linepos < INPLINEMAX)
+        env->linebuf[env->linepos++] = ch;
+    env->linebuf[env->linepos] = 0;
     return ch;
 }
 
 /*
  * ungetch unreads a character.
  */
-void ungetch(int ch)
+void ungetch(pEnv env, int ch)
 {
     if (ch == '\n')
-        linenum--; /* about to unread newline */
-    ungetc(ch, srcfile);
-    linepos--; /* read too far, push back */
+        env->linenum--; /* about to unread newline */
+    ungetc(ch, env->srcfile);
+    env->linepos--; /* read too far, push back */
 }
 
 /*
@@ -136,13 +135,13 @@ static int stderr_printf_count(const char *fmt, ...)
     return needed;
 }
 
-void error(char* str)
+void error(pEnv env, char* str)
 {
     int leng;
 
     fflush(stdout);
-    leng = stderr_printf_count("%s:%d:", filenam, linenum);
-    leng += stderr_printf_count("%.*s", linepos, linebuf);
+    leng = stderr_printf_count("%s:%d:", env->srcfilename, env->linenum);
+    leng += stderr_printf_count("%.*s", env->linepos, env->linebuf);
     if (leng > 0) {
         stderr_printf_count("\n%*s^", --leng, "");
         stderr_printf_count("\n%*s%s\n", leng, "", str);
@@ -175,13 +174,13 @@ static void redirect(pEnv env, char* str, int j, FILE* fp)
         if (i == j)
             vec_push(env->pathnames, new_path);
     }
-    if (ilevel >= 0)
-        infile[ilevel].line = linenum; /* save last line number */
-    if (ilevel + 1 == INPSTACKMAX)     /* increase include level */
+    if (env->ilevel >= 0)
+        env->infile[env->ilevel].line = env->linenum; /* save last line number */
+    if (env->ilevel + 1 == INPSTACKMAX)     /* increase include level */
         execerror(env, "fewer include files", "include");
-    infile[++ilevel].fp = srcfile = fp; /* use new file pointer */
-    infile[ilevel].line = linenum = 1;  /* start with line 1 */
-    strncpy(filenam = infile[ilevel].name, str, FILENAMEMAX);
+    env->infile[++env->ilevel].fp = env->srcfile = fp; /* use new file pointer */
+    env->infile[env->ilevel].line = env->linenum = 1;  /* start with line 1 */
+    strncpy(env->srcfilename = env->infile[env->ilevel].name, str, FILENAMEMAX);
 }
 
 /*
@@ -269,8 +268,8 @@ static int special(pEnv env)
             for (i = 0; i < 2; i++) {
                 ch = getch(env);
                 if (!isdigit(ch)) {
-                    error("digit expected");
-                    ungetch(ch); /* not a digit, push back */
+                    error(env, "digit expected");
+                    ungetch(env, ch); /* not a digit, push back */
                     break;
                 }
                 my_num = 10 * my_num + ch - '0';
@@ -295,8 +294,8 @@ static int my_getsym(pEnv env, int ch)
 start:
     while (ch <= ' ')
         ch = getch(env);
-    startnum = linenum; /* line of a token */
-    startpos = linepos; /* start position of a token */
+    env->startnum = env->linenum; /* line of a token */
+    env->startpos = env->linepos; /* start position of a token */
     switch (ch) {
     case '(':
         ch = getch(env);
@@ -327,7 +326,7 @@ start:
     case '.':
     case ';':
         env->sym = ch;
-        endpos = linepos;
+        env->endpos = env->linepos;
         return getch(env); /* read past ch */
 
     case '\'':
@@ -336,7 +335,7 @@ start:
             ch = special(env);
         env->num = ch;
         env->sym = CHAR_;
-        endpos = linepos;
+        env->endpos = env->linepos;
         return getch(env); /* read past ch */
 
     case '"':
@@ -350,7 +349,7 @@ start:
         vec_push(env->string, 0);
         env->str = GC_strdup(&vec_at(env->string, 0));
         env->sym = STRING_;
-        endpos = linepos;
+        env->endpos = env->linepos;
         return getch(env); /* read past " */
 
     default:
@@ -366,13 +365,13 @@ start:
             ch = getch(env);
             if (type) {
                 if (!isdigit(ch)) { /* test float */
-                    ungetch(ch);    /* read too far, push back */
+                    ungetch(env, ch);    /* read too far, push back */
                     ch = '.';       /* restore full stop */
                     goto einde;
                 }
                 type = 2; /* floating point */
             } else if (!isalnum(ch) && !strchr(include, ch)) { /* member */
-                ungetch(ch); /* read too far, push back */
+                ungetch(env, ch); /* read too far, push back */
                 ch = '.';    /* restore full stop */
                 goto einde;
             }
@@ -385,7 +384,7 @@ start:
     einde:
         vec_push(env->string, 0);
         ptr = &vec_at(env->string, 0);
-        endpos = startpos + strlen(ptr) - 1;
+        env->endpos = env->startpos + strlen(ptr) - 1;
         if (type) {
             if (type == 2) {
                 env->dbl = strtod(&vec_at(env->string, 0), &ptr);
@@ -405,7 +404,7 @@ start:
                 }
             }
             if (*ptr) {
-                endpos -= strlen(ptr);
+                env->endpos -= strlen(ptr);
                 vec_push(env->pushback, ch);
                 for (i = strlen(ptr) - 1; i >= 0; i--)
                     vec_push(env->pushback, ptr[i]);
@@ -430,73 +429,73 @@ start:
 
 static void dumptok(pEnv env, int y, int x, int pos)
 {
-    printf("(%d,%d:%d) ", y, x, pos);
+    joy_printf(env, "(%d,%d:%d) ", y, x, pos);
     switch (env->sym) {
     case USR_:
-        printf("%s", env->str);
+        joy_printf(env, "%s", env->str);
         break;
     case CHAR_:
-        printf("%d", (int)env->num);
+        joy_printf(env, "%d", (int)env->num);
         break;
     case INTEGER_:
-        printf("%" PRId64, env->num);
+        joy_printf(env, "%" PRId64, env->num);
         break;
     case STRING_:
-        printf("\"%s\"", env->str);
+        joy_printf(env, "\"%s\"", env->str);
         break;
     case FLOAT_:
-        printf("%g", env->dbl);
+        joy_printf(env, "%g", env->dbl);
         break;
     case '[':
-        printf("LBRACK");
+        joy_puts(env, "LBRACK");
         break;
     case ']':
-        printf("RBRACK");
+        joy_puts(env, "RBRACK");
         break;
     case '{':
-        printf("LBRACE");
+        joy_puts(env, "LBRACE");
         break;
     case '}':
-        printf("RBRACE");
+        joy_puts(env, "RBRACE");
         break;
     case '(':
-        printf("LPAREN");
+        joy_puts(env, "LPAREN");
         break;
     case ')':
-        printf("RPAREN");
+        joy_puts(env, "RPAREN");
         break;
     case '.':
-        printf("PERIOD");
+        joy_puts(env, "PERIOD");
         break;
     case ';':
-        printf("SEMICOL");
+        joy_puts(env, "SEMICOL");
         break;
     case LIBRA:
-        printf("LIBRA");
+        joy_puts(env, "LIBRA");
         break;
     case EQDEF:
-        printf("EQDEF");
+        joy_puts(env, "EQDEF");
         break;
     case HIDE:
-        printf("HIDE");
+        joy_puts(env, "HIDE");
         break;
     case IN__:
-        printf("IN");
+        joy_puts(env, "IN");
         break;
     case MODULE_:
-        printf("MODULE");
+        joy_puts(env, "MODULE");
         break;
     case PRIVATE:
-        printf("PRIVATE");
+        joy_puts(env, "PRIVATE");
         break;
     case PUBLIC:
-        printf("PUBLIC");
+        joy_puts(env, "PUBLIC");
         break;
     case CONST_:
-        printf("CONST");
+        joy_puts(env, "CONST");
         break;
     }
-    printf("\n");
+    joy_puts(env, "\n");
 }
 
 /*
@@ -519,9 +518,9 @@ static void push_sym(pEnv env)
         node.u.str = env->str;
         break;
     }
-    node.y = startnum;
-    node.x = startpos;
-    node.pos = endpos;
+    node.y = env->startnum;
+    node.x = env->startpos;
+    node.pos = env->endpos;
     vec_push(env->tokens, node);
 }
 
@@ -584,7 +583,7 @@ int getsym(pEnv env, int ch)
                     initmod(env, env->str);
                     module++;
                 } else
-                    error("atom expected as name of module");
+                    error(env, "atom expected as name of module");
                 break;
             case HIDE:
             case PRIVATE:
@@ -634,7 +633,7 @@ int getsym(pEnv env, int ch)
     if (vec_size(env->tokens))
         goto begin;
     if (env->printing)
-        dumptok(env, startnum, startpos, endpos); /* tokens read directly */
+        dumptok(env, env->startnum, env->startpos, env->endpos); /* tokens read directly */
     return ch;
 }
 #ifndef WINDOWS_S

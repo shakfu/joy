@@ -1,12 +1,13 @@
 /*
  *  module  : print.c
- *  version : 1.1
- *  date    : 09/16/24
+ *  version : 1.2
+ *  date    : 01/20/26
  */
 #include "globals.h"
 
 /*
  * print the stack according to the autoput settings.
+ * Uses I/O abstraction for output when callbacks are set.
  */
 void print(pEnv env)
 {
@@ -18,8 +19,8 @@ void print(pEnv env)
             env->stck = nextnode1(env->stck);
         }
         if (env->autoput) {
-            putchar('\n');
-            fflush(stdout);
+            joy_putchar(env, '\n');
+            joy_flush(env);
         }
     }
 }

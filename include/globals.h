@@ -229,7 +229,11 @@ KHASH_MAP_INIT_INT64(Funtab, int)
 #endif
 
 typedef struct Env {
-    jmp_buf finclude; /* return point in finclude */
+    jmp_buf error_jmp; /* error recovery point */
+    jmp_buf finclude;  /* return point in finclude */
+    char error_message[256]; /* last error message */
+    int error_line;    /* line number of error */
+    int error_column;  /* column of error */
     double nodes;     /* statistics */
     double avail;
     double collect;
@@ -288,6 +292,30 @@ typedef struct Env {
     unsigned char variable_busy;
     signed char bytecoding; /* BDW only */
     signed char compiling;  /* BDW only */
+    /* Scanner state (moved from static variables in scan.c) */
+    FILE* srcfile;                       /* current input file */
+    char* srcfilename;                   /* name of current input file */
+    int linenum;                         /* current line number */
+    int linepos;                         /* position in current line */
+    char linebuf[INPLINEMAX + 1];        /* buffered input line */
+    struct {
+        FILE* fp;
+        int line;
+        char name[FILENAMEMAX + 1];
+    } infile[INPSTACKMAX];               /* include file stack */
+    int ilevel;                          /* index in infile stack (-1 = empty) */
+    int startnum;                        /* line number of token start */
+    int startpos;                        /* position of token start */
+    int endpos;                          /* position of token end */
+    /* I/O callbacks for embedding (Phase 4) */
+    struct {
+        void* user_data;
+        int   (*read_char)(void* user_data);
+        void  (*write_char)(void* user_data, int ch);
+        void  (*write_string)(void* user_data, const char* s);
+        void  (*on_error)(void* user_data, int code, const char* msg,
+                          const char* filename, int line, int column);
+    } io;
 } Env;
 
 typedef struct table_t {
@@ -311,18 +339,21 @@ typedef struct table_t {
 
 /* Public procedures: */
 /* main.c */
-void abortexecution_(int num);
 void fatal(char* str);
+/* error.c */
+void abortexecution_(pEnv env, int num);
 /* interp.c */
 void exeterm(pEnv env, Index n);
 /* scan.c */
 void inilinebuffer(pEnv env);
 int getch(pEnv env);
-void ungetch(int ch);
-void error(char* str);
+void ungetch(pEnv env, int ch);
+void error(pEnv env, char* str);
 int include(pEnv env, char* name);
 int getsym(pEnv env, int ch);
 /* utils.c */
+extern char* bottom_of_stack;
+void set_push_int_env(pEnv env);
 Index newnode(pEnv env, Operator o, Types u, Index r);
 Index newnode2(pEnv env, Index n, Index r);
 void my_memoryindex(pEnv env);
@@ -414,4 +445,16 @@ void closeout(void);
 int testtemp(char* file);
 void readtemp(pEnv env, char* file, Node* nodes[], int found, int seqnr);
 #endif
+/* iolib.c - I/O abstraction layer */
+int joy_getchar(pEnv env);
+int joy_getc(pEnv env, FILE* fp);
+void joy_putchar(pEnv env, int ch);
+void joy_putc(pEnv env, int ch, FILE* fp);
+void joy_fputs(pEnv env, const char* s, FILE* fp);
+void joy_fwrite(pEnv env, const char* s, size_t len, FILE* fp);
+void joy_fprintf(pEnv env, FILE* fp, const char* fmt, ...);
+void joy_puts(pEnv env, const char* s);
+void joy_printf(pEnv env, const char* fmt, ...);
+void joy_flush(pEnv env);
+void joy_report_error(pEnv env, int code, const char* msg);
 #endif

@@ -15,11 +15,35 @@
  */
 #define MEM_LOW 1100 /* initial number of nodes */
 
+char* bottom_of_stack; /* needed in gc.c for stack scanning */
+
+static pEnv push_int_env; /* for do_push_int callback from setraw.c */
 static Node* old_memory;
 static size_t memorymax;
-static Index mem_low, memoryindex;
+
+/* These need to be accessible from joy.c for context reset */
+Index mem_low, memoryindex;
 
 static clock_t start_gc_clock; /* statistics */
+
+/*
+ * Push an integer on the stack. Used by setraw.c for screen dimensions.
+ * The env is set via set_push_int_env before calling SetRaw.
+ */
+void do_push_int(int num)
+{
+    push_int_env->bucket.num = num;
+    push_int_env->stck = newnode(push_int_env, INTEGER_,
+                                  push_int_env->bucket, push_int_env->stck);
+}
+
+/*
+ * Set the environment for do_push_int callback.
+ */
+void set_push_int_env(pEnv env)
+{
+    push_int_env = env;
+}
 #ifdef TRACEGC
 static int nodesinspected, nodescopied;
 #endif

@@ -1,12 +1,22 @@
 /*
  *  module  : error.c
- *  version : 1.3
- *  date    : 10/11/24
+ *  version : 1.5
+ *  date    : 01/20/26
  */
 #include "globals.h"
 
 /*
+ * abort execution and restart reading from srcfile; the stack is not cleared.
+ */
+void abortexecution_(pEnv env, int num)
+{
+    fflush(stdin);
+    longjmp(env->error_jmp, num);
+}
+
+/*
  * print a runtime error to stderr and abort the execution of current program.
+ * Uses I/O abstraction for error output when callbacks are set.
  */
 void execerror(pEnv env, char* message, char* op)
 {
@@ -35,22 +45,22 @@ void execerror(pEnv env, char* message, char* op)
         leng = str - ptr;
     else
         leng = strlen(ptr);
-    fflush(stdout);
-    {
-        int needed = snprintf(NULL, 0,
-                              "run time error: %s needed for %.*s\n", message,
-                              leng, ptr);
-        if (needed > 0) {
-            size_t size = (size_t)needed + 1;
-            char *buffer = malloc(size);
-            if (buffer) {
-                snprintf(buffer, size,
-                         "run time error: %s needed for %.*s\n", message, leng,
-                         ptr);
-                fwrite(buffer, 1, size - 1, stderr);
-                free(buffer);
-            }
+
+    /* Format error message */
+    int needed = snprintf(NULL, 0,
+                          "run time error: %s needed for %.*s\n", message,
+                          leng, ptr);
+    if (needed > 0) {
+        size_t size = (size_t)needed + 1;
+        char *buffer = malloc(size);
+        if (buffer) {
+            snprintf(buffer, size,
+                     "run time error: %s needed for %.*s\n", message, leng,
+                     ptr);
+            /* Use I/O abstraction for error reporting */
+            joy_report_error(env, ABORT_RETRY, buffer);
+            free(buffer);
         }
     }
-    abortexecution_(ABORT_RETRY);
+    abortexecution_(env, ABORT_RETRY);
 } /* LCOV_EXCL_LINE */

@@ -55,6 +55,8 @@ set(JOY_CORE_SOURCES
   src/factor.c
   src/gc.c
   src/interp.c
+  src/iolib.c
+  src/joy.c
   src/module.c
   src/optable.c
   src/print.c
@@ -112,12 +114,20 @@ else()
   endforeach()
 endif()
 
-add_executable(joy src/main.c)
+add_executable(joy src/cli/main.c)
 target_link_libraries(joy PRIVATE joycore_static)
+target_include_directories(joy PRIVATE "${JOY_PUBLIC_INCLUDES}" "${JOY_GENERATED_DIR}" "${CMAKE_SOURCE_DIR}")
 add_dependencies(joy joy_generated)
 
 if(RUN_TESTS)
+  enable_testing()
   add_subdirectory(lib)
   add_subdirectory(test2)
   add_subdirectory(test4)
+endif()
+
+# Optional: Build embedding examples
+option(BUILD_EXAMPLES "Build embedding examples" OFF)
+if(BUILD_EXAMPLES)
+  add_subdirectory(examples)
 endif()
