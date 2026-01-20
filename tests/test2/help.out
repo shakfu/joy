@@ -1,0 +1,21 @@
+unassign typeof sametype round pick over finclude filetime casting 
+assign quit abort include putchars putch put get argc argv getenv 
+system gc setecho setundeferror setautoput manual helpdetail help 
+treegenrec treerec treestep all some split filter primrec infra times 
+map fold step condlinrec condnestrec genrec binrec tailrec linrec while 
+cond iffile iffloat iflist ifstring ifset iflogical ifchar ifinteger 
+ifte branch cleave ternary binary app4 app3 app2 unary4 unary3 unary2 
+unary nullary construct app12 app11 app1 dip x i file float user leaf 
+list string set logical char integer in has equal = != < <= > >= small 
+null body intern name enconcat concat take drop unswons uncons case 
+opcase size of at compare rest first swons cons unstack ftell fseek 
+fputstring fputchars fputch fput frename fremove fwrite fread fopen 
+fgets fgetch fflush ferror feof fclose min max succ pred srand formatf 
+format strtod strtol strftime mktime gmtime localtime trunc tanh tan 
+sqrt sinh sin pow modf log10 log ldexp frexp floor exp cosh cos ceil 
+atan2 atan asin acos abs chr ord neg sign div rem / * - + not and xor 
+or choice pop rotated rolldownd rollupd swapd dupd popd rotate rolldown 
+rollup swap dup id stderr stdout stdin rand time clock echo undefs 
+undeferror autoput conts stack setsize maxint true false  bignum type 
+ file type  float type  list type  string type  set type  integer type 
+ character type  truth value type 

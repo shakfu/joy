@@ -1,0 +1,845 @@
+
+
+\item[--- \BX{literal} ---] \verb# #
+
+\item[\BX{truth value type}]  \verb#  :  ->  B# \\ 
+ {\small\verb#The logical type, or the type of truth values.
+It has just two literals: true and false.#}
+
+\item[\BX{character type}]  \verb#  :  ->  C# \\ 
+ {\small\verb#The type of characters. Literals are written with a single quote.
+Examples:  'A  '7  ';  and so on. Unix style escapes are allowed.#}
+
+\item[\BX{integer type}]  \verb#  :  ->  I# \\ 
+ {\small\verb#The type of negative, zero or positive integers.
+Literals are written in decimal notation. Examples:  -123   0   42.#}
+
+\item[\BX{set type}]  \verb#  :  ->  {...}# \\ 
+ {\small\verb#The type of sets of small non-negative integers.
+The maximum is platform dependent, typically the range is 0..31.
+Literals are written inside curly braces.
+Examples:  {}  {0}  {1 3 5}  {19 18 17}.#}
+
+\item[\BX{string type}]  \verb#  :  ->  "..."# \\ 
+ {\small\verb#The type of strings of characters. Literals are written inside double quotes.
+Examples: ""  "A"  "hello world" "123".
+Unix style escapes are accepted.#}
+
+\item[\BX{list type}]  \verb#  :  ->  [...]# \\ 
+ {\small\verb#The type of lists of values of any type (including lists),
+or the type of quoted programs which may contain operators or combinators.
+Literals of this type are written inside square brackets.
+Examples: []  [3 512 -7]  [john mary]  ['A 'C ['B]]  [dup *].#}
+
+\item[\BX{float type}]  \verb#  :  ->  F# \\ 
+ {\small\verb#The type of floating-point numbers.
+Literals of this type are written with embedded decimal points (like 1.2)
+and optional exponent specifiers (like 1.5E2).#}
+
+\item[\BX{file type}]  \verb#  :  ->  FILE:# \\ 
+ {\small\verb#The type of references to open I/O streams,
+typically but not necessarily files.
+The only literals of this type are stdin, stdout, and stderr.#}
+
+\item[\BX{bignum type}]  \verb#  :  ->  F# \\ 
+ {\small\verb#The type of arbitrary precision floating-point numbers.
+Literals of this type are written with embedded decimal points (like 1.2)
+and optional exponent specifiers (like 1.5E2).#}
+
+
+
+\item[--- \BX{operand} ---] \verb# #
+
+\item[\JX{false}]  \verb#  :  ->  false# \\ 
+ {\small\verb#Pushes the value false.#}
+
+\item[\JX{true}]  \verb#  :  ->  true# \\ 
+ {\small\verb#Pushes the value true.#}
+
+\item[\JX{maxint}]  \verb#  :  ->  maxint# \\ 
+ {\small\verb#Pushes largest integer (platform dependent). Typically it is 32 bits.#}
+
+\item[\JX{setsize}]  \verb#  :  ->  setsize# \\ 
+ {\small\verb#Pushes the maximum number of elements in a set (platform dependent).
+Typically it is 32, and set members are in the range 0..31.#}
+
+\item[\JX{stack}]  \verb#  :  .. X Y Z  ->  .. X Y Z [Z Y X ..]# \\ 
+ {\small\verb#[RUNTIME] Pushes the stack as a list.#}
+
+\item[\JX{__symtabmax}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[SYMBOLS] Pushes value of maximum size of the symbol table.#}
+
+\item[\JX{__symtabindex}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[SYMBOLS] Pushes current size of the symbol table.#}
+
+\item[\JX{__dump}]  \verb#  :  ->  [..]# \\ 
+ {\small\verb#[SYMBOLS] debugging only: pushes the dump as a list.#}
+
+\item[\JX{conts}]  \verb#  :  ->  [[P] [Q] ..]# \\ 
+ {\small\verb#Pushes current continuations. Buggy, do not use.#}
+
+\item[\JX{autoput}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[SETTINGS] Pushes current value of flag for automatic output, I = 0..2.#}
+
+\item[\JX{undeferror}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[SETTINGS] Pushes current value of undefined-is-error flag.#}
+
+\item[\JX{undefs}]  \verb#  :  ->  [..]# \\ 
+ {\small\verb#[SYMBOLS] Push a list of all undefined symbols in the current symbol table.#}
+
+\item[\JX{echo}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[SETTINGS] Pushes value of echo flag, I = 0..3.#}
+
+\item[\JX{clock}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[IMPURE] Pushes the integer value of current CPU usage in milliseconds.#}
+
+\item[\JX{time}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[IMPURE] Pushes the current time (in seconds since the Epoch).#}
+
+\item[\JX{rand}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[IMPURE] I is a random integer.#}
+
+\item[\JX{__memorymax}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[IMPURE] Pushes value of total size of memory.#}
+
+\item[\JX{stdin}]  \verb#  :  ->  S# \\ 
+ {\small\verb#[FOREIGN] Pushes the standard input stream.#}
+
+\item[\JX{stdout}]  \verb#  :  ->  S# \\ 
+ {\small\verb#[FOREIGN] Pushes the standard output stream.#}
+
+\item[\JX{stderr}]  \verb#  :  ->  S# \\ 
+ {\small\verb#[FOREIGN] Pushes the standard error stream.#}
+
+
+
+\item[--- \BX{operator} ---] \verb# #
+
+\item[\JX{id}]  \verb#  :  -># \\ 
+ {\small\verb#Identity function, does nothing.
+Any program of the form  P id Q  is equivalent to just  P Q.#}
+
+\item[\JX{dup}]  \verb#  :  X  ->  X X# \\ 
+ {\small\verb#Pushes an extra copy of X onto stack.#}
+
+\item[\JX{swap}]  \verb#  :  X Y  ->  Y X# \\ 
+ {\small\verb#Interchanges X and Y on top of the stack.#}
+
+\item[\JX{rollup}]  \verb#  :  X Y Z  ->  Z X Y# \\ 
+ {\small\verb#Moves X and Y up, moves Z down.#}
+
+\item[\JX{rolldown}]  \verb#  :  X Y Z  ->  Y Z X# \\ 
+ {\small\verb#Moves Y and Z down, moves X up.#}
+
+\item[\JX{rotate}]  \verb#  :  X Y Z  ->  Z Y X# \\ 
+ {\small\verb#Interchanges X and Z.#}
+
+\item[\JX{popd}]  \verb#  :  Y Z  ->  Z# \\ 
+ {\small\verb#As if defined by:   popd  ==  [pop] dip#}
+
+\item[\JX{dupd}]  \verb#  :  Y Z  ->  Y Y Z# \\ 
+ {\small\verb#As if defined by:   dupd  ==  [dup] dip#}
+
+\item[\JX{swapd}]  \verb#  :  X Y Z  ->  Y X Z# \\ 
+ {\small\verb#As if defined by:   swapd  ==  [swap] dip#}
+
+\item[\JX{rollupd}]  \verb#  :  X Y Z W  ->  Z X Y W# \\ 
+ {\small\verb#As if defined by:   rollupd  ==  [rollup] dip#}
+
+\item[\JX{rolldownd}]  \verb#  :  X Y Z W  ->  Y Z X W# \\ 
+ {\small\verb#As if defined by:   rolldownd  ==  [rolldown] dip#}
+
+\item[\JX{rotated}]  \verb#  :  X Y Z W  ->  Z Y X W# \\ 
+ {\small\verb#As if defined by:   rotated  ==  [rotate] dip#}
+
+\item[\JX{pop}]  \verb#  :  X  -># \\ 
+ {\small\verb#Removes X from top of the stack.#}
+
+\item[\JX{choice}]  \verb#  :  B T F  ->  X# \\ 
+ {\small\verb#If B is true, then X = T else X = F.#}
+
+\item[\JX{or}]  \verb#  :  X Y  ->  Z# \\ 
+ {\small\verb#Z is the union of sets X and Y, logical disjunction for truth values.#}
+
+\item[\JX{xor}]  \verb#  :  X Y  ->  Z# \\ 
+ {\small\verb#Z is the symmetric difference of sets X and Y,
+logical exclusive disjunction for truth values.#}
+
+\item[\JX{and}]  \verb#  :  X Y  ->  Z# \\ 
+ {\small\verb#Z is the intersection of sets X and Y, logical conjunction for truth values.#}
+
+\item[\JX{not}]  \verb#  :  X  ->  Y# \\ 
+ {\small\verb#Y is the complement of set X, logical negation for truth values.#}
+
+\item[\JX{+}]  \verb#  :  M I  ->  N# \\ 
+ {\small\verb#Numeric N is the result of adding integer I to numeric M.
+Also supports float.#}
+
+\item[\JX{-}]  \verb#  :  M I  ->  N# \\ 
+ {\small\verb#Numeric N is the result of subtracting integer I from numeric M.
+Also supports float.#}
+
+\item[\JX{*}]  \verb#  :  I J  ->  K# \\ 
+ {\small\verb#Integer K is the product of integers I and J.  Also supports float.#}
+
+\item[\JX{/}]  \verb#  :  I J  ->  K# \\ 
+ {\small\verb#Integer K is the (rounded) ratio of integers I and J.  Also supports float.#}
+
+\item[\JX{rem}]  \verb#  :  I J  ->  K# \\ 
+ {\small\verb#Integer K is the remainder of dividing I by J.  Also supports float.#}
+
+\item[\JX{div}]  \verb#  :  I J  ->  K L# \\ 
+ {\small\verb#Integers K and L are the quotient and remainder of dividing I by J.#}
+
+\item[\JX{sign}]  \verb#  :  N1  ->  N2# \\ 
+ {\small\verb#Integer N2 is the sign (-1 or 0 or +1) of integer N1,
+or float N2 is the sign (-1.0 or 0.0 or 1.0) of float N1.#}
+
+\item[\JX{neg}]  \verb#  :  I  ->  J# \\ 
+ {\small\verb#Integer J is the negative of integer I.  Also supports float.#}
+
+\item[\JX{ord}]  \verb#  :  C  ->  I# \\ 
+ {\small\verb#Integer I is the Ascii value of character C (or logical or integer).#}
+
+\item[\JX{chr}]  \verb#  :  I  ->  C# \\ 
+ {\small\verb#C is the character whose Ascii value is integer I (or logical or character).#}
+
+\item[\JX{abs}]  \verb#  :  N1  ->  N2# \\ 
+ {\small\verb#Integer N2 is the absolute value (0,1,2..) of integer N1,
+or float N2 is the absolute value (0.0 ..) of float N1.#}
+
+\item[\JX{acos}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the arc cosine of F.#}
+
+\item[\JX{asin}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the arc sine of F.#}
+
+\item[\JX{atan}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the arc tangent of F.#}
+
+\item[\JX{atan2}]  \verb#  :  F G  ->  H# \\ 
+ {\small\verb#H is the arc tangent of F / G.#}
+
+\item[\JX{ceil}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the float ceiling of F.#}
+
+\item[\JX{cos}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the cosine of F.#}
+
+\item[\JX{cosh}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the hyperbolic cosine of F.#}
+
+\item[\JX{exp}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is e (2.718281828...) raised to the Fth power.#}
+
+\item[\JX{floor}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the floor of F.#}
+
+\item[\JX{frexp}]  \verb#  :  F  ->  G I# \\ 
+ {\small\verb#G is the mantissa and I is the exponent of F.
+Unless F = 0, 0.5 <= abs(G) < 1.0.#}
+
+\item[\JX{ldexp}]  \verb#  :  F I  ->  G# \\ 
+ {\small\verb#G is F times 2 to the Ith power.#}
+
+\item[\JX{log}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the natural logarithm of F.#}
+
+\item[\JX{log10}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the common logarithm of F.#}
+
+\item[\JX{modf}]  \verb#  :  F  ->  G H# \\ 
+ {\small\verb#G is the fractional part and H is the integer part
+(but expressed as a float) of F.#}
+
+\item[\JX{pow}]  \verb#  :  F G  ->  H# \\ 
+ {\small\verb#H is F raised to the Gth power.#}
+
+\item[\JX{sin}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the sine of F.#}
+
+\item[\JX{sinh}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the hyperbolic sine of F.#}
+
+\item[\JX{sqrt}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the square root of F.#}
+
+\item[\JX{tan}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the tangent of F.#}
+
+\item[\JX{tanh}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is the hyperbolic tangent of F.#}
+
+\item[\JX{trunc}]  \verb#  :  F  ->  I# \\ 
+ {\small\verb#I is an integer equal to the float F truncated toward zero.#}
+
+\item[\JX{localtime}]  \verb#  :  I  ->  T# \\ 
+ {\small\verb#Converts a time I into a list T representing local time:
+[year month day hour minute second isdst yearday weekday].
+Month is 1 = January ... 12 = December;
+isdst is a Boolean flagging daylight savings/summer time;
+weekday is 1 = Monday ... 7 = Sunday.#}
+
+\item[\JX{gmtime}]  \verb#  :  I  ->  T# \\ 
+ {\small\verb#Converts a time I into a list T representing universal time:
+[year month day hour minute second isdst yearday weekday].
+Month is 1 = January ... 12 = December;
+isdst is false; weekday is 1 = Monday ... 7 = Sunday.#}
+
+\item[\JX{mktime}]  \verb#  :  T  ->  I# \\ 
+ {\small\verb#Converts a list T representing local time into a time I.
+T is in the format generated by localtime.#}
+
+\item[\JX{strftime}]  \verb#  :  T S1  ->  S2# \\ 
+ {\small\verb#Formats a list T in the format of localtime or gmtime
+using string S1 and pushes the result S2.#}
+
+\item[\JX{strtol}]  \verb#  :  S I  ->  J# \\ 
+ {\small\verb#String S is converted to the integer J using base I.
+If I = 0, assumes base 10,
+but leading "0" means base 8 and leading "0x" means base 16.#}
+
+\item[\JX{strtod}]  \verb#  :  S  ->  R# \\ 
+ {\small\verb#String S is converted to the float R.#}
+
+\item[\JX{format}]  \verb#  :  N C I J  ->  S# \\ 
+ {\small\verb#S is the formatted version of N in mode C
+('d or 'i = decimal, 'o = octal, 'x or
+'X = hex with lower or upper case letters)
+with maximum width I and minimum width J.#}
+
+\item[\JX{formatf}]  \verb#  :  F C I J  ->  S# \\ 
+ {\small\verb#S is the formatted version of F in mode C
+('e or 'E = exponential, 'f = fractional,
+'g or G = general with lower or upper case letters)
+with maximum width I and precision J.#}
+
+\item[\JX{srand}]  \verb#  :  I  -># \\ 
+ {\small\verb#[IMPURE] Sets the random integer seed to integer I.#}
+
+\item[\JX{pred}]  \verb#  :  M  ->  N# \\ 
+ {\small\verb#Numeric N is the predecessor of numeric M.#}
+
+\item[\JX{succ}]  \verb#  :  M  ->  N# \\ 
+ {\small\verb#Numeric N is the successor of numeric M.#}
+
+\item[\JX{max}]  \verb#  :  N1 N2  ->  N# \\ 
+ {\small\verb#N is the maximum of numeric values N1 and N2.  Also supports float.#}
+
+\item[\JX{min}]  \verb#  :  N1 N2  ->  N# \\ 
+ {\small\verb#N is the minimum of numeric values N1 and N2.  Also supports float.#}
+
+\item[\JX{fclose}]  \verb#  :  S  -># \\ 
+ {\small\verb#[FOREIGN] Stream S is closed and removed from the stack.#}
+
+\item[\JX{feof}]  \verb#  :  S  ->  S B# \\ 
+ {\small\verb#[FOREIGN] B is the end-of-file status of stream S.#}
+
+\item[\JX{ferror}]  \verb#  :  S  ->  S B# \\ 
+ {\small\verb#[FOREIGN] B is the error status of stream S.#}
+
+\item[\JX{fflush}]  \verb#  :  S  ->  S# \\ 
+ {\small\verb#[FOREIGN] Flush stream S, forcing all buffered output to be written.#}
+
+\item[\JX{fgetch}]  \verb#  :  S  ->  S C# \\ 
+ {\small\verb#[FOREIGN] C is the next available character from stream S.#}
+
+\item[\JX{fgets}]  \verb#  :  S  ->  S L# \\ 
+ {\small\verb#[FOREIGN] L is the next available line (as a string) from stream S.#}
+
+\item[\JX{fopen}]  \verb#  :  P M  ->  S# \\ 
+ {\small\verb#[FOREIGN] The file system object with pathname P is opened with mode M
+(r, w, a, etc.) and stream object S is pushed; if the open fails, file:NULL
+is pushed.#}
+
+\item[\JX{fread}]  \verb#  :  S I  ->  S L# \\ 
+ {\small\verb#[FOREIGN] I bytes are read from the current position of stream S
+and returned as a list of I integers.#}
+
+\item[\JX{fwrite}]  \verb#  :  S L  ->  S# \\ 
+ {\small\verb#[FOREIGN] A list of integers are written as bytes to the current position of
+stream S.#}
+
+\item[\JX{fremove}]  \verb#  :  P  ->  B# \\ 
+ {\small\verb#[FOREIGN] The file system object with pathname P is removed from the file
+system. B is a boolean indicating success or failure.#}
+
+\item[\JX{frename}]  \verb#  :  P1 P2  ->  B# \\ 
+ {\small\verb#[FOREIGN] The file system object with pathname P1 is renamed to P2.
+B is a boolean indicating success or failure.#}
+
+\item[\JX{fput}]  \verb#  :  S X  ->  S# \\ 
+ {\small\verb#[FOREIGN] Writes X to stream S, pops X off stack.#}
+
+\item[\JX{fputch}]  \verb#  :  S C  ->  S# \\ 
+ {\small\verb#[FOREIGN] The character C is written to the current position of stream S.#}
+
+\item[\JX{fputchars}]  \verb#  :  S "abc.."  ->  S# \\ 
+ {\small\verb#[FOREIGN] The string abc.. (no quotes) is written to the current position of
+stream S.#}
+
+\item[\JX{fputstring}]  \verb#  :  S "abc.."  ->  S# \\ 
+ {\small\verb#[FOREIGN] == fputchars, as a temporary alternative.#}
+
+\item[\JX{fseek}]  \verb#  :  S P W  ->  S B# \\ 
+ {\small\verb#[FOREIGN] Stream S is repositioned to position P relative to whence-point W,
+where W = 0, 1, 2 for beginning, current position, end respectively.#}
+
+\item[\JX{ftell}]  \verb#  :  S  ->  S I# \\ 
+ {\small\verb#[FOREIGN] I is the current position of stream S.#}
+
+\item[\JX{unstack}]  \verb#  :  [X Y ..]  ->  ..Y X# \\ 
+ {\small\verb#The list [X Y ..] becomes the new stack.#}
+
+\item[\JX{cons}]  \verb#  :  X A  ->  B# \\ 
+ {\small\verb#Aggregate B is A with a new member X (first member for sequences).#}
+
+\item[\JX{swons}]  \verb#  :  A X  ->  B# \\ 
+ {\small\verb#Aggregate B is A with a new member X (first member for sequences).#}
+
+\item[\JX{first}]  \verb#  :  A  ->  F# \\ 
+ {\small\verb#F is the first member of the non-empty aggregate A.#}
+
+\item[\JX{rest}]  \verb#  :  A  ->  R# \\ 
+ {\small\verb#R is the non-empty aggregate A with its first member removed.#}
+
+\item[\JX{compare}]  \verb#  :  A B  ->  I# \\ 
+ {\small\verb#I (=-1,0,+1) is the comparison of aggregates A and B.
+The values correspond to the predicates <=, =, >=.#}
+
+\item[\JX{at}]  \verb#  :  A I  ->  X# \\ 
+ {\small\verb#X (= A[I]) is the member of A at position I.#}
+
+\item[\JX{of}]  \verb#  :  I A  ->  X# \\ 
+ {\small\verb#X (= A[I]) is the I-th member of aggregate A.#}
+
+\item[\JX{size}]  \verb#  :  A  ->  I# \\ 
+ {\small\verb#Integer I is the number of elements of aggregate A.#}
+
+\item[\JX{opcase}]  \verb#  :  X [..[X Xs]..]  ->  X [Xs]# \\ 
+ {\small\verb#Indexing on type of X, returns the list [Xs].#}
+
+\item[\JX{case}]  \verb#  :  X [..[X Y]..]  ->  Y i# \\ 
+ {\small\verb#Indexing on the value of X, execute the matching Y.#}
+
+\item[\JX{uncons}]  \verb#  :  A  ->  F R# \\ 
+ {\small\verb#F and R are the first and the rest of non-empty aggregate A.#}
+
+\item[\JX{unswons}]  \verb#  :  A  ->  R F# \\ 
+ {\small\verb#R and F are the rest and the first of non-empty aggregate A.#}
+
+\item[\JX{drop}]  \verb#  :  A N  ->  B# \\ 
+ {\small\verb#Aggregate B is the result of deleting the first N elements of A.#}
+
+\item[\JX{take}]  \verb#  :  A N  ->  B# \\ 
+ {\small\verb#Aggregate B is the result of retaining just the first N elements of A.#}
+
+\item[\JX{concat}]  \verb#  :  S T  ->  U# \\ 
+ {\small\verb#Sequence U is the concatenation of sequences S and T.#}
+
+\item[\JX{enconcat}]  \verb#  :  X S T  ->  U# \\ 
+ {\small\verb#Sequence U is the concatenation of sequences S and T
+with X inserted between S and T (== swapd cons concat).#}
+
+\item[\JX{name}]  \verb#  :  sym  ->  "sym"# \\ 
+ {\small\verb#For operators and combinators, the string "sym" is the name of item sym,
+for literals sym the result string is its type.#}
+
+\item[\JX{intern}]  \verb#  :  "sym"  ->  sym# \\ 
+ {\small\verb#[SYMBOLS] Pushes the item whose name is "sym".#}
+
+\item[\JX{body}]  \verb#  :  U  ->  [P]# \\ 
+ {\small\verb#[SYMBOLS] Quotation [P] is the body of user-defined symbol U.#}
+
+
+
+\item[--- \BX{predicate} ---] \verb# #
+
+\item[\JX{null}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests for empty aggregate X or zero numeric.#}
+
+\item[\JX{small}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether aggregate X has 0 or 1 members, or numeric 0 or 1.#}
+
+\item[\JX{>=}]  \verb#  :  X Y  ->  B# \\ 
+ {\small\verb#Either both X and Y are numeric or both are strings or symbols.
+Tests whether X greater than or equal to Y.  Also supports float.#}
+
+\item[\JX{>}]  \verb#  :  X Y  ->  B# \\ 
+ {\small\verb#Either both X and Y are numeric or both are strings or symbols.
+Tests whether X greater than Y.  Also supports float.#}
+
+\item[\JX{<=}]  \verb#  :  X Y  ->  B# \\ 
+ {\small\verb#Either both X and Y are numeric or both are strings or symbols.
+Tests whether X less than or equal to Y.  Also supports float.#}
+
+\item[\JX{<}]  \verb#  :  X Y  ->  B# \\ 
+ {\small\verb#Either both X and Y are numeric or both are strings or symbols.
+Tests whether X less than Y.  Also supports float.#}
+
+\item[\JX{!=}]  \verb#  :  X Y  ->  B# \\ 
+ {\small\verb#Either both X and Y are numeric or both are strings or symbols.
+Tests whether X not equal to Y.  Also supports float.#}
+
+\item[\JX{=}]  \verb#  :  X Y  ->  B# \\ 
+ {\small\verb#Either both X and Y are numeric or both are strings or symbols.
+Tests whether X equal to Y.  Also supports float.#}
+
+\item[\JX{equal}]  \verb#  :  T U  ->  B# \\ 
+ {\small\verb#(Recursively) tests whether trees T and U are identical.#}
+
+\item[\JX{has}]  \verb#  :  A X  ->  B# \\ 
+ {\small\verb#Tests whether aggregate A has X as a member.#}
+
+\item[\JX{in}]  \verb#  :  X A  ->  B# \\ 
+ {\small\verb#Tests whether X is a member of aggregate A.#}
+
+\item[\JX{integer}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether X is an integer.#}
+
+\item[\JX{char}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether X is a character.#}
+
+\item[\JX{logical}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether X is a logical.#}
+
+\item[\JX{set}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether X is a set.#}
+
+\item[\JX{string}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether X is a string.#}
+
+\item[\JX{list}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether X is a list.#}
+
+\item[\JX{leaf}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether X is not a list.#}
+
+\item[\JX{user}]  \verb#  :  X  ->  B# \\ 
+ {\small\verb#Tests whether X is a user-defined symbol.#}
+
+\item[\JX{float}]  \verb#  :  R  ->  B# \\ 
+ {\small\verb#Tests whether R is a float.#}
+
+\item[\JX{file}]  \verb#  :  F  ->  B# \\ 
+ {\small\verb#[FOREIGN] Tests whether F is a file.#}
+
+
+
+\item[--- \BX{combinator} ---] \verb# #
+
+\item[\JX{i}]  \verb#  :  [P]  ->  ...# \\ 
+ {\small\verb#Executes P. So, [P] i  ==  P.#}
+
+\item[\JX{x}]  \verb#  :  [P] x  ->  ...# \\ 
+ {\small\verb#Executes P without popping [P]. So, [P] x  ==  [P] P.#}
+
+\item[\JX{dip}]  \verb#  :  X [P]  ->  ...  X# \\ 
+ {\small\verb#Saves X, executes P, pushes X back.#}
+
+\item[\JX{app1}]  \verb#  :  X [P]  ->  R# \\ 
+ {\small\verb#Obsolescent.  Executes P, pushes result R on stack.#}
+
+\item[\JX{app11}]  \verb#  :  X Y [P]  ->  R# \\ 
+ {\small\verb#Executes P, pushes result R on stack.#}
+
+\item[\JX{app12}]  \verb#  :  X Y1 Y2 [P]  ->  R1 R2# \\ 
+ {\small\verb#Executes P twice, with Y1 and Y2, returns R1 and R2.#}
+
+\item[\JX{construct}]  \verb#  :  [P] [[P1] [P2] ..]  ->  R1 R2 ..# \\ 
+ {\small\verb#Saves state of stack and then executes [P].
+Then executes each [Pi] to give Ri pushed onto saved stack.#}
+
+\item[\JX{nullary}]  \verb#  :  [P]  ->  R# \\ 
+ {\small\verb#Executes P, which leaves R on top of the stack.
+No matter how many parameters this consumes, none are removed from the stack.#}
+
+\item[\JX{unary}]  \verb#  :  X [P]  ->  R# \\ 
+ {\small\verb#Executes P, which leaves R on top of the stack.
+No matter how many parameters this consumes,
+exactly one is removed from the stack.#}
+
+\item[\JX{unary2}]  \verb#  :  X1 X2 [P]  ->  R1 R2# \\ 
+ {\small\verb#Executes P twice, with X1 and X2 on top of the stack.
+Returns the two values R1 and R2.#}
+
+\item[\JX{unary3}]  \verb#  :  X1 X2 X3 [P]  ->  R1 R2 R3# \\ 
+ {\small\verb#Executes P three times, with Xi, returns Ri (i = 1..3).#}
+
+\item[\JX{unary4}]  \verb#  :  X1 X2 X3 X4 [P]  ->  R1 R2 R3 R4# \\ 
+ {\small\verb#Executes P four times, with Xi, returns Ri (i = 1..4).#}
+
+\item[\JX{app2}]  \verb#  :  X1 X2 [P]  ->  R1 R2# \\ 
+ {\small\verb#Obsolescent.  ==  unary2#}
+
+\item[\JX{app3}]  \verb#  :  X1 X2 X3 [P]  ->  R1 R2 R3# \\ 
+ {\small\verb#Obsolescent.  == unary3#}
+
+\item[\JX{app4}]  \verb#  :  X1 X2 X3 X4 [P]  ->  R1 R2 R3 R4# \\ 
+ {\small\verb#Obsolescent.  == unary4#}
+
+\item[\JX{binary}]  \verb#  :  X Y [P]  ->  R# \\ 
+ {\small\verb#Executes P, which leaves R on top of the stack.
+No matter how many parameters this consumes,
+exactly two are removed from the stack.#}
+
+\item[\JX{ternary}]  \verb#  :  X Y Z [P]  ->  R# \\ 
+ {\small\verb#Executes P, which leaves R on top of the stack.
+No matter how many parameters this consumes,
+exactly three are removed from the stack.#}
+
+\item[\JX{cleave}]  \verb#  :  X [P1] [P2]  ->  R1 R2# \\ 
+ {\small\verb#Executes P1 and P2, each with X on top, producing two results.#}
+
+\item[\JX{branch}]  \verb#  :  B [T] [F]  ->  ...# \\ 
+ {\small\verb#If B is true, then executes T else executes F.#}
+
+\item[\JX{ifte}]  \verb#  :  [B] [T] [F]  ->  ...# \\ 
+ {\small\verb#Executes B. If that yields true, then executes T else executes F.#}
+
+\item[\JX{ifinteger}]  \verb#  :  X [T] [E]  ->  ...# \\ 
+ {\small\verb#If X is an integer, executes T else executes E.#}
+
+\item[\JX{ifchar}]  \verb#  :  X [T] [E]  ->  ...# \\ 
+ {\small\verb#If X is a character, executes T else executes E.#}
+
+\item[\JX{iflogical}]  \verb#  :  X [T] [E]  ->  ...# \\ 
+ {\small\verb#If X is a logical or truth value, executes T else executes E.#}
+
+\item[\JX{ifset}]  \verb#  :  X [T] [E]  ->  ...# \\ 
+ {\small\verb#If X is a set, executes T else executes E.#}
+
+\item[\JX{ifstring}]  \verb#  :  X [T] [E]  ->  ...# \\ 
+ {\small\verb#If X is a string, executes T else executes E.#}
+
+\item[\JX{iflist}]  \verb#  :  X [T] [E]  ->  ...# \\ 
+ {\small\verb#If X is a list, executes T else executes E.#}
+
+\item[\JX{iffloat}]  \verb#  :  X [T] [E]  ->  ...# \\ 
+ {\small\verb#If X is a float, executes T else executes E.#}
+
+\item[\JX{iffile}]  \verb#  :  X [T] [E]  ->  ...# \\ 
+ {\small\verb#[FOREIGN] If X is a file, executes T else executes E.#}
+
+\item[\JX{cond}]  \verb#  :  [..[[Bi] Ti]..[D]]  ->  ...# \\ 
+ {\small\verb#Tries each Bi. If that yields true, then executes Ti and exits.
+If no Bi yields true, executes default D.#}
+
+\item[\JX{while}]  \verb#  :  [B] [D]  ->  ...# \\ 
+ {\small\verb#While executing B yields true executes D.#}
+
+\item[\JX{linrec}]  \verb#  :  [P] [T] [R1] [R2]  ->  ...# \\ 
+ {\small\verb#Executes P. If that yields true, executes T.
+Else executes R1, recurses, executes R2.#}
+
+\item[\JX{tailrec}]  \verb#  :  [P] [T] [R1]  ->  ...# \\ 
+ {\small\verb#Executes P. If that yields true, executes T.
+Else executes R1, recurses.#}
+
+\item[\JX{binrec}]  \verb#  :  [P] [T] [R1] [R2]  ->  ...# \\ 
+ {\small\verb#Executes P. If that yields true, executes T.
+Else uses R1 to produce two intermediates, recurses on both,
+then executes R2 to combine their results.#}
+
+\item[\JX{genrec}]  \verb#  :  [B] [T] [R1] [R2]  ->  ...# \\ 
+ {\small\verb#Executes B, if that yields true, executes T.
+Else executes R1 and then [[[B] [T] [R1] R2] genrec] R2.#}
+
+\item[\JX{condnestrec}]  \verb#  :  [ [C1] [C2] .. [D] ]  ->  ...# \\ 
+ {\small\verb#A generalisation of condlinrec.
+Each [Ci] is of the form [[B] [R1] [R2] .. [Rn]] and [D] is of the form
+[[R1] [R2] .. [Rn]]. Tries each B, or if all fail, takes the default [D].
+For the case taken, executes each [Ri] but recurses between any two
+consecutive [Ri] (n > 3 would be exceptional.)#}
+
+\item[\JX{condlinrec}]  \verb#  :  [ [C1] [C2] .. [D] ]  ->  ...# \\ 
+ {\small\verb#Each [Ci] is of the form [[B] [T]] or [[B] [R1] [R2]].
+Tries each B. If that yields true and there is just a [T], executes T and exit.
+If there are [R1] and [R2], executes R1, recurses, executes R2.
+Subsequent case are ignored. If no B yields true, then [D] is used.
+It is then of the form [[T]] or [[R1] [R2]]. For the former, executes T.
+For the latter executes R1, recurses, executes R2.#}
+
+\item[\JX{step}]  \verb#  :  A [P]  ->  ...# \\ 
+ {\small\verb#Sequentially putting members of aggregate A onto stack,
+executes P for each member of A.#}
+
+\item[\JX{fold}]  \verb#  :  A V0 [P]  ->  V# \\ 
+ {\small\verb#Starting with value V0, sequentially pushes members of aggregate A
+and combines with binary operator P to produce value V.#}
+
+\item[\JX{map}]  \verb#  :  A [P]  ->  B# \\ 
+ {\small\verb#Executes P on each member of aggregate A,
+collects results in sametype aggregate B.#}
+
+\item[\JX{times}]  \verb#  :  N [P]  ->  ...# \\ 
+ {\small\verb#N times executes P.#}
+
+\item[\JX{infra}]  \verb#  :  L1 [P]  ->  L2# \\ 
+ {\small\verb#Using list L1 as stack, executes P and returns a new list L2.
+The first element of L1 is used as the top of stack,
+and after execution of P the top of stack becomes the first element of L2.#}
+
+\item[\JX{primrec}]  \verb#  :  X [I] [C]  ->  R# \\ 
+ {\small\verb#Executes I to obtain an initial value R0.
+For integer X uses increasing positive integers to X, combines by C for new R.
+For aggregate X uses successive members and combines by C for new R.#}
+
+\item[\JX{filter}]  \verb#  :  A [B]  ->  A1# \\ 
+ {\small\verb#Uses test B to filter aggregate A producing sametype aggregate A1.#}
+
+\item[\JX{split}]  \verb#  :  A [B]  ->  A1 A2# \\ 
+ {\small\verb#Uses test B to split aggregate A into sametype aggregates A1 and A2.#}
+
+\item[\JX{some}]  \verb#  :  A [B]  ->  X# \\ 
+ {\small\verb#Applies test B to members of aggregate A, X = true if some pass.#}
+
+\item[\JX{all}]  \verb#  :  A [B]  ->  X# \\ 
+ {\small\verb#Applies test B to members of aggregate A, X = true if all pass.#}
+
+\item[\JX{treestep}]  \verb#  :  T [P]  ->  ...# \\ 
+ {\small\verb#Recursively traverses leaves of tree T, executes P for each leaf.#}
+
+\item[\JX{treerec}]  \verb#  :  T [O] [C]  ->  ...# \\ 
+ {\small\verb#T is a tree. If T is a leaf, executes O. Else executes [[[O] C] treerec] C.#}
+
+\item[\JX{treegenrec}]  \verb#  :  T [O1] [O2] [C]  ->  ...# \\ 
+ {\small\verb#T is a tree. If T is a leaf, executes O1.
+Else executes O2 and then [[[O1] [O2] C] treegenrec] C.#}
+
+
+
+\item[--- \BX{miscellaneous commands} ---] \verb# #
+
+\item[\JX{help}]  \verb#  :  -># \\ 
+ {\small\verb#[IMPURE] Lists all defined symbols, including those from library files.
+Then lists all primitives of raw Joy.
+(There is a variant: "_help" which lists hidden symbols).#}
+
+\item[\JX{_help}]  \verb#  :  -># \\ 
+ {\small\verb#[IMPURE] Lists all hidden symbols in library and then all hidden builtin
+symbols.#}
+
+\item[\JX{helpdetail}]  \verb#  :  [ S1 S2 .. ]  -># \\ 
+ {\small\verb#[IMPURE] Gives brief help on each symbol S in the list.#}
+
+\item[\JX{manual}]  \verb#  :  -># \\ 
+ {\small\verb#[IMPURE] Writes this manual of all Joy primitives to output file.#}
+
+\item[\JX{__html_manual}]  \verb#  :  -># \\ 
+ {\small\verb#[IMPURE] Writes this manual of all Joy primitives to output file in HTML style.#}
+
+\item[\JX{__latex_manual}]  \verb#  :  -># \\ 
+ {\small\verb#[IMPURE] Writes this manual of all Joy primitives to output file in Latex style
+but without the head and tail.#}
+
+\item[\JX{__manual_list}]  \verb#  :  ->  L# \\ 
+ {\small\verb#Pushes a list L of lists (one per operator) of three documentation strings.#}
+
+\item[\JX{__settracegc}]  \verb#  :  I  -># \\ 
+ {\small\verb#[IMPURE] Sets value of flag for tracing garbage collection to I (= 0..6).#}
+
+\item[\JX{setautoput}]  \verb#  :  I  -># \\ 
+ {\small\verb#[IMPURE] Sets value of flag for automatic put to I (if I = 0, none;
+if I = 1, put; if I = 2, stack).#}
+
+\item[\JX{setundeferror}]  \verb#  :  I  -># \\ 
+ {\small\verb#[IMPURE] Sets flag that controls behavior of undefined functions
+(0 = no error, 1 = error).#}
+
+\item[\JX{setecho}]  \verb#  :  I  -># \\ 
+ {\small\verb#[IMPURE] Sets value of echo flag for listing.
+I = 0: no echo, 1: echo, 2: with tab, 3: and linenumber.#}
+
+\item[\JX{gc}]  \verb#  :  -># \\ 
+ {\small\verb#[IMPURE] Initiates garbage collection.#}
+
+\item[\JX{system}]  \verb#  :  "command"  -># \\ 
+ {\small\verb#[IMPURE] Escapes to shell, executes string "command".
+The string may cause execution of another program.
+When that has finished, the process returns to Joy.#}
+
+\item[\JX{getenv}]  \verb#  :  "variable"  ->  "value"# \\ 
+ {\small\verb#[RUNTIME] Retrieves the value of the environment variable "variable".#}
+
+\item[\JX{argv}]  \verb#  :  ->  A# \\ 
+ {\small\verb#Creates an aggregate A containing the interpreter's command line arguments.#}
+
+\item[\JX{argc}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[RUNTIME] Pushes the number of command line arguments.
+This is equivalent to 'argv size'.#}
+
+\item[\JX{__memoryindex}]  \verb#  :  ->  I# \\ 
+ {\small\verb#[IMPURE] Pushes current value of memory.#}
+
+\item[\JX{get}]  \verb#  :  ->  F# \\ 
+ {\small\verb#[IMPURE] Reads a factor from input and pushes it onto stack.#}
+
+\item[\JX{put}]  \verb#  :  X  -># \\ 
+ {\small\verb#[IMPURE] Writes X to output, pops X off stack.#}
+
+\item[\JX{putch}]  \verb#  :  N  -># \\ 
+ {\small\verb#[IMPURE] N : numeric, writes character whose ASCII is N.#}
+
+\item[\JX{putchars}]  \verb#  :  "abc.."  -># \\ 
+ {\small\verb#[IMPURE] Writes abc.. (without quotes)#}
+
+\item[\JX{include}]  \verb#  :  "filnam.ext"  -># \\ 
+ {\small\verb#[SYMBOLS] Transfers input to file whose name is "filnam.ext".
+On end-of-file returns to previous input file.#}
+
+\item[\JX{abort}]  \verb#  :  -># \\ 
+ {\small\verb#[IMPURE] Aborts execution of current Joy program, returns to Joy main cycle.#}
+
+\item[\JX{quit}]  \verb#  :  -># \\ 
+ {\small\verb#[IMPURE] Exit from Joy.#}
+
+
+
+\item[--- \BX{additional commands} ---] \verb# #
+
+\item[\JX{assign}]  \verb#  :  V [N]  -># \\ 
+ {\small\verb#[IMPURE] Assigns value V to the variable with name N.#}
+
+\item[\JX{casting}]  \verb#  :  X Y  ->  Z# \\ 
+ {\small\verb#[EXT] Z takes the value from X and uses the value from Y as its type.#}
+
+\item[\JX{filetime}]  \verb#  :  F  ->  T# \\ 
+ {\small\verb#[FOREIGN] T is the modification time of file F.#}
+
+\item[\JX{finclude}]  \verb#  :  S  ->  F ...# \\ 
+ {\small\verb#[FOREIGN] Reads Joy source code from stream S and pushes it onto stack.#}
+
+\item[\JX{over}]  \verb#  :  X Y  ->  X Y X# \\ 
+ {\small\verb#Pushes an extra copy of the second item X on top of the stack.#}
+
+\item[\JX{pick}]  \verb#  :  X Y Z 2  ->  X Y Z X# \\ 
+ {\small\verb#Pushes an extra copy of nth (e.g. 2) item X on top of the stack.#}
+
+\item[\JX{round}]  \verb#  :  F  ->  G# \\ 
+ {\small\verb#G is F rounded to the nearest integer.#}
+
+\item[\JX{sametype}]  \verb#  :  X Y  ->  B# \\ 
+ {\small\verb#Tests whether X and Y have the same type.#}
+
+\item[\JX{typeof}]  \verb#  :  X  ->  I# \\ 
+ {\small\verb#Replace X by its type.#}
+
+\item[\JX{unassign}]  \verb#  :  [N]  -># \\ 
+ {\small\verb#[IMPURE] Sets the body of the name N to uninitialized.#}
+
+
+
+\item[--- \BX{runtime commands} ---] \verb# #
+
+\item[\JX{#genrec}]  \verb#  :  [[B] [T] [R1] R2]  ->  ...# \\ 
+ {\small\verb#Executes B, if that yields true, executes T.
+Else executes R1 and then [[[B] [T] [R1] R2] genrec] R2.#}
+
+\item[\JX{#treegenrec}]  \verb#  :  T [[O1] [O2] C]  ->  ...# \\ 
+ {\small\verb#T is a tree. If T is a leaf, executes O1.
+Else executes O2 and then [[[O1] [O2] C] treegenrec] C.#}
+
+\item[\JX{#treerec}]  \verb#  :  T [[O] C]  ->  ...# \\ 
+ {\small\verb#T is a tree. If T is a leaf, executes O. Else executes [[[O] C] treerec] C.#}
+

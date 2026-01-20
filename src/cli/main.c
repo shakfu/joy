@@ -1,9 +1,14 @@
 /* FILE: main.c */
 /*
  *  module  : main.c
- *  version : 1.109
- *  date    : 01/14/25
+ *  version : 1.110
+ *  date    : 01/20/26
  */
+
+#ifdef USE_LINENOISE
+#include "linenoise.h"
+#include <unistd.h>  /* for isatty() */
+#endif
 
 /*
 I comment on the functions in main.c which are relevant to the
@@ -238,6 +243,110 @@ static void unknown_opt(char* exe, int ch)
     printf("Unknown option argument: \"-%c\"\n", ch);
     printf("More info with: \"%s -h\"\n", exe);
 }
+
+#ifdef USE_LINENOISE
+/*
+ * linenoise_repl - interactive REPL using linenoise for line editing.
+ * Provides command history and line editing capabilities.
+ */
+static void linenoise_repl(pEnv env)
+{
+    char* line;
+    int err;
+    size_t len;
+
+    /* Set up history */
+    linenoiseHistorySetMaxLen(100);
+
+    /* Set up multiline mode for easier editing of complex expressions */
+    linenoiseSetMultiLine(1);
+
+    /* Try to load history file */
+    linenoiseHistoryLoad(".joy_history");
+
+    while ((line = linenoise("joy> ")) != NULL) {
+        /* Skip empty lines */
+        if (line[0] == '\0') {
+            linenoiseFree(line);
+            continue;
+        }
+
+        /* Add to history */
+        linenoiseHistoryAdd(line);
+
+        /* Set up error recovery */
+        err = setjmp(env->error_jmp);
+        if (err == ABORT_QUIT) {
+            linenoiseFree(line);
+            break;
+        }
+        if (err == ABORT_RETRY) {
+            linenoiseFree(line);
+            continue;
+        }
+
+        /* Feed line to interpreter via pushback mechanism.
+         * Add '. ' at end as statement terminator if not present. */
+        len = strlen(line);
+
+        /* Push terminator and trailing space */
+        vec_push(env->pushback, ' ');
+        if (len == 0 || line[len-1] != '.') {
+            vec_push(env->pushback, '.');
+            vec_push(env->pushback, ' ');
+        }
+
+        /* Push line in reverse order */
+        for (size_t i = len; i > 0; i--) {
+            vec_push(env->pushback, line[i - 1]);
+        }
+
+        linenoiseFree(line);
+
+        /* Process the input */
+        int ch = getch(env);
+        ch = getsym(env, ch);
+
+        while (env->sym != '.') {
+            if (env->sym == LIBRA || env->sym == HIDE || env->sym == MODULE_
+                || env->sym == CONST_) {
+#ifdef NOBDW
+                inimem1(env, 1);
+#endif
+                unsigned char flag = (env->sym == MODULE_);
+                if (flag)
+                    hide_inner_modules(env, 1);
+                ch = compound_def(env, ch);
+                if (flag)
+                    hide_inner_modules(env, 0);
+#ifdef NOBDW
+                inimem2(env);
+#endif
+                if (env->sym == '.')
+                    break;
+                ch = getsym(env, ch);
+            } else {
+                ch = readterm(env, ch);
+                if (env->stck && nodetype(env->stck) == LIST_) {
+                    env->prog = nodevalue(env->stck).lis;
+                    env->stck = nextnode1(env->stck);
+#ifdef NOBDW
+                    env->conts = 0;
+#endif
+                    exeterm(env, env->prog);
+                }
+                print(env);
+                if (env->sym == '.')
+                    break;
+                ch = getsym(env, ch);
+            }
+        }
+    }
+
+    /* Save history on exit */
+    linenoiseHistorySave(".joy_history");
+}
+#endif /* USE_LINENOISE */
 
 static void my_main(int argc, char** argv)
 {
@@ -543,7 +652,17 @@ start:
 #endif
     } else
 #endif
-        repl(&env); /* read-eval-print loop */
+    {
+#ifdef USE_LINENOISE
+        /* Use linenoise for interactive terminal input */
+        if (isatty(fileno(stdin)) && !env.filename) {
+            linenoise_repl(&env);
+        } else
+#endif
+        {
+            repl(&env); /* read-eval-print loop */
+        }
+    }
 einde:
 #ifdef BYTECODE
     if (env.bytecoding)

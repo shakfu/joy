@@ -1,0 +1,23 @@
+{}
+{}
+[17 19]
+[1]
+{1}
+'\017
+"\"\t\017"
+1.0e+10
+NULL
+stdin
+stdout
+stderr
+0x20315aa58
+hello, world
+
+the dumps are not empty
+->  dump is not empty:
+[[4 abort] 3] [[3 [4 abort] dip] 2]
+4
+the dumps are not empty
+->  dump is not empty:
+[[4 abort] 3] [[3 [4 abort] dip] 2]
+[]

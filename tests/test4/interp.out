@@ -1,0 +1,13 @@
+ : "hello" 0 casting call
+"hello" : 0 casting call
+"hello" 0 : casting call
+ : call
+
+ : 0 setundeferror
+0 : setundeferror
+ : vms
+ : "hello" 12 casting call
+"hello" : 12 casting call
+"hello" 12 : casting call
+hello : call
+hello

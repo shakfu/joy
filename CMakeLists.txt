@@ -114,16 +114,24 @@ else()
   endforeach()
 endif()
 
+# Linenoise library for REPL line editing
+add_library(linenoise STATIC ext/linenoise.c)
+target_include_directories(linenoise PUBLIC ext)
+if(NOT MSVC)
+  target_compile_options(linenoise PRIVATE -Wno-unused-result)
+endif()
+
 add_executable(joy src/cli/main.c)
-target_link_libraries(joy PRIVATE joycore_static)
-target_include_directories(joy PRIVATE "${JOY_PUBLIC_INCLUDES}" "${JOY_GENERATED_DIR}" "${CMAKE_SOURCE_DIR}")
+target_link_libraries(joy PRIVATE joycore_static linenoise)
+target_include_directories(joy PRIVATE "${JOY_PUBLIC_INCLUDES}" "${JOY_GENERATED_DIR}" "${CMAKE_SOURCE_DIR}" ext)
+target_compile_definitions(joy PRIVATE USE_LINENOISE)
 add_dependencies(joy joy_generated)
 
 if(RUN_TESTS)
   enable_testing()
   add_subdirectory(lib)
-  add_subdirectory(test2)
-  add_subdirectory(test4)
+  add_subdirectory(tests/test2)
+  add_subdirectory(tests/test4)
 endif()
 
 # Optional: Build embedding examples

@@ -1,0 +1,197 @@
+(6,1:1) 3
+(6,3:9) setecho
+(6,-1:-1) PERIOD
+   7	
+   8	(* unassign w/o parameter *)
+   9	unassign.
+(9,1:8) unassign
+   9	
+(9,-1:-1) PERIOD
+  10	
+(11,1:1) 0
+  11	0 setecho.
+(11,3:9) setecho
+  11	
+(11,-1:-1) PERIOD
+api.c
+CMakeLists.txt
+errors.joy
+factor.joy
+factor.out
+forget.joy
+gcno.joy
+gcno.out
+interp.joy
+interp.out
+main1.joy
+main2.joy
+main2.out
+main3.joy
+main3.out
+main4.joy
+main4.out
+main5.joy
+main5.out
+main6.joy
+main6.out
+module1.joy
+module1.out
+module2.joy
+module2.out
+scan1.joy
+scan1.out
+scan2.joy
+scan2.out
+symbol.joy
+utils1.joy
+utils2.joy
+(16,1:1) 1
+(16,3:4) 65
+(16,6:6) +
+(16,-1:-1) PERIOD
+(19,1:11) "exist.joy"
+(19,13:19) include
+(19,-1:-1) PERIOD
+(22,1:20) "	
+"'\"
+(22,21:21) PERIOD
+"\b\t\n\v\f\r\"'\"
+(25,1:5) ""
+(25,6:6) PERIOD
+"\007"
+(28,1:4) "a"
+(28,5:5) PERIOD
+"a"
+(31,1:6) ""
+(31,7:7) PERIOD
+""
+(32,1:6) ""
+(32,7:7) PERIOD
+"\001"
+(33,1:5) 0
+(33,6:6) PERIOD
+'\000
+(34,1:5) 1
+(34,6:6) PERIOD
+'\001
+(37,1:6) LPAREN
+(37,2:2) RPAREN
+(37,3:3) PERIOD
+"exist.joy"
+(43,1:5) 7
+(43,6:6) PERIOD
+'\007
+(46,1:4) 3.14
+(46,5:5) PERIOD
+3.14
+(49,1:3) 5
+(49,4:4) PERIOD
+5.0
+(52,1:20) 1e+20
+(52,-1:-1) PERIOD
+1.0e+20
+(55,1:2) 7
+(55,-1:-1) 8
+(55,-1:-1) PERIOD
+8
+(58,1:3) 7
+(58,-1:-1) G
+(58,-1:-1) PERIOD
+7
+(60,1:5) LIBRA
+(61,1:1) G
+(61,3:4) EQDEF
+(61,6:7) 71
+(61,8:8) PERIOD
+(63,1:5) CONST
+(64,1:4) true
+(64,6:7) EQDEF
+(64,9:9) 0
+(64,-1:-1) PERIOD
+(67,1:4) HIDE
+(68,1:1) _
+(68,3:4) EQDEF
+(68,6:7) -1
+(68,9:12) 3.14
+(68,14:14) LBRACK
+(68,15:15) RBRACK
+(68,17:17) LBRACE
+(68,18:18) RBRACE
+(68,20:20) SEMICOL
+(69,1:2) IN
+(70,1:3) one
+(70,5:6) EQDEF
+(70,8:8) _
+(71,1:3) PERIOD
+(74,1:6) MODULE
+(74,8:8) m
+(75,1:7) PRIVATE
+(76,1:6) PUBLIC
+(77,1:3) PERIOD
+(80,1:6) MODULE
+(80,8:9) 10
+(80,-1:-1) PERIOD
+(83,1:6) LIBRA
+(83,8:8) G
+(83,10:11) 10
+(83,-1:-1) PERIOD
+(86,1:6) MODULE
+(86,8:8) m
+(87,1:3) PERIOD
+(90,1:6) LIBRA
+(90,8:10) dup
+(90,12:13) EQDEF
+(90,15:15) 2
+(90,17:17) *
+(90,-1:-1) PERIOD
+(93,1:1) LBRACK
+(93,3:3) 1
+(93,5:5) 2
+(93,7:7) 3
+(93,9:9) PERIOD
+(96,1:1) LBRACE
+(96,3:3) 1
+(96,5:5) 2
+(96,7:7) 3
+(96,9:9) PERIOD
+(98,1:3) get
+(98,5:13) undefined
+(98,-1:-1) PERIOD
+(99,1:9) undefined
+undefined
+(102,1:1) LBRACE
+(102,2:2) 1
+(102,4:4) 2
+(102,6:6) 3
+(102,8:12) LIBRA
+(102,13:13) RBRACE
+{1 2 3}
+(102,14:14) PERIOD
+{1 2 3}
+(105,1:1) LBRACK
+(105,2:2) 1
+(105,4:4) 2
+(105,6:6) 3
+(105,8:12) LIBRA
+(105,13:13) RBRACK
+[1 2 3]
+(105,14:14) PERIOD
+[1 2 3]
+(108,1:1) LBRACK
+(108,3:1) LPAREN
+(108,5:5) RBRACK
+(108,6:6) PERIOD
+[]
+(111,1:1) LBRACK
+(111,3:3) RPAREN
+(111,5:5) RBRACK
+(111,6:6) PERIOD
+[]
+(114,1:1) LBRACK
+(114,3:3) RBRACE
+(114,5:5) RBRACK
+[]
+(114,6:6) PERIOD
+(117,1:3) get
+(117,-1:-1) PERIOD
+(118,1:5) LIBRA

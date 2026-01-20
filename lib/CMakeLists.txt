@@ -1,26 +1,29 @@
 #
 #   module  : CMakeLists.txt
-#   version : 1.7
-#   date    : 09/24/24
+#   version : 1.8
+#   date    : 01/20/26
 #
 set(JOY_EXECUTABLE $<TARGET_FILE:joy>)
 
+# Output directory for test results
+set(LIB_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
+
 macro(exe9 src)
 add_custom_target(${src}.old ALL
-		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
-		  DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/${src}.joy
-		  COMMAND ${JOY_EXECUTABLE} ${CMAKE_SOURCE_DIR}/lib/${src}.joy 24 54 >${src}.old)
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+          DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/${src}.joy
+          COMMAND ${JOY_EXECUTABLE} ${CMAKE_SOURCE_DIR}/lib/${src}.joy 24 54 >${LIB_OUTPUT_DIR}/${src}.old)
 endmacro(exe9)
 
 add_custom_target(tutinp.old ALL
-		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
-		  DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/tutinp.joy
-		  COMMAND ${JOY_EXECUTABLE} <${CMAKE_SOURCE_DIR}/lib/tutinp.joy >tutinp.old)
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+          DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/tutinp.joy
+          COMMAND ${JOY_EXECUTABLE} <${CMAKE_SOURCE_DIR}/lib/tutinp.joy >${LIB_OUTPUT_DIR}/tutinp.old)
 
 add_custom_target(lsptst.old ALL
-		  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
-		  DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/lsptst.joy
-		  COMMAND ${JOY_EXECUTABLE} <${CMAKE_SOURCE_DIR}/lib/lsptst.joy >tutinp.old)
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+          DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/lsptst.joy
+          COMMAND ${JOY_EXECUTABLE} <${CMAKE_SOURCE_DIR}/lib/lsptst.joy >${LIB_OUTPUT_DIR}/lsptst.old)
 
 exe9(jp-joytst)
 exe9(laztst)
