@@ -302,6 +302,7 @@ static void linenoise_repl(pEnv env)
         }
 
         linenoiseFree(line);
+        line = NULL;  /* Prevent double-free if longjmp occurs */
 
         /* Process the input */
         int ch = getch(env);
