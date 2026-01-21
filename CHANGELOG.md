@@ -76,6 +76,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Test infrastructure - tests using `libload` (numlib, etc.) now work correctly (178/178 tests pass)
 - **Stack overflow in `copy_node_to_parent`** - Converted recursive linked list traversal to iteration, fixing crashes with 130,000+ node results
 - **Stack overflow in GC `copy` function** - Same fix applied to garbage collector, fixing crashes during GC on long lists
+- **Stack overflow in `copy_body_from_parent`** - Converted recursive traversal to iteration in `src/interp.c`, completing the pattern across all copy functions
 - **All combinators now work in parallel** - `times`, `while`, `step`, `linrec`, `binrec`, `genrec`, `primrec`, `tailrec`, `condlinrec`, `condnestrec`, `treestep`, `treerec`, `treegenrec` all verified working in `pmap`/`pfork`
 
 ### Added

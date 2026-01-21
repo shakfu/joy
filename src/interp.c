@@ -37,14 +37,13 @@
 
 #ifdef JOY_PARALLEL
 /*
- * Copy a node list from parent memory to child memory for parallel execution.
- * This is needed because symbol bodies live in parent memory.
+ * Copy a single node (not the next chain) from parent memory to child memory.
+ * Returns the new node with next=0.
  */
-static Index copy_body_from_parent(pEnv env, Index node)
-{
-    if (!node || !env->parent_memory)
-        return node;  /* Not in parallel context or empty */
+static Index copy_body_from_parent(pEnv env, Index node);
 
+static Index copy_single_body_node(pEnv env, Index node)
+{
 #ifdef NOBDW
     Node* pmem = env->parent_memory;
     Types u;
@@ -63,6 +62,7 @@ static Index copy_body_from_parent(pEnv env, Index node)
         u.str = GC_CTX_STRDUP(env, (char*)&pmem[node].u);
         break;
     case LIST_:
+        /* Recursively copy list contents (bounded by nesting depth) */
         u.lis = copy_body_from_parent(env, pmem[node].u.lis);
         break;
     case USR_:
@@ -74,8 +74,65 @@ static Index copy_body_from_parent(pEnv env, Index node)
         break;
     }
 
-    Index next = copy_body_from_parent(env, pmem[node].next);
-    return newnode(env, op, u, next);
+    return newnode(env, op, u, 0);
+#else
+    return node;
+#endif
+}
+
+/*
+ * Copy a node list from parent memory to child memory for parallel execution.
+ * This is needed because symbol bodies live in parent memory.
+ *
+ * IMPORTANT: Uses iteration for the next-chain to avoid stack overflow on
+ * long lists. Only LIST_ contents use recursion (bounded by nesting depth).
+ */
+static Index copy_body_from_parent(pEnv env, Index node)
+{
+    if (!node || !env->parent_memory)
+        return node;  /* Not in parallel context or empty */
+
+#ifdef NOBDW
+    Node* pmem = env->parent_memory;
+    Index current = node;
+
+    /*
+     * GC protection: Push protection nodes onto dump4 (head) and dump5 (tail).
+     * These are GC roots, so values stored in them survive garbage collection.
+     */
+    {
+        Types u_prot;
+        u_prot.lis = 0;
+        env->dump4 = newnode(env, LIST_, u_prot, env->dump4);
+        env->dump5 = newnode(env, LIST_, u_prot, env->dump5);
+    }
+
+    while (current) {
+        /* Copy this single node (with recursive list copy for LIST_ type) */
+        Index new_node = copy_single_body_node(env, current);
+
+        if (!env->memory[env->dump4].u.lis) {
+            /* First node becomes head and tail */
+            env->memory[env->dump4].u.lis = new_node;
+            env->memory[env->dump5].u.lis = new_node;
+        } else {
+            /* Link previous tail to new node, update tail */
+            Index tail = env->memory[env->dump5].u.lis;
+            env->memory[tail].next = new_node;
+            env->memory[env->dump5].u.lis = new_node;
+        }
+
+        current = pmem[current].next;
+    }
+
+    /* Extract head before popping */
+    Index head = env->memory[env->dump4].u.lis;
+
+    /* Pop the protection nodes */
+    env->dump5 = env->memory[env->dump5].next;
+    env->dump4 = env->memory[env->dump4].next;
+
+    return head;
 #else
     return node;
 #endif

@@ -12,19 +12,13 @@
   - Recursive: `linrec`, `binrec`, `genrec`, `primrec`, `tailrec`
   - Conditional: `condlinrec`, `condnestrec`
   - Tree: `treestep`, `treerec`, `treegenrec`
+- [x] **Convert `copy_body_from_parent` to iterative** (`src/interp.c`) - Completes the pattern
 
 See `FIXES_FOR_PARALLEL.md` for technical details.
 
 ---
 
 ## TODO (Prioritized)
-
-### Priority 1: Medium Effort
-
-- [ ] **Convert `copy_body_from_parent` to iterative** (`src/interp.c`)
-  - Currently recursive for `next` chain
-  - Low risk (symbol bodies are typically small)
-  - Would complete the pattern established in parallel.h and utils.c
 
 ### Priority 3: Nice to Have
 
