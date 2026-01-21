@@ -143,3 +143,14 @@ joy_crash_test(forget)
 joy_crash_test(utils1)
 joy_crash_test(utils2)
 joy_crash_test(errors)
+
+# Parallel execution tests (requires JOY_PARALLEL build)
+set(TESTS_SOURCE_DIR "${CMAKE_SOURCE_DIR}/tests")
+
+add_test(NAME parallel_stress
+         COMMAND ${JOY_EXECUTABLE} ${TESTS_SOURCE_DIR}/parallel_stress.joy
+         WORKING_DIRECTORY ${TESTS_SOURCE_DIR})
+
+add_test(NAME parallel_test
+         COMMAND ${JOY_EXECUTABLE} ${TESTS_SOURCE_DIR}/parallel_test.joy
+         WORKING_DIRECTORY ${TESTS_SOURCE_DIR})

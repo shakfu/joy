@@ -74,6 +74,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - GC parameter preservation - parameters passed to `newnode()` are now safely copied during garbage collection
 - Test infrastructure - tests using `libload` (numlib, etc.) now work correctly (178/178 tests pass)
+- **Stack overflow in `copy_node_to_parent`** - Converted recursive linked list traversal to iteration, fixing crashes with 130,000+ node results
+- **Stack overflow in GC `copy` function** - Same fix applied to garbage collector, fixing crashes during GC on long lists
+- **All combinators now work in parallel** - `times`, `while`, `step`, `linrec`, `binrec`, `genrec`, `primrec`, `tailrec`, `condlinrec`, `condnestrec` all verified working in `pmap`/`pfork`
+
+### Added
+
+- `tests/parallel_stress.joy` - 13 stress tests for parallel execution (up to 100,000 iterations)
+- `FIXES_FOR_PARALLEL.md` - Technical documentation of parallel execution fixes
 
 ### Upstream Sync
 

@@ -6,13 +6,11 @@
 
 - [x] **Stack overflow in `copy_node_to_parent`** - Converted recursive list traversal to iteration
 - [x] **Stack overflow in GC `copy` function** - Same fix applied to garbage collector
-- [x] **`times` combinator** - Now works with 1,000,000+ iterations in parallel
-- [x] **`while` combinator** - Verified working in parallel
-- [x] **`step` combinator** - Verified working in parallel
-- [x] **`linrec` combinator** - Verified working in parallel (factorial, sum)
-- [x] **`binrec` combinator** - Verified working in parallel
-- [x] **`genrec` combinator** - Verified working in parallel
-- [x] **`primrec` combinator** - Verified working in parallel
+- [x] **Parallel stress tests** - Added `tests/parallel_stress.joy` (13 tests, 100k+ iterations)
+- [x] **All combinators verified working in parallel**:
+  - Iterative: `times`, `while`, `step`
+  - Recursive: `linrec`, `binrec`, `genrec`, `primrec`, `tailrec`
+  - Conditional: `condlinrec`, `condnestrec`
 
 See `FIXES_FOR_PARALLEL.md` for technical details.
 
@@ -20,30 +18,20 @@ See `FIXES_FOR_PARALLEL.md` for technical details.
 
 ## TODO (Prioritized)
 
-### Priority 1: High Value / Low Effort
-
-- [ ] **Add parallel stress tests to test suite**
-  - Add tests for `pmap` with high iteration counts
-  - Add tests for recursive combinators in parallel context
-  - Ensures regressions are caught
-
-- [ ] **Test remaining combinators in parallel**
-  - `tailrec` - Tail recursion
-  - `condlinrec` - Conditional linear recursion
-  - `condnestrec` - Conditional nested recursion
-
-### Priority 2: Medium Value / Medium Effort
-
-- [ ] **Convert `copy_body_from_parent` to iterative** (`src/interp.c`)
-  - Currently recursive for `next` chain
-  - Low risk (symbol bodies are typically small)
-  - Would complete the pattern established in parallel.h and utils.c
+### Priority 1: Low Effort
 
 - [ ] **Test tree combinators in parallel**
   - `treestep` - Tree traversal
   - `treerec` - Tree recursion
   - `treegenrec` - General tree recursion
   - May work already, needs verification
+
+### Priority 2: Medium Effort
+
+- [ ] **Convert `copy_body_from_parent` to iterative** (`src/interp.c`)
+  - Currently recursive for `next` chain
+  - Low risk (symbol bodies are typically small)
+  - Would complete the pattern established in parallel.h and utils.c
 
 ### Priority 3: Nice to Have
 

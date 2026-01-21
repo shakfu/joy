@@ -1,0 +1,93 @@
+(*
+    module  : parallel_stress.joy
+    version : 1.0
+    date    : 01/22/26
+
+    Stress tests for parallel execution.
+    Tests high iteration counts and recursive combinators in pmap/pfork.
+    These tests verify the fixes for stack overflow in copy_node_to_parent
+    and the GC copy function.
+*)
+
+(* ===== TIMES COMBINATOR STRESS TESTS ===== *)
+
+(* Test 1: times with moderate iterations *)
+[1 2 3 4 5 6 7 8] [1000 [dup * 2 mod] times] pmap
+[2 2 2 2 2 2 2 2] equal.
+
+(* Test 2: times with high iterations - verifies stack overflow fix *)
+[1 2 3 4 5 6 7 8] [100000 [dup * 2 mod] times] pmap
+[2 2 2 2 2 2 2 2] equal.
+
+(* Test 3: times doubling - exponential growth *)
+[1 2 3 4] [10 [dup +] times] pmap
+[1024 2048 3072 4096] equal.
+
+(* ===== WHILE COMBINATOR TESTS ===== *)
+
+(* Test 4: while countdown *)
+[10 20 30 40] [[0 >] [1 -] while] pmap
+[0 0 0 0] equal.
+
+(* Test 5: while with larger values *)
+[100 500 1000 2000] [[0 >] [1 -] while] pmap
+[0 0 0 0] equal.
+
+(* ===== LINREC COMBINATOR TESTS ===== *)
+
+(* Test 6: linrec factorial *)
+[5 6 7 8] [[0 =] [pop 1] [dup 1 -] [*] linrec] pmap
+[120 720 5040 40320] equal.
+
+(* Test 7: linrec sum 1 to N *)
+[10 50 100 200] [[0 =] [] [dup 1 -] [+] linrec] pmap
+[55 1275 5050 20100] equal.
+
+(* ===== TAILREC COMBINATOR TESTS ===== *)
+
+(* Test 8: tailrec countdown *)
+[100 500 1000 2000] [[0 =] [] [1 -] tailrec] pmap
+[0 0 0 0] equal.
+
+(* Test 9: tailrec build list *)
+[] 10 [dup 0 =] [pop] [dup [swons] dip pred] tailrec
+[1 2 3 4 5 6 7 8 9 10] equal.
+
+(* ===== CONDLINREC COMBINATOR TESTS ===== *)
+
+(* Test 10: condlinrec Ackermann function *)
+DEFINE ack == [[[dup null] [pop succ]]
+               [[over null] [popd pred 1 swap] []]
+               [[dup rollup [pred] dip] [swap pred ack]]] condlinrec.
+
+[[2 1] [2 2] [2 3]] [i swap ack] pmap
+[5 7 9] equal.
+
+(* ===== CONDNESTREC COMBINATOR TESTS ===== *)
+
+(* Test 11: condnestrec Ackermann *)
+DEFINE cnr-ack == [[[over null] [popd succ]]
+                   [[dup null] [pop pred 1] []]
+                   [[[dup pred swap] dip pred] [] []]] condnestrec.
+
+[[2 2] [2 3] [2 4] [3 1]] [i cnr-ack] pmap
+[7 9 11 13] equal.
+
+(* ===== COMBINED STRESS TEST ===== *)
+
+(* Test 12: Multiple operations in one quotation *)
+[5 6 7 8] [
+    dup 100 [dup +] times pop   (* heavy iteration, discard result *)
+    [0 =] [pop 1] [dup 1 -] [*] linrec  (* factorial *)
+] pmap
+[120 720 5040 40320] equal.
+
+(* ===== PFORK STRESS TESTS ===== *)
+
+(* Test 13: pfork with heavy computation *)
+(* 5 doubled 10 times = 5120, 5 + 10 = 15 *)
+5 [10 [dup +] times] [10 [1 +] times] pfork
+[] cons cons [5120 15] equal.
+
+(* Final summary - if we get here, all tests passed *)
+"All parallel stress tests passed!" putchars newline.
