@@ -89,5 +89,20 @@ DEFINE cnr-ack == [[[over null] [popd succ]]
 5 [10 [dup +] times] [10 [1 +] times] pfork
 [] cons cons [5120 15] equal.
 
+(* ===== TREE COMBINATOR TESTS ===== *)
+
+(* Test 14: treestep - collect leaves *)
+[[[1 2] 3] [[4 5] 6] [[7 8] 9] [[10 11] 12]] [[] swap [swons] treestep] pmap
+[[3 2 1] [6 5 4] [9 8 7] [12 11 10]] equal.
+
+(* Test 15: treerec - square all leaves *)
+[[[1 2] 3] [[4 5] 6]] [[dup *] [map] treerec] pmap
+[[[1 4] 9] [[16 25] 36]] equal.
+
+(* Test 16: treegenrec - subtract from accumulator *)
+DEFINE treemap == [] [map] treegenrec.
+[[0 [[1 2] 3]] [0 [[4 5] 6]]] [i [[dup] dip -] treemap] pmap
+[[[-1 -2] -3] [[-4 -5] -6]] equal.
+
 (* Final summary - if we get here, all tests passed *)
 "All parallel stress tests passed!" putchars newline.

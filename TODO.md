@@ -6,11 +6,12 @@
 
 - [x] **Stack overflow in `copy_node_to_parent`** - Converted recursive list traversal to iteration
 - [x] **Stack overflow in GC `copy` function** - Same fix applied to garbage collector
-- [x] **Parallel stress tests** - Added `tests/parallel_stress.joy` (13 tests, 100k+ iterations)
+- [x] **Parallel stress tests** - Added `tests/parallel_stress.joy` (16 tests, 100k+ iterations)
 - [x] **All combinators verified working in parallel**:
   - Iterative: `times`, `while`, `step`
   - Recursive: `linrec`, `binrec`, `genrec`, `primrec`, `tailrec`
   - Conditional: `condlinrec`, `condnestrec`
+  - Tree: `treestep`, `treerec`, `treegenrec`
 
 See `FIXES_FOR_PARALLEL.md` for technical details.
 
@@ -18,15 +19,7 @@ See `FIXES_FOR_PARALLEL.md` for technical details.
 
 ## TODO (Prioritized)
 
-### Priority 1: Low Effort
-
-- [ ] **Test tree combinators in parallel**
-  - `treestep` - Tree traversal
-  - `treerec` - Tree recursion
-  - `treegenrec` - General tree recursion
-  - May work already, needs verification
-
-### Priority 2: Medium Effort
+### Priority 1: Medium Effort
 
 - [ ] **Convert `copy_body_from_parent` to iterative** (`src/interp.c`)
   - Currently recursive for `next` chain
