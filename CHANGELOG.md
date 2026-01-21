@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `PARALLEL.md` - Design document for adding concurrency/parallelism to Joy
+- `env->mem_low`, `env->memoryindex`, `env->memorymax` - Memory tracking fields moved to Env struct for context isolation
+- `env->old_memory` - GC working memory pointer moved to Env struct
+- `env->stack_bottom` - Per-context stack bound for future parallel GC support
 - `check_malloc()` - Safe malloc wrapper with null pointer check
 - `check_strdup()` - Safe strdup wrapper with null pointer check
 - `count()` - Pre-calculates nodes needed before garbage collection
@@ -17,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **GC Context Isolation (Phase 1)**: NOBDW copying GC now uses per-context state instead of global variables, enabling independent memory management for multiple Joy contexts
+- `utils.c` - Refactored `inimem1()`, `inimem2()`, `copy()`, `gc1()`, `gc2()`, `newnode()`, `count()`, `my_memoryindex()`, `my_memorymax()` to use `env->*` fields instead of static/global variables
+- `joy.c` - Updated `joy_destroy()` to handle per-context memory cleanup
 - `gc1()` now accepts `Index *l, Index *r` parameters to preserve list and next pointers during garbage collection, preventing potential memory corruption
 - `newnode()` uses `count()` to ensure sufficient memory before triggering GC
 - `newnode2()` uses `check_strdup()` instead of raw strdup with manual null check

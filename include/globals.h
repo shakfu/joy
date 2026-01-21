@@ -269,8 +269,13 @@ typedef struct Env {
     Types bucket; /* used by NEWNODE defines */
 #ifdef NOBDW
     clock_t gc_clock;
-    Node* memory; /* dynamic memory */
+    Node* memory;       /* dynamic memory */
+    Node* old_memory;   /* backup during GC (was static in utils.c) */
     Index conts, dump, dump1, dump2, dump3, dump4, dump5, inits;
+    Index mem_low;      /* start of definition space (was global in utils.c) */
+    Index memoryindex;  /* next free node index (was global in utils.c) */
+    size_t memorymax;   /* total capacity of memory array (was static in utils.c) */
+    char* stack_bottom; /* bottom of C stack for this context (was global) */
 #endif
     Index prog, stck;
 #ifdef COMPILER
@@ -359,7 +364,6 @@ void error(pEnv env, char* str);
 int include(pEnv env, char* name);
 int getsym(pEnv env, int ch);
 /* utils.c */
-extern char* bottom_of_stack;
 void set_push_int_env(pEnv env);
 Index newnode(pEnv env, Operator o, Types u, Index r);
 Index newnode2(pEnv env, Index n, Index r);

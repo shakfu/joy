@@ -134,9 +134,7 @@ JoyContext* joy_create(const JoyConfig* config)
     return ctx;
 }
 
-/* External declarations from utils.c for memory reset */
-extern Index memoryindex;
-extern Index mem_low;
+/* Note: memoryindex and mem_low are now in env struct (env->memoryindex, env->mem_low) */
 
 /*
  * Destroy an interpreter context.
@@ -155,14 +153,12 @@ void joy_destroy(JoyContext* ctx)
         kh_destroy(Funtab, ctx->env.prim);
 
 #ifdef NOBDW
-    /* Only free memory when last context is destroyed */
-    if (active_context_count == 0) {
-        if (ctx->env.memory)
-            free(ctx->env.memory);
-        /* Reset static memory variables to allow new context creation */
-        memoryindex = 0;
-        mem_low = 0;
+    /* Free memory for this context */
+    if (ctx->env.memory) {
+        free(ctx->env.memory);
+        ctx->env.memory = NULL;
     }
+    /* Memory tracking is now per-context in env struct, no global reset needed */
 #endif
 
     /*
