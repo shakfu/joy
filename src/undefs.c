@@ -23,7 +23,7 @@ void hide_inner_modules(pEnv env, int flag)
         node = vec_back(env->tokens);
         if (node.op == USR_) {
             leng = strlen(node.u.str) + 2;
-            env->mod_name = GC_malloc_atomic(leng);
+            env->mod_name = GC_CTX_MALLOC_ATOMIC(env, leng);
             snprintf(env->mod_name, leng, "%s.", node.u.str);
         } else
             env->mod_name = "."; /* empty module name */

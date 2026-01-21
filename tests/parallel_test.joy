@@ -1,0 +1,41 @@
+(* Parallel execution tests for pmap and pfork *)
+
+(* Test 1: Basic pmap correctness *)
+[1 2 3 4 5] [dup *] pmap.
+(* Expected: [1 4 9 16 25] *)
+
+(* Test 2: pmap with larger list (triggers parallel path >= 4 elements) *)
+[1 2 3 4 5 6 7 8] [dup *] pmap.
+(* Expected: [1 4 9 16 25 36 49 64] *)
+
+(* Test 3: pmap with strings *)
+["hello" "world" "test" "data"] [size] pmap.
+(* Expected: [5 5 4 4] *)
+
+(* Test 4: pmap with nested lists *)
+[[1 2] [3 4] [5 6] [7 8]] [size] pmap.
+(* Expected: [2 2 2 2] *)
+
+(* Test 5: Basic pfork correctness - wrap in list to see both *)
+10 [2 *] [3 +] pfork [] cons cons.
+(* Expected: [20 13] *)
+
+(* Test 6: pfork with more complex quotations *)
+5 [dup *] [dup dup * *] pfork [] cons cons.
+(* Expected: [25 125] *)
+
+(* Test 7: Small list uses sequential fallback (< 4 elements) *)
+[1 2 3] [dup *] pmap.
+(* Expected: [1 4 9] *)
+
+(* Test 8: Empty list *)
+[] [dup *] pmap.
+(* Expected: [] *)
+
+(* Test 9: pmap preserves order with computation *)
+[8 7 6 5 4 3 2 1] [dup *] pmap.
+(* Expected: [64 49 36 25 16 9 4 1] *)
+
+(* Test 10: pfork with list operations *)
+[1 2 3 4 5] [0 [+] fold] [size] pfork [] cons cons.
+(* Expected: [15 5] *)

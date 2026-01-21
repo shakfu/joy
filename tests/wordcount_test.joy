@@ -1,0 +1,13 @@
+(* Word Count using parallel MapReduce pattern *)
+
+"lib/mapreduce.joy" include.
+
+"Word count with pmap:" putchars newline.
+
+["hello" "world" "hello" "joy" "world" "hello"]
+[1 pair [] cons] pmap
+flatten
+group-by-key
+[count-reducer] pmap.
+
+"Done." putchars newline.

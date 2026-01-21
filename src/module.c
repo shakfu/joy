@@ -139,7 +139,7 @@ char* classify(pEnv env, char* name)
      */
     if (buf) {
         leng = strlen(buf) + strlen(name) + 2;
-        str = GC_malloc_atomic(leng);
+        str = GC_CTX_MALLOC_ATOMIC(env, leng);
         snprintf(str, leng, "%s.%s", buf, name);
     } else
         str = name;
@@ -195,7 +195,7 @@ int qualify(pEnv env, char* name)
         for (index = hide_index; index > limit; index--) {
             snprintf(temp, MAXNUM, "%d", env->hide_stack[index]);
             leng = strlen(temp) + strlen(name) + 2;
-            str = GC_malloc_atomic(leng);
+            str = GC_CTX_MALLOC_ATOMIC(env, leng);
             snprintf(str, leng, "%s.%s", temp, name);
 #ifdef USE_KHASHL
             if ((key = symtab_get(env->hash, str)) != kh_end(env->hash))
@@ -212,7 +212,7 @@ int qualify(pEnv env, char* name)
     if (module_index >= 0) {
         buf = env->module_stack[module_index].name;
         leng = strlen(buf) + strlen(name) + 2;
-        str = GC_malloc_atomic(leng);
+        str = GC_CTX_MALLOC_ATOMIC(env, leng);
         snprintf(str, leng, "%s.%s", buf, name);
 #ifdef USE_KHASHL
         if ((key = symtab_get(env->hash, str)) != kh_end(env->hash))

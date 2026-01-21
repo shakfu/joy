@@ -35,6 +35,53 @@
 #include "builtin.h"
 #include "globals.h"
 
+#ifdef JOY_PARALLEL
+/*
+ * Copy a node list from parent memory to child memory for parallel execution.
+ * This is needed because symbol bodies live in parent memory.
+ */
+static Index copy_body_from_parent(pEnv env, Index node)
+{
+    if (!node || !env->parent_memory)
+        return node;  /* Not in parallel context or empty */
+
+#ifdef NOBDW
+    Node* pmem = env->parent_memory;
+    Types u;
+    Operator op = pmem[node].op;
+
+    switch (op) {
+    case INTEGER_:
+    case BOOLEAN_:
+    case CHAR_:
+    case SET_:
+    case FLOAT_:
+        u = pmem[node].u;
+        break;
+    case STRING_:
+    case BIGNUM_:
+        u.str = GC_CTX_STRDUP(env, (char*)&pmem[node].u);
+        break;
+    case LIST_:
+        u.lis = copy_body_from_parent(env, pmem[node].u.lis);
+        break;
+    case USR_:
+        /* Symbol references stay as-is */
+        u = pmem[node].u;
+        break;
+    default:
+        u = pmem[node].u;
+        break;
+    }
+
+    Index next = copy_body_from_parent(env, pmem[node].next);
+    return newnode(env, op, u, next);
+#else
+    return node;
+#endif
+}
+#endif /* JOY_PARALLEL */
+
 static void writestack(pEnv env, Index n)
 {
     if (n) {
@@ -164,7 +211,7 @@ start:
                 if (!is_valid_C_identifier(ent.name)) {
                     ptr = identifier(ent.name);
                     leng = strlen(ptr) + 4;
-                    ent.name = GC_malloc_atomic(leng);
+                    ent.name = GC_CTX_MALLOC_ATOMIC(env, leng);
                     snprintf(ent.name, leng, "do_%s", ptr);
                 }
                 /*
@@ -177,14 +224,22 @@ start:
                 break;
             }
 #endif
-            if (!nextnode1(p)) {
-#ifdef NOBDW
-                POP(env->conts);
+            {
+                Index body = ent.u.body;
+#if defined(JOY_PARALLEL) && defined(NOBDW)
+                /* In parallel context, copy body from parent memory */
+                if (env->parent_memory)
+                    body = copy_body_from_parent(env, body);
 #endif
-                n = ent.u.body;
-                goto start; /* tail call optimization */
+                if (!nextnode1(p)) {
+#ifdef NOBDW
+                    POP(env->conts);
+#endif
+                    n = body;
+                    goto start; /* tail call optimization */
+                }
+                exeterm(env, body); /* subroutine call */
             }
-            exeterm(env, ent.u.body); /* subroutine call */
             break;
         case ANON_FUNCT_:
 #ifdef COMPILER

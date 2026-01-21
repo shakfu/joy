@@ -28,7 +28,7 @@ void intern_(pEnv env)
                     break;
     }
     CHECKNAME(ptr, "intern");
-    index = lookup(env, GC_strdup(str));
+    index = lookup(env, GC_CTX_STRDUP(env, str));
     ent = vec_at(env->symtab, index);
     if (ent.is_user)
         UNARY(USR_NEWNODE, index);

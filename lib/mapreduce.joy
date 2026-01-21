@@ -1,0 +1,29 @@
+(* FILE: mapreduce.joy - MapReduce framework using parallel primitives *)
+
+LIBRA
+    _mapreduce == true;
+    flatten == [] [concat] fold;
+    pair == [] cons cons;
+    fst == first;
+    snd == rest first;
+    sum-values == 0 [+] fold;
+    (* in-list: elem list -> bool *)
+    in-list == swap [=] cons some;
+    (* unique: list -> list with duplicates removed *)
+    unique-step == [swap in-list] [pop] [swons] ifte;
+    unique == [] [unique-step] fold;
+    (* get-keys: [[k v]...] -> [k...] unique keys *)
+    get-keys == [fst] map unique;
+    (* vals-for-key: pairs key -> [v...] values for that key *)
+    vals-for-key == [swap fst =] cons filter [snd] map;
+    (* group-one: pairs key -> [key [values]] *)
+    group-one == dup rollup vals-for-key pair;
+    (* group-by-key: [[k v]...] -> [[k [vs]]...] *)
+    group-by-key == dup get-keys [group-one] map [pop] dip;
+    sum-reducer == dup fst swap snd sum-values pair;
+    count-reducer == dup fst swap snd size pair;
+    map-reduce ==
+        rolldown swap [pmap] dip
+        swap flatten swap
+        [group-by-key] dip pmap
+.

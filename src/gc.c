@@ -1,7 +1,9 @@
 /*
     module  : gc.c
-    version : 1.54
-    date    : 11/20/24
+    version : 1.55
+    date    : 01/21/26
+
+    Conservative garbage collector with context isolation for parallel execution.
 */
 #ifdef MALLOC_DEBUG
 #include "rmalloc.h"
@@ -63,34 +65,28 @@ typedef struct mem_info {
  */
 KHASH_INIT(Backup, uint64_t, mem_info, 1, HASH_FUNCTION, kh_int64_hash_equal)
 
-static khash_t(Backup) * MEM; /* backup of pointers */
-
-static khint_t max_items;     /* max. items before gc */
-static uint64_t lower, upper; /* heap bounds */
-#ifdef COUNT_COLLECTIONS
-static size_t GC_gc_no;   /* number of garbage collections */
-static size_t memory_use; /* amount of memory currently used */
-static size_t free_bytes; /* amount of memory on the freelist */
-#endif
+/*
+ * Default global context for legacy API.
+ * Initialized by GC_INIT(), used by GC_malloc() etc.
+ */
+static GC_Context* default_ctx = NULL;
 
 /*
- * Pointers to memory segments.
+ * Pointers to memory segments (global, used for BSS scanning).
  */
 #ifdef SCAN_BSS_MEMORY
 static uint64_t start_of_text, start_of_data, start_of_bss, start_of_heap;
 #endif
 
 /*
- * fatal - Report a fatal error and end the program. The message is taken from
- *	   yacc. The function should be present in main.c
+ * fatal - Report a fatal error and end the program.
  */
 #ifdef _MSC_VER
 void fatal(char* str);
 #endif
 
 /*
- * Determine sections of memory. This is highly system dependent and not tested
- * on __APPLE__.
+ * Determine sections of memory. This is highly system dependent.
  */
 #ifdef SCAN_BSS_MEMORY
 static void init_heap(void)
@@ -102,16 +98,12 @@ static void init_heap(void)
     start_of_text = (uint64_t)main;
 #ifdef __CYGWIN__
     extern char __data_start__, __bss_start__, __bss_end__;
-#if 0
-    extern char __data_end__, __end__;
-#endif
     start_of_data = (uint64_t)&__data_start__;
     start_of_bss = (uint64_t)&__bss_start__;
     start_of_heap = (uint64_t)&__bss_end__;
 #endif
 #ifdef __linux__
     extern char etext, edata, end;
-
     start_of_data = (uint64_t)&etext;
     start_of_bss = (uint64_t)&edata;
     start_of_heap = (uint64_t)&end;
@@ -133,68 +125,42 @@ static void init_heap(void)
 }
 #endif
 
-/*
- * Report of the amount of memory allocated is delegated to valgrind.
- */
-#ifdef FREE_ON_EXIT
-static void mem_exit(void)
-{
-    khint_t key;
-
-    for (key = 0; key != kh_end(MEM); key++)
-        if (kh_exist(MEM, key))
-            free((void*)kh_key(MEM, key));
-    kh_destroy(Backup, MEM);
-}
-#endif
-
-/*
- * Initialise gc memory.
- */
-void GC_INIT(void)
-{
-#ifdef SCAN_BSS_MEMORY
-    init_heap();
-#endif
-#ifdef FREE_ON_EXIT
-    free(malloc(1));
-    atexit(mem_exit);
-#endif
-    MEM = kh_init(Backup);
-    max_items = MIN_ITEMS;
-}
+/* ========================================================================
+ * Context-aware internal functions
+ * ======================================================================== */
 
 /*
  * Mark a block as in use. No optimization for this (recursive) function.
  */
-static void mark_ptr(char* ptr)
+static void ctx_mark_ptr(GC_Context* ctx, char* ptr)
 {
     khint_t key;
     size_t i, size;
     uintptr_t value;
+    khash_t(Backup)* mem = (khash_t(Backup)*)ctx->mem;
 
     value = (uintptr_t)ptr;
-    if (value < lower || value >= upper)
+    if (value < ctx->lower || value >= ctx->upper)
         return;
-    if ((key = kh_get(Backup, MEM, value)) != kh_end(MEM)) {
-        if (kh_val(MEM, key).flags & GC_MARK)
+    if ((key = kh_get(Backup, mem, value)) != kh_end(mem)) {
+        if (kh_val(mem, key).flags & GC_MARK)
             return;
-        kh_val(MEM, key).flags |= GC_MARK;
-        if (kh_val(MEM, key).flags & GC_LEAF)
+        kh_val(mem, key).flags |= GC_MARK;
+        if (kh_val(mem, key).flags & GC_LEAF)
             return;
-        size = kh_val(MEM, key).size;
-        if (value + size > upper)
-            size = upper - value;
+        size = kh_val(mem, key).size;
+        if (value + size > ctx->upper)
+            size = ctx->upper - value;
         size /= sizeof(char*);
         if (size == 0)
             return;
         for (i = 0; i < size; i++) {
             uintptr_t slot_addr = value + i * sizeof(char*);
             char *child;
-            if (slot_addr + sizeof(char*) > upper)
+            if (slot_addr + sizeof(char*) > ctx->upper)
                 break;
             memcpy(&child, (void *)slot_addr, sizeof(char*));
-            mark_ptr(child); /* recursion is suspicious */
+            ctx_mark_ptr(ctx, child);
         }
     }
 }
@@ -202,230 +168,401 @@ static void mark_ptr(char* ptr)
 /*
  * Mark blocks that can be found on the stack.
  */
-static void mark_stk(void)
+static void ctx_mark_stk(GC_Context* ctx)
 {
     uint64_t ptr = (uint64_t)&ptr;
+    char* stack_bottom = ctx->stack_bottom;
+
+    if (!stack_bottom)
+        return;  /* No stack bottom set, skip stack scanning */
 
 #ifdef STACK_GROWS_UPWARD
-    if (ptr > bottom)
-        for (; ptr > (uint64_t)bottom_of_stack; ptr -= sizeof(char*))
-            mark_ptr(*(char**)ptr);
+    if (ptr > (uint64_t)stack_bottom)
+        for (; ptr > (uint64_t)stack_bottom; ptr -= sizeof(char*))
+            ctx_mark_ptr(ctx, *(char**)ptr);
     else
 #endif
-        for (; ptr < (uint64_t)bottom_of_stack; ptr += sizeof(char*))
-            mark_ptr(*(char**)ptr);
+        for (; ptr < (uint64_t)stack_bottom; ptr += sizeof(char*))
+            ctx_mark_ptr(ctx, *(char**)ptr);
 }
 
 /*
  * Mark blocks that are pointed to from static uninitialized memory.
  */
 #ifdef SCAN_BSS_MEMORY
-static void mark_bss(void)
+static void ctx_mark_bss(GC_Context* ctx)
 {
     uint64_t ptr, end_of_bss;
 
     end_of_bss = start_of_heap - sizeof(void*);
     for (ptr = start_of_bss; ptr <= end_of_bss; ptr += BSS_ALIGN)
-        mark_ptr(*(char**)ptr);
+        ctx_mark_ptr(ctx, *(char**)ptr);
 }
 #endif
 
 /*
  * Walk registered blocks and free those that have not been marked.
  */
-static void scan(void)
+static void ctx_scan(GC_Context* ctx)
 {
     khint_t key;
+    khash_t(Backup)* mem = (khash_t(Backup)*)ctx->mem;
 
-    for (key = 0; key != kh_end(MEM); key++) {
-        if (kh_exist(MEM, key)) {
-            if (kh_val(MEM, key).flags & GC_MARK)
-                kh_val(MEM, key).flags &= ~GC_MARK;
+    for (key = 0; key != kh_end(mem); key++) {
+        if (kh_exist(mem, key)) {
+            if (kh_val(mem, key).flags & GC_MARK)
+                kh_val(mem, key).flags &= ~GC_MARK;
             else {
 #ifdef COUNT_COLLECTIONS
-                free_bytes += kh_val(MEM, key).size;
+                ctx->free_bytes += kh_val(mem, key).size;
 #endif
-                free((void*)kh_key(MEM, key));
-                kh_del(Backup, MEM, key);
+                free((void*)kh_key(mem, key));
+                kh_del(Backup, mem, key);
             }
         }
     }
 }
 
 /*
- * Collect garbage.
- *
- * Pointers that are reachable from registers or stack are marked
- * as well as all pointers that are reachable from those pointers.
- * In other words: roots for garbage collection are searched in
- * registers, on the stack, and in the blocks themselves.
+ * Register an allocated memory block and garbage collect if needed.
  */
-void GC_gcollect(void)
-{
-    jmp_buf env;
-    void (*volatile m)(void) = mark_stk;
-
-    memset(&env, 0, sizeof(jmp_buf));
-    setjmp(env);
-    (*m)();
-#ifdef SCAN_BSS_MEMORY
-    mark_bss();
-#endif
-    scan();
-#ifdef COUNT_COLLECTIONS
-    GC_gc_no++;
-#endif
-}
-
-/*
- * Register an allocated memory block and garbage collect if there are too many
- * blocks already.
- */
-static void remind(char* ptr, size_t size, int flags)
+static void ctx_remind(GC_Context* ctx, char* ptr, size_t size, int flags)
 {
     int rv;
     khint_t key;
     uint64_t value;
+    khash_t(Backup)* mem = (khash_t(Backup)*)ctx->mem;
 
     value = (uint64_t)ptr;
-    if (lower > value || !lower)
-        lower = value;
-    if (upper < value + size)
-        upper = value + size;
-    key = kh_put(Backup, MEM, value, &rv);
-    kh_val(MEM, key).flags = flags;
-    kh_val(MEM, key).size = size;
+    if (ctx->lower > value || !ctx->lower)
+        ctx->lower = value;
+    if (ctx->upper < value + size)
+        ctx->upper = value + size;
+    key = kh_put(Backup, mem, value, &rv);
+    kh_val(mem, key).flags = flags;
+    kh_val(mem, key).size = size;
 #ifdef COUNT_COLLECTIONS
-    memory_use += size;
+    ctx->memory_use += size;
 #endif
     /*
      * See if there are already too many items allocated. If yes, trigger the
-     * garbage collector. As the number of items that need to be remembered is
-     * unknown, it is set to twice the number of items that are currently being
-     * used. This allows a 100% growth in the number of items allocated.
+     * garbage collector. The threshold is set to twice the number of items
+     * currently in use, allowing 100% growth between collections.
      */
-    if (max_items < kh_size(MEM)) {
-        GC_gcollect();
-        max_items = kh_size(MEM) * GROW_FACTOR;
+    if (ctx->max_items < kh_size(mem)) {
+        gc_ctx_collect(ctx);
+        ctx->max_items = kh_size(mem) * GROW_FACTOR;
     }
 }
 
 /*
- * Register an allocated memory block. The block is cleared with zeroes.
+ * Allocate and register a memory block. The block is cleared with zeroes.
  */
-static void* mem_block(size_t size, int leaf)
+static void* ctx_mem_block(GC_Context* ctx, size_t size, int leaf)
 {
-    void* ptr = 0;
-
-    ptr = malloc(size);
+    void* ptr = malloc(size);
 #ifdef _MSC_VER
     if (!ptr)
         fatal("memory exhausted");
 #endif
-    memset(ptr, 0, size);
-    remind(ptr, size, leaf);
+    if (ptr) {
+        memset(ptr, 0, size);
+        ctx_remind(ctx, ptr, size, leaf);
+    }
     return ptr;
 }
 
 /*
- * Register a memory block that contains no other blocks.
- */
-#ifdef USE_GC_MALLOC_ATOMIC
-void* GC_malloc_atomic(size_t size) { return mem_block(size, GC_LEAF); }
-#endif
-
-/*
- * Register a memory block that can be collected.
- */
-#ifdef USE_GC_MALLOC
-void* GC_malloc(size_t size) { return mem_block(size, GC_COLL); }
-#endif
-
-#ifdef USE_GC_REALLOC
-/*
  * Forget about a memory block and return its flags.
  */
 #ifdef COUNT_COLLECTIONS
-static unsigned char forget(void* ptr, unsigned* size)
+static unsigned char ctx_forget(GC_Context* ctx, void* ptr, unsigned* size)
 #else
-static unsigned char forget(void* ptr)
+static unsigned char ctx_forget(GC_Context* ctx, void* ptr)
 #endif
 {
     khint_t key;
     unsigned char flags = 0;
+    khash_t(Backup)* mem = (khash_t(Backup)*)ctx->mem;
 
-    if ((key = kh_get(Backup, MEM, (uint64_t)ptr)) != kh_end(MEM)) {
-        flags = kh_val(MEM, key).flags;
+    if ((key = kh_get(Backup, mem, (uint64_t)ptr)) != kh_end(mem)) {
+        flags = kh_val(mem, key).flags;
 #ifdef COUNT_COLLECTIONS
-        *size = kh_val(MEM, key).size;
+        *size = kh_val(mem, key).size;
 #endif
-        kh_del(Backup, MEM, key);
+        kh_del(Backup, mem, key);
     }
     return flags;
 }
 
+/* ========================================================================
+ * Context-aware public API
+ * ======================================================================== */
+
 /*
- * Enlarge an already allocated memory block.
+ * Create a new GC context.
  */
-void* GC_realloc(void* ptr, size_t size)
+GC_Context* gc_ctx_create(void)
+{
+    GC_Context* ctx = calloc(1, sizeof(GC_Context));
+    if (!ctx)
+        return NULL;
+
+    ctx->mem = kh_init(Backup);
+    if (!ctx->mem) {
+        free(ctx);
+        return NULL;
+    }
+    ctx->max_items = MIN_ITEMS;
+    ctx->lower = 0;
+    ctx->upper = 0;
+    ctx->stack_bottom = NULL;
+#ifdef COUNT_COLLECTIONS
+    ctx->gc_no = 0;
+    ctx->memory_use = 0;
+    ctx->free_bytes = 0;
+#endif
+    return ctx;
+}
+
+/*
+ * Destroy a GC context and free all tracked allocations.
+ */
+void gc_ctx_destroy(GC_Context* ctx)
+{
+    khint_t key;
+    khash_t(Backup)* mem;
+
+    if (!ctx)
+        return;
+
+    mem = (khash_t(Backup)*)ctx->mem;
+    if (mem) {
+        /* Free all tracked allocations */
+        for (key = 0; key != kh_end(mem); key++)
+            if (kh_exist(mem, key))
+                free((void*)kh_key(mem, key));
+        kh_destroy(Backup, mem);
+    }
+    free(ctx);
+}
+
+/*
+ * Set the stack bottom for a context.
+ */
+void gc_ctx_set_stack_bottom(GC_Context* ctx, char* bottom)
+{
+    if (ctx)
+        ctx->stack_bottom = bottom;
+}
+
+/*
+ * Allocate memory that may contain pointers (will be scanned during GC).
+ */
+void* gc_ctx_malloc(GC_Context* ctx, size_t size)
+{
+    if (!ctx)
+        return NULL;
+    return ctx_mem_block(ctx, size, GC_COLL);
+}
+
+/*
+ * Allocate memory that contains no pointers (leaf allocation).
+ */
+void* gc_ctx_malloc_atomic(GC_Context* ctx, size_t size)
+{
+    if (!ctx)
+        return NULL;
+    return ctx_mem_block(ctx, size, GC_LEAF);
+}
+
+/*
+ * Reallocate a memory block.
+ */
+void* gc_ctx_realloc(GC_Context* ctx, void* ptr, size_t size)
 {
     unsigned char flags;
 #ifdef COUNT_COLLECTIONS
     unsigned old_size = 0;
 #endif
 
+    if (!ctx)
+        return NULL;
     if (!ptr)
-        return GC_malloc(size);
+        return gc_ctx_malloc(ctx, size);
+
 #ifdef COUNT_COLLECTIONS
-    flags = forget(ptr, &old_size);
-    memory_use -= old_size;
-    memory_use += size;
+    flags = ctx_forget(ctx, ptr, &old_size);
+    ctx->memory_use -= old_size;
 #else
-    flags = forget(ptr);
+    flags = ctx_forget(ctx, ptr);
 #endif
     ptr = realloc(ptr, size);
 #ifdef _MSC_VER
     if (!ptr)
         fatal("memory exhausted");
 #endif
-    remind(ptr, size, flags);
+    if (ptr)
+        ctx_remind(ctx, ptr, size, flags);
     return ptr;
 }
-#endif
 
 /*
- * Duplicate a string. A string does not contain internal pointers.
+ * Duplicate a string.
  */
-#ifdef USE_GC_STRDUP
-char* GC_strdup(const char* str)
+char* gc_ctx_strdup(GC_Context* ctx, const char* str)
 {
     char* ptr;
     size_t leng;
 
+    if (!ctx || !str)
+        return NULL;
     leng = strlen(str) + 1;
-    if ((ptr = GC_malloc_atomic(leng)) != 0)
+    ptr = gc_ctx_malloc_atomic(ctx, leng);
+    if (ptr)
         strcpy(ptr, str);
     return ptr;
+}
+
+/*
+ * Collect garbage in a context.
+ */
+void gc_ctx_collect(GC_Context* ctx)
+{
+    jmp_buf env;
+    void (*volatile m)(GC_Context*) = ctx_mark_stk;
+
+    if (!ctx)
+        return;
+
+    memset(&env, 0, sizeof(jmp_buf));
+    setjmp(env);
+    (*m)(ctx);
+#ifdef SCAN_BSS_MEMORY
+    ctx_mark_bss(ctx);
+#endif
+    ctx_scan(ctx);
+#ifdef COUNT_COLLECTIONS
+    ctx->gc_no++;
+#endif
+}
+
+/*
+ * Get statistics from a context.
+ */
+size_t gc_ctx_get_gc_no(GC_Context* ctx)
+{
+#ifdef COUNT_COLLECTIONS
+    return ctx ? ctx->gc_no : 0;
+#else
+    (void)ctx;
+    return 0;
+#endif
+}
+
+size_t gc_ctx_get_memory_use(GC_Context* ctx)
+{
+#ifdef COUNT_COLLECTIONS
+    return ctx ? ctx->memory_use : 0;
+#else
+    (void)ctx;
+    return 0;
+#endif
+}
+
+size_t gc_ctx_get_free_bytes(GC_Context* ctx)
+{
+#ifdef COUNT_COLLECTIONS
+    return ctx ? ctx->free_bytes : 0;
+#else
+    (void)ctx;
+    return 0;
+#endif
+}
+
+/*
+ * Get the default global context.
+ */
+GC_Context* gc_get_default_context(void)
+{
+    return default_ctx;
+}
+
+/* ========================================================================
+ * Legacy API (uses global default context)
+ * ======================================================================== */
+
+/*
+ * Initialize the default global GC context.
+ */
+void GC_INIT(void)
+{
+#ifdef SCAN_BSS_MEMORY
+    init_heap();
+#endif
+    if (!default_ctx) {
+        default_ctx = gc_ctx_create();
+        /* Set stack bottom from global for backwards compatibility */
+        if (default_ctx)
+            default_ctx->stack_bottom = bottom_of_stack;
+    }
+}
+
+/*
+ * Collect garbage using the default context.
+ */
+void GC_gcollect(void)
+{
+    /* Update stack bottom in case it changed */
+    if (default_ctx)
+        default_ctx->stack_bottom = bottom_of_stack;
+    gc_ctx_collect(default_ctx);
+}
+
+/*
+ * Allocate memory using the default context.
+ */
+#ifdef USE_GC_MALLOC_ATOMIC
+void* GC_malloc_atomic(size_t size)
+{
+    return gc_ctx_malloc_atomic(default_ctx, size);
+}
+#endif
+
+#ifdef USE_GC_MALLOC
+void* GC_malloc(size_t size)
+{
+    return gc_ctx_malloc(default_ctx, size);
+}
+#endif
+
+#ifdef USE_GC_REALLOC
+void* GC_realloc(void* ptr, size_t size)
+{
+    return gc_ctx_realloc(default_ctx, ptr, size);
+}
+#endif
+
+#ifdef USE_GC_STRDUP
+char* GC_strdup(const char* str)
+{
+    return gc_ctx_strdup(default_ctx, str);
 }
 #endif
 
 #ifdef COUNT_COLLECTIONS
-/*
- * Return the number of garbage collections.
- * This is reported in the main function.
- */
-size_t GC_get_gc_no(void) { return GC_gc_no; }
+size_t GC_get_gc_no(void)
+{
+    return gc_ctx_get_gc_no(default_ctx);
+}
 
-/*
- * Return the amount of memory currently in use.
- */
-/* LCOV_EXCL_START */
-size_t GC_get_memory_use(void) { return memory_use; }
+size_t GC_get_memory_use(void)
+{
+    return gc_ctx_get_memory_use(default_ctx);
+}
 
-/*
- * Return the amount of memory on the freelist.
- */
-size_t GC_get_free_bytes(void) { return free_bytes; }
-
-/* LCOV_EXCL_STOP */
+size_t GC_get_free_bytes(void)
+{
+    return gc_ctx_get_free_bytes(default_ctx);
+}
 #endif

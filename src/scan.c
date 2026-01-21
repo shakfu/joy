@@ -165,7 +165,7 @@ static void redirect(pEnv env, char* str, int j, FILE* fp)
      * for additional attempts.
      */
     if (strrchr(str, '/')) {
-        new_path = GC_strdup(str);
+        new_path = GC_CTX_STRDUP(env, str);
         str = strrchr(new_path, '/');
         *str++ = 0;
         for (i = 0; i < j; i++) {
@@ -226,7 +226,7 @@ int include(pEnv env, char* name)
         if (i != vec_size(env->pathnames)) {
             path = vec_at(env->pathnames, i);
             leng = strlen(path) + strlen(name) + 2;
-            str = GC_malloc_atomic(leng);
+            str = GC_CTX_MALLOC_ATOMIC(env, leng);
             snprintf(str, leng, "%s/%s", path, name);
         }
         if ((fp = fopen(str, "r")) != 0) { /* try to read */
@@ -349,7 +349,7 @@ start:
             ch = getch(env);
         }
         vec_push(env->string, 0);
-        env->str = GC_strdup(&vec_at(env->string, 0));
+        env->str = GC_CTX_STRDUP(env, &vec_at(env->string, 0));
         env->sym = STRING_;
         env->endpos = env->linepos;
         return getch(env); /* read past " */
@@ -423,7 +423,7 @@ start:
                     return ch;
                 }
         }
-        env->str = GC_strdup(ptr);
+        env->str = GC_CTX_STRDUP(env, ptr);
         env->sym = USR_;
     }
     return ch;

@@ -59,17 +59,6 @@ static int active_context_count = 0;
  */
 JoyContext* joy_create(const JoyConfig* config)
 {
-    static int gc_initialized = 0;
-
-    /* Initialize GC once on first context creation */
-    if (!gc_initialized) {
-        /* Set up GC root - use address of local variable as stack base */
-        static char gc_root_anchor;
-        bottom_of_stack = &gc_root_anchor;
-        GC_INIT();
-        gc_initialized = 1;
-    }
-
     active_context_count++;
 
     JoyContext* ctx = calloc(1, sizeof(JoyContext));
@@ -77,6 +66,30 @@ JoyContext* joy_create(const JoyConfig* config)
         return NULL;
 
     pEnv env = &ctx->env;
+
+    /*
+     * Initialize global GC once on first context creation.
+     * This is needed even in NOBDW mode because kvec.h macros use
+     * GC_malloc directly (not through env->gc_ctx).
+     */
+    static int gc_initialized = 0;
+    if (!gc_initialized) {
+        static char gc_root_anchor;
+        bottom_of_stack = &gc_root_anchor;
+        GC_INIT();
+        gc_initialized = 1;
+    }
+
+#ifdef NOBDW
+    /* Create per-context GC (Phase 3) */
+    env->gc_ctx = gc_ctx_create();
+    if (!env->gc_ctx) {
+        free(ctx);
+        return NULL;
+    }
+    /* Set stack bottom for per-context GC */
+    env->gc_ctx->stack_bottom = bottom_of_stack;
+#endif
 
     /* Initialize scanner state */
     env->ilevel = -1;
@@ -153,12 +166,16 @@ void joy_destroy(JoyContext* ctx)
         kh_destroy(Funtab, ctx->env.prim);
 
 #ifdef NOBDW
-    /* Free memory for this context */
+    /* Free copying GC memory for this context */
     if (ctx->env.memory) {
         free(ctx->env.memory);
         ctx->env.memory = NULL;
     }
-    /* Memory tracking is now per-context in env struct, no global reset needed */
+    /* Destroy per-context conservative GC (Phase 3) */
+    if (ctx->env.gc_ctx) {
+        gc_ctx_destroy(ctx->env.gc_ctx);
+        ctx->env.gc_ctx = NULL;
+    }
 #endif
 
     /*

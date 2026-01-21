@@ -1,0 +1,10 @@
+(* Sequential execution benchmark for comparison *)
+(* Run with: time ./joy tests/sequential_benchmark.joy *)
+
+(* Same computation as parallel_benchmark but using map instead of pmap *)
+
+"map benchmark (8 elements, heavy computation):" putchars newline
+[1 2 3 4 5 6 7 8] [100000 [dup * 2 mod] times] map
+size "Result size: " putchars put newline
+
+"Done." putchars newline.

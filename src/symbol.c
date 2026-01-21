@@ -116,7 +116,7 @@ static int definition(pEnv env, int ch)
         return ch;
 
     /* sym == USR_ : */
-    name = GC_strdup(env->str);
+    name = GC_CTX_STRDUP(env, env->str);
 
     ch = getsym(env, ch);
     if (env->sym == EQDEF)

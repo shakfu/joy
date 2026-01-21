@@ -1,0 +1,11 @@
+(* Parallel execution benchmark *)
+(* Run with: time ./joy tests/parallel_benchmark.joy *)
+
+(* Heavy computation: repeat dup * 2 mod 100000 times on each element *)
+(* With 8 elements, parallel execution should use multiple CPU cores *)
+
+"pmap benchmark (8 elements, heavy computation):" putchars newline
+[1 2 3 4 5 6 7 8] [100000 [dup * 2 mod] times] pmap
+size "Result size: " putchars put newline
+
+"Done." putchars newline.

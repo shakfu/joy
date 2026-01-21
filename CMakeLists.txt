@@ -139,3 +139,46 @@ option(BUILD_EXAMPLES "Build embedding examples" OFF)
 if(BUILD_EXAMPLES)
   add_subdirectory(examples)
 endif()
+
+# Optional: Enable parallel combinators (pmap, pfork)
+# Requires OpenMP support
+# - macOS: brew install libomp
+# - Linux: Usually built into GCC/Clang
+option(JOY_PARALLEL "Enable parallel combinators using OpenMP" OFF)
+if(JOY_PARALLEL)
+  foreach(target joycore_static joycore_shared)
+    target_compile_definitions(${target} PUBLIC JOY_PARALLEL)
+  endforeach()
+
+  if(APPLE)
+    # macOS requires libomp from Homebrew
+    execute_process(
+      COMMAND brew --prefix libomp
+      OUTPUT_VARIABLE LIBOMP_PREFIX
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET
+    )
+    if(LIBOMP_PREFIX)
+      foreach(target joycore_static joycore_shared)
+        target_include_directories(${target} PUBLIC "${LIBOMP_PREFIX}/include")
+        target_link_directories(${target} PUBLIC "${LIBOMP_PREFIX}/lib")
+        target_compile_options(${target} PUBLIC -Xpreprocessor -fopenmp)
+        target_link_libraries(${target} PUBLIC omp)
+      endforeach()
+      message(STATUS "OpenMP enabled via libomp at ${LIBOMP_PREFIX}")
+    else()
+      message(WARNING "libomp not found - install with: brew install libomp")
+    endif()
+  else()
+    # Linux/other: standard OpenMP support
+    find_package(OpenMP)
+    if(OpenMP_C_FOUND)
+      foreach(target joycore_static joycore_shared)
+        target_link_libraries(${target} PUBLIC OpenMP::OpenMP_C)
+      endforeach()
+      message(STATUS "OpenMP enabled")
+    else()
+      message(WARNING "OpenMP not found - parallel combinators will run sequentially")
+    endif()
+  endif()
+endif()

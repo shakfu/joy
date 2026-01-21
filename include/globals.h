@@ -271,11 +271,13 @@ typedef struct Env {
     clock_t gc_clock;
     Node* memory;       /* dynamic memory */
     Node* old_memory;   /* backup during GC (was static in utils.c) */
+    Node* parent_memory; /* parent's memory for symbol body lookup in parallel contexts */
     Index conts, dump, dump1, dump2, dump3, dump4, dump5, inits;
     Index mem_low;      /* start of definition space (was global in utils.c) */
     Index memoryindex;  /* next free node index (was global in utils.c) */
     size_t memorymax;   /* total capacity of memory array (was static in utils.c) */
     char* stack_bottom; /* bottom of C stack for this context (was global) */
+    GC_Context* gc_ctx; /* per-context conservative GC (Phase 3) */
 #endif
     Index prog, stck;
 #ifdef COMPILER
@@ -470,4 +472,32 @@ void joy_puts(pEnv env, const char* s);
 void joy_printf(pEnv env, const char* fmt, ...);
 void joy_flush(pEnv env);
 void joy_report_error(pEnv env, int code, const char* msg);
+
+/*
+ * Context-aware GC allocation macros (Phase 3)
+ *
+ * These macros provide convenient access to per-context GC allocation.
+ * In NOBDW mode, they use env->gc_ctx if available, otherwise fall back
+ * to global GC. This allows code to work with both the public API
+ * (joy_create) and the internal CLI which uses Env directly.
+ *
+ * Note: kvec.h macros still use global GC_malloc/GC_realloc directly.
+ * Full context isolation for vectors requires additional work.
+ */
+#ifdef NOBDW
+#define GC_CTX_MALLOC(env, size) \
+    ((env)->gc_ctx ? gc_ctx_malloc((env)->gc_ctx, (size)) : GC_malloc(size))
+#define GC_CTX_MALLOC_ATOMIC(env, size) \
+    ((env)->gc_ctx ? gc_ctx_malloc_atomic((env)->gc_ctx, (size)) : GC_malloc_atomic(size))
+#define GC_CTX_REALLOC(env, ptr, size) \
+    ((env)->gc_ctx ? gc_ctx_realloc((env)->gc_ctx, (ptr), (size)) : GC_realloc((ptr), (size)))
+#define GC_CTX_STRDUP(env, str) \
+    ((env)->gc_ctx ? gc_ctx_strdup((env)->gc_ctx, (str)) : GC_strdup(str))
+#else
+#define GC_CTX_MALLOC(env, size)        GC_malloc(size)
+#define GC_CTX_MALLOC_ATOMIC(env, size) GC_malloc_atomic(size)
+#define GC_CTX_REALLOC(env, ptr, size)  GC_realloc((ptr), (size))
+#define GC_CTX_STRDUP(env, str)         GC_strdup(str)
+#endif
+
 #endif
