@@ -112,16 +112,14 @@ static inline void env_destroy_parallel(pEnv child)
 }
 
 /*
- * Deep copy a node from child context to parent context.
- * This is needed because child GC context will be destroyed after task completion.
+ * Deep copy a single node's value (not the next chain) from child to parent.
+ * Used internally by copy_node_to_parent.
+ * Returns the new node with next=0.
  */
 static Index copy_node_to_parent(pEnv parent, pEnv child, Index node);
 
-static inline Index copy_node_to_parent_impl(pEnv parent, pEnv child, Index node)
+static inline Index copy_single_node(pEnv parent, pEnv child, Index node)
 {
-    if (!node)
-        return 0;
-
 #ifdef NOBDW
     Types u;
     Operator op = child->memory[node].op;
@@ -142,7 +140,7 @@ static inline Index copy_node_to_parent_impl(pEnv parent, pEnv child, Index node
         break;
 
     case LIST_:
-        /* Recursively copy list contents */
+        /* Recursively copy list contents (depth-bounded by actual nesting) */
         u.lis = copy_node_to_parent(parent, child, child->memory[node].u.lis);
         break;
 
@@ -152,24 +150,78 @@ static inline Index copy_node_to_parent_impl(pEnv parent, pEnv child, Index node
         break;
 
     default:
-        /* Other types - copy as-is (may need special handling) */
+        /* Other types - copy as-is */
         u = child->memory[node].u;
         break;
     }
 
-    /* Copy the next pointer recursively */
-    Index next = copy_node_to_parent(parent, child, child->memory[node].next);
-
-    return newnode(parent, op, u, next);
+    return newnode(parent, op, u, 0);
 #else
-    /* Non-NOBDW mode uses BDW GC which is shared, no copying needed */
     return node;
 #endif
 }
 
+/*
+ * Deep copy a node chain from child context to parent context.
+ * This is needed because child GC context will be destroyed after task completion.
+ *
+ * IMPORTANT: Uses iteration for the next-chain to avoid stack overflow on long lists.
+ * Only LIST_ contents use recursion (bounded by actual list nesting depth).
+ */
 static inline Index copy_node_to_parent(pEnv parent, pEnv child, Index node)
 {
-    return copy_node_to_parent_impl(parent, child, node);
+    if (!node)
+        return 0;
+
+#ifdef NOBDW
+    Index current = node;
+
+    /*
+     * Iterate through the chain, copying each node.
+     * We build the list forward by tracking head and tail.
+     *
+     * GC protection: We push protection nodes onto dump4 (for head)
+     * and dump5 (for tail). These are GC roots, so the values stored
+     * in them will survive garbage collection.
+     */
+    {
+        Types u_prot;
+        u_prot.lis = 0;
+        parent->dump4 = newnode(parent, LIST_, u_prot, parent->dump4);
+        parent->dump5 = newnode(parent, LIST_, u_prot, parent->dump5);
+    }
+    /* head stored in dump4's lis, tail stored in dump5's lis */
+
+    while (current) {
+        /* Copy this node (with recursive list copy for LIST_ type) */
+        Index new_node = copy_single_node(parent, child, current);
+
+        if (!parent->memory[parent->dump4].u.lis) {
+            /* First node becomes head and tail */
+            parent->memory[parent->dump4].u.lis = new_node;
+            parent->memory[parent->dump5].u.lis = new_node;
+        } else {
+            /* Link previous tail to new node, update tail */
+            Index tail = parent->memory[parent->dump5].u.lis;
+            parent->memory[tail].next = new_node;
+            parent->memory[parent->dump5].u.lis = new_node;
+        }
+
+        current = child->memory[current].next;
+    }
+
+    /* Extract head before popping */
+    Index head = parent->memory[parent->dump4].u.lis;
+
+    /* Pop the protection nodes */
+    parent->dump5 = parent->memory[parent->dump5].next;
+    parent->dump4 = parent->memory[parent->dump4].next;
+
+    return head;
+#else
+    /* Non-NOBDW mode uses BDW GC which is shared, no copying needed */
+    return node;
+#endif
 }
 
 /*

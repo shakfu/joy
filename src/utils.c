@@ -146,11 +146,15 @@ void printnode(pEnv env, Index p)
 }
 #endif
 
+/* Forward declaration for mutual recursion */
+static Index copy(pEnv env, Index n);
+
 /*
- * Copy a single node from from_space to to_space. The to_space should be as
- * large as the from_space or larger.
+ * Copy a single node (not the next chain) from from_space to to_space.
+ * Returns the new index. Does NOT recursively copy the next field.
+ * LIST_ contents are still copied recursively (bounded by list nesting depth).
  */
-static Index copy(pEnv env, Index n)
+static Index copy_one(pEnv env, Index n)
 {
     Index temp;
     Operator op;
@@ -190,15 +194,10 @@ static Index copy(pEnv env, Index n)
     }
     /*
      * If the node contains a list, then the list needs to be copied. This
-     * requires that copy is called recursively.
+     * requires recursive copying (bounded by actual list nesting depth).
      */
     if (op == LIST_)
         env->memory[temp].u.lis = copy(env, env->old_memory[n].u.lis);
-    /*
-     * The next field also needs to be copied separately, overruling what was
-     * there copied earlier on.
-     */
-    env->memory[temp].next = copy(env, env->old_memory[n].next);
     /*
      * The original location is set to COPIED_, such that it will not be copied
      * again.
@@ -212,6 +211,60 @@ static Index copy(pEnv env, Index n)
 }
 
 /*
+ * Copy a node chain from from_space to to_space. The to_space should be as
+ * large as the from_space or larger.
+ *
+ * IMPORTANT: Uses iteration for the next-chain to avoid stack overflow on
+ * long lists. Only LIST_ contents use recursion (bounded by nesting depth).
+ */
+static Index copy(pEnv env, Index n)
+{
+    if (n < env->mem_low)
+        return n;
+    if (env->old_memory[n].op == COPIED_)
+        return env->old_memory[n].u.lis;
+
+    Index head = 0;
+    Index tail = 0;
+    Index current = n;
+
+    while (current >= env->mem_low) {
+        /* Check if already copied */
+        if (env->old_memory[current].op == COPIED_) {
+            /* Link tail to the already-copied node */
+            if (tail)
+                env->memory[tail].next = env->old_memory[current].u.lis;
+            else
+                head = env->old_memory[current].u.lis;
+            break;
+        }
+
+        /* Copy this single node (not its next chain) */
+        Index old_next = env->old_memory[current].next;
+        Index new_node = copy_one(env, current);
+
+        if (!head) {
+            head = new_node;
+            tail = new_node;
+        } else {
+            env->memory[tail].next = new_node;
+            tail = new_node;
+        }
+
+        /* Clear the next field temporarily (copy_one copies it from old) */
+        env->memory[tail].next = 0;
+
+        current = old_next;
+    }
+
+    /* Handle terminal case: current < mem_low (definition space) */
+    if (current && current < env->mem_low && tail)
+        env->memory[tail].next = current;
+
+    return head;
+}
+
+/*
  * Scan the symbol table for roots. Variables are not allocated in the space
  * that definitions occupy and therefore need to be taken care of separately.
  */
@@ -219,6 +272,18 @@ static void scan_roots(pEnv env)
 {
     int i;
     Entry ent;
+
+#if defined(JOY_PARALLEL) && defined(NOBDW)
+    /*
+     * In parallel child contexts, the symtab is shared with the parent and
+     * variable bodies are indices into parent's memory, not child's memory.
+     * Attempting to copy them would read garbage from child's old_memory.
+     * Additionally, modifying the shared symtab would be a race condition.
+     * Skip scan_roots entirely for parallel child contexts.
+     */
+    if (env->parent_memory)
+        return;
+#endif
 
     /*
      * Look in the symbol table for variables. They also need to be garbage

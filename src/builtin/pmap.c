@@ -165,19 +165,22 @@ void pmap_(pEnv env)
     }
 
     /* Build result list (in reverse order, then it's correct) */
-    Index result_list = 0;
+    /* Root the result list in dump4 to protect from GC during construction */
+    env->dump4 = LIST_NEWNODE(0, env->dump4);
     for (int i = count - 1; i >= 0; i--) {
         /* Copy result from child to parent context */
         Index child_result = tasks[i].result;
         if (child_result) {
 #ifdef NOBDW
             Index copied = copy_node_to_parent(env, &tasks[i].child_env, child_result);
-            result_list = newnode2(env, copied, result_list);
+            nodevalue(env->dump4).lis = newnode2(env, copied, nodevalue(env->dump4).lis);
 #else
-            result_list = newnode2(env, child_result, result_list);
+            nodevalue(env->dump4).lis = newnode2(env, child_result, nodevalue(env->dump4).lis);
 #endif
         }
     }
+    Index result_list = nodevalue(env->dump4).lis;
+    POP(env->dump4);
 
     /* Clean up tasks */
     for (int i = 0; i < count; i++) {
