@@ -414,6 +414,37 @@ void gc_collect(pEnv env)
 }
 
 /*
+ * Ensure that at least 'num' nodes can be allocated without triggering GC.
+ * This MUST be called BEFORE storing any Index values in local variables,
+ * because GC will not update local C stack variables.
+ *
+ * Use case: When building a list of known size, call ensure_capacity first,
+ * then allocate nodes in a loop without risk of GC invalidating local indices.
+ */
+void ensure_capacity(pEnv env, int num)
+{
+    if (env->memoryindex + num < env->memorymax)
+        return; /* Already have enough space */
+
+    if (env->flibrary_busy) {
+        /* During library loading, just expand without GC */
+        while (env->memoryindex + num >= env->memorymax)
+            env->memorymax *= 2;
+        env->memory = realloc(env->memory, env->memorymax * sizeof(Node));
+#ifdef TEST_MALLOC_RETURN
+        if (!env->memory)
+            fatal("memory exhausted");
+#endif
+    } else {
+        /* Trigger GC now, before caller has any local Index variables */
+        while (env->memoryindex + num >= env->memorymax)
+            env->memorymax *= 2;
+        gc1(env, 0, 0);
+        gc2(env);
+    }
+}
+
+/*
  * Count the number of nodes that need to be copied during garbage collection.
  */
 static int count(pEnv env, Index n)

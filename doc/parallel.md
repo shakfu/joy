@@ -13,7 +13,7 @@ This document describes the parallel execution implementation in the Joy interpr
 | Phase 5 | OpenMP Parallel Execution | Complete |
 | Phase 6 | User-Defined Symbol Support | Complete |
 
-All 178 tests pass with parallel execution enabled.
+All 182 tests pass with parallel execution enabled.
 
 ---
 
@@ -99,6 +99,56 @@ Stack effect: X [P1] [P2] -> R1 R2
 5 [dup *] [dup dup * *] pfork.
 (* Results: 25 125 - square and cube computed concurrently *)
 ```
+
+### `pfilter` - Parallel Filter
+
+Filter elements where predicate returns true, evaluated in parallel.
+
+```
+Stack effect: A [P] -> B
+```
+
+```joy
+[1 2 3 4 5 6 7 8] [2 rem 0 =] pfilter.
+(* Result: [2 4 6 8] - keep even numbers *)
+
+[3 1 4 1 5 9 2 6] [4 >] pfilter.
+(* Result: [5 9 6] - keep numbers > 4 *)
+```
+
+Behavior:
+- Lists with fewer than 4 elements use sequential execution
+- Order of kept elements is preserved
+- Each predicate is evaluated independently with isolated GC context
+- Elements where predicate returns truthy (non-zero, non-empty) are kept
+
+### `preduce` - Parallel Tree Reduction
+
+Reduce a list using an associative binary operation with divide-and-conquer parallelism.
+
+```
+Stack effect: A [P] -> R
+```
+
+```joy
+[1 2 3 4 5 6 7 8] [+] preduce.
+(* Result: 36 - parallel sum *)
+
+[3 1 4 1 5 9 2 6] [max] preduce.
+(* Result: 9 - parallel maximum *)
+
+[1 2 3 4 5] [*] preduce.
+(* Result: 120 - parallel product *)
+```
+
+Behavior:
+- For list `[a b c d]`, computes `((a P b) P (c P d))` in parallel
+- Lists with fewer than 4 elements use sequential (left fold) execution
+- P must be associative for correct parallel results (e.g., `+`, `*`, `max`, `min`)
+- Single-element lists return the element unchanged
+- Empty lists are an error
+
+**Important:** For non-associative operations like `-` or `/`, the parallel result may differ from sequential due to different evaluation order.
 
 ---
 
@@ -200,8 +250,7 @@ static Index copy_node_to_parent(pEnv parent, pEnv child, Index node) {
 |------|---------|
 | `include/parallel.h` | Parallel infrastructure (env cloning, node copying) |
 | `include/globals.h` | Env structure with `parent_memory` field |
-| `src/builtin/pmap.c` | Parallel map combinator |
-| `src/builtin/pfork.c` | Parallel fork combinator |
+| `src/builtin/parallel.c` | Parallel combinators (pmap, pfork, pfilter, preduce) |
 | `src/interp.c` | `copy_body_from_parent()` for symbol execution |
 | `src/gc.c` | Context-aware conservative GC |
 | `lib/mapreduce.joy` | MapReduce library |
@@ -283,14 +332,13 @@ Stress-tested with up to 1,000,000 iterations per element. See `tests/parallel_s
 
 ### Short Term
 
-- [ ] Add `pfilter` - parallel filter combinator
 - [ ] Improve error messages for parallel failures
 
 ### Medium Term
 
 - [ ] Work-stealing for nested parallelism
 - [ ] Cancellation support for early termination
-- [ ] `preduce` - parallel tree reduction for associative operations
+- [ ] `pscan` - parallel prefix scan (cumulative reduction)
 
 ### Long Term
 
@@ -357,9 +405,9 @@ bash tests/parallel_benchmark.sh    # Performance benchmark (wall time)
 ### Test Coverage
 
 The parallel implementation is verified by:
-- Parallel correctness tests in `tests/parallel_test.joy`
+- Parallel correctness tests in `tests/parallel_test.joy` (22 tests including pfilter, preduce)
 - 16 stress tests in `tests/parallel_stress.joy` (up to 100,000 iterations)
-- All 180 tests pass with parallel execution enabled
+- All 182 tests pass with parallel execution enabled
 
 ---
 

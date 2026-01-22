@@ -67,6 +67,9 @@ static int check_numeric_list(pEnv env, Index list, char* name)
 /*
  * Helper: Build a result list from an array of doubles.
  * Uses FLOAT_ nodes for all results to preserve precision.
+ *
+ * IMPORTANT: Calls ensure_capacity first to prevent GC from running
+ * during the loop, which would invalidate local Index variables.
  */
 static Index build_float_list(pEnv env, double* values, int len)
 {
@@ -74,6 +77,9 @@ static Index build_float_list(pEnv env, double* values, int len)
     Index tail = 0;
     Index node;
     int i;
+
+    /* Pre-allocate to avoid GC during loop (which would invalidate head/tail) */
+    ensure_capacity(env, len);
 
     for (i = 0; i < len; i++) {
         node = FLOAT_NEWNODE(values[i], 0);
@@ -90,6 +96,9 @@ static Index build_float_list(pEnv env, double* values, int len)
 
 /*
  * Helper: Build a result list from an array of integers.
+ *
+ * IMPORTANT: Calls ensure_capacity first to prevent GC from running
+ * during the loop, which would invalidate local Index variables.
  */
 static Index build_int_list(pEnv env, int64_t* values, int len)
 {
@@ -97,6 +106,9 @@ static Index build_int_list(pEnv env, int64_t* values, int len)
     Index tail = 0;
     Index node;
     int i;
+
+    /* Pre-allocate to avoid GC during loop (which would invalidate head/tail) */
+    ensure_capacity(env, len);
 
     for (i = 0; i < len; i++) {
         node = INTEGER_NEWNODE(values[i], 0);
@@ -169,6 +181,7 @@ void vplus_(pEnv env)
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
 
+    #pragma omp simd
     for (i = 0; i < len1; i++) {
         result[i] = a[i] + b[i];
     }
@@ -220,6 +233,7 @@ void vminus_(pEnv env)
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
 
+    #pragma omp simd
     for (i = 0; i < len1; i++) {
         result[i] = a[i] - b[i];
     }
@@ -271,6 +285,7 @@ void vmul_(pEnv env)
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
 
+    #pragma omp simd
     for (i = 0; i < len1; i++) {
         result[i] = a[i] * b[i];
     }
@@ -322,6 +337,7 @@ void vdiv_(pEnv env)
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
 
+    #pragma omp simd
     for (i = 0; i < len1; i++) {
         result[i] = a[i] / b[i];
     }
@@ -372,6 +388,7 @@ void vscale_(pEnv env)
 
     extract_values(env, list, values, len);
 
+    #pragma omp simd
     for (i = 0; i < len; i++) {
         result[i] = values[i] * scalar;
     }
@@ -424,6 +441,7 @@ void dot_(pEnv env)
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
 
+    #pragma omp simd reduction(+:result)
     for (i = 0; i < len1; i++) {
         result += a[i] * b[i];
     }
@@ -711,6 +729,7 @@ void vnormalize_(pEnv env)
     extract_values(env, list, values, len);
 
     /* Calculate norm */
+    #pragma omp simd reduction(+:norm)
     for (i = 0; i < len; i++) {
         norm += values[i] * values[i];
     }
@@ -718,10 +737,12 @@ void vnormalize_(pEnv env)
 
     /* Normalize (handle zero vector) */
     if (norm > 1e-15) {
+        #pragma omp simd
         for (i = 0; i < len; i++) {
             result[i] = values[i] / norm;
         }
     } else {
+        #pragma omp simd
         for (i = 0; i < len; i++) {
             result[i] = 0.0;
         }
@@ -992,6 +1013,7 @@ void mplus_(pEnv env)
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
 
+    #pragma omp simd
     for (i = 0; i < size; i++) {
         result[i] = a[i] + b[i];
     }
@@ -1042,6 +1064,7 @@ void mminus_(pEnv env)
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
 
+    #pragma omp simd
     for (i = 0; i < size; i++) {
         result[i] = a[i] - b[i];
     }
@@ -1092,6 +1115,7 @@ void mmul_(pEnv env)
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
 
+    #pragma omp simd
     for (i = 0; i < size; i++) {
         result[i] = a[i] * b[i];
     }
@@ -1142,6 +1166,7 @@ void mdiv_(pEnv env)
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
 
+    #pragma omp simd
     for (i = 0; i < size; i++) {
         result[i] = a[i] / b[i];
     }
@@ -1190,6 +1215,7 @@ void mscale_(pEnv env)
 
     extract_matrix(env, mat, values, rows, cols);
 
+    #pragma omp simd
     for (i = 0; i < size; i++) {
         result[i] = values[i] * scalar;
     }
@@ -1245,6 +1271,7 @@ void mm_(pEnv env)
     for (i = 0; i < rows1; i++) {
         for (j = 0; j < cols2; j++) {
             double sum = 0.0;
+            #pragma omp simd reduction(+:sum)
             for (k = 0; k < cols1; k++) {
                 sum += a[i * cols1 + k] * b[k * cols2 + j];
             }
@@ -1302,6 +1329,7 @@ void mv_(pEnv env)
     /* Matrix-vector multiplication: y[i] = sum(M[i][k] * v[k]) */
     for (i = 0; i < rows; i++) {
         double sum = 0.0;
+        #pragma omp simd reduction(+:sum)
         for (k = 0; k < cols; k++) {
             sum += m[i * cols + k] * v[k];
         }

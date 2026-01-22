@@ -103,7 +103,8 @@ else()
   set(JOY_DEBUG_COMPILER_FLAGS "${JOY_RELEASE_COMPILER_FLAGS} --coverage -fprofile-arcs -ftest-coverage")
   foreach(target joycore_static joycore_shared)
     target_compile_options(${target}
-      PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter -Wno-unused-result)
+      PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter -Wno-unused-result
+      PRIVATE -fopenmp-simd)  # Enable #pragma omp simd for vectorization
     target_compile_definitions(${target}
       PUBLIC NOBDW
       PUBLIC

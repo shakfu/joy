@@ -26,6 +26,11 @@ See `doc/parallel_fixes.md` for technical details.
 See `doc/parallel_performance.md` for benchmark results and usage guidelines.
 See `doc/parallel.md` for user guide and examples.
 
+- [x] **Extended parallel combinators** - Additional parallel operators
+  - `pfilter` - Parallel filter: `[list] [predicate] pfilter -> [filtered]`
+  - `preduce` - Parallel tree reduction: `[list] [binary-op] preduce -> result`
+  - Tests added to `tests/parallel_test.joy`
+
 ### Architecture Refactoring (January 2026)
 
 - [x] **Group related builtins** - Reduced 229 files to 18 grouped files
@@ -79,6 +84,20 @@ See `doc/architecture.md` for design rationale.
 See `doc/vector.md` for design rationale.
 See `doc/vector_impl.md` for implementation details.
 
+### Bug Fixes (January 2026)
+
+- [x] **GC invalidates local Index variables during list construction**
+  - **Symptom:** Repeated vector operations on 500+ element lists failed with
+    "numeric list needed for v+" on second/third operation
+  - **Root Cause:** `build_float_list()` and `build_int_list()` stored `Index`
+    values in local C variables (`head`, `tail`). When `newnode()` triggered GC,
+    these local variables were not updated (GC only updates `env->stck`,
+    `env->prog`, `env->dump*`), causing memory corruption
+  - **Fix:** Added `ensure_capacity(env, num)` function in `src/utils.c` that
+    pre-triggers GC before any local Index variables are created. Called at
+    start of `build_float_list()` and `build_int_list()` in `src/builtin/vector.c`
+  - **Files changed:** `src/utils.c`, `include/globals.h`, `src/builtin/vector.c`
+
 ---
 
 ## TODO (Prioritized)
@@ -87,21 +106,36 @@ See `doc/vector_impl.md` for implementation details.
 
 #### Numeric Computing
 
-- [ ] **SIMD optimization** - Performance improvements for vector/matrix ops
-  - Contiguous storage for homogeneous numeric lists
-  - SIMD vectorization with `#pragma omp simd`
-  - Optional BLAS/LAPACK integration
+- [x] **SIMD optimization** - Performance improvements for vector/matrix ops
+  - ~~Contiguous storage for homogeneous numeric lists~~
+  - [x] SIMD vectorization with `#pragma omp simd` (via `-fopenmp-simd` flag)
+  - [ ] Optional BLAS integration (see below)
 
-#### Extended Parallel Combinators
+- [ ] **Optional BLAS support** - Build-time option for hardware-optimized linear algebra
+  - Build flag: `-DJOY_BLAS=ON`
+  - CMake detection order: Apple Accelerate (macOS), Intel MKL, OpenBLAS, reference BLAS
+  - Graceful fallback to current implementation when BLAS unavailable
 
-- [ ] **pfilter** - Parallel filter combinator
-  - `[list] [predicate] pfilter -> [filtered]`
-  - Similar implementation pattern to `pmap`
+  **Implementation phases:**
 
-- [ ] **preduce** - Parallel tree reduction
-  - `[list] [binary-op] preduce -> result`
-  - For associative operations (sum, product, max, min)
-  - Divide-and-conquer parallelism
+  Phase 1 - Core infrastructure:
+  - [ ] CMake `FindBLAS` integration with vendor detection
+  - [ ] `#ifdef JOY_BLAS` guards in `src/builtin/vector.c`
+  - [ ] Helper functions: `list_to_double_array()`, `double_array_to_list()`
+  - [ ] Size threshold constant (e.g., `BLAS_THRESHOLD 64`)
+
+  Phase 2 - High-value operations (O(n^2) and O(n^3)):
+  - [ ] `mm` via `cblas_dgemm` - matrix multiply, biggest performance win
+  - [ ] `mv` via `cblas_dgemv` - matrix-vector multiply
+
+  Phase 3 - Level 1 operations (O(n), benefit for large vectors):
+  - [ ] `dot` via `cblas_ddot`
+  - [ ] `vnorm` via `cblas_dnrm2`
+  - [ ] `vscale` via `cblas_dscal`
+
+  **Note:** Linked-list to contiguous array conversion adds overhead. BLAS path
+  should only activate above threshold where BLAS optimization outweighs
+  conversion cost. Threshold TBD via benchmarking.
 
 ### Priority 2: Medium Value / Medium Effort
 

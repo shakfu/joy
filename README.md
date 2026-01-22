@@ -42,6 +42,30 @@ Execute two quotations concurrently with the same input:
 (* Results: 25 125 - square and cube computed concurrently *)
 ```
 
+### `pfilter` - Parallel Filter
+
+Filter elements where predicate returns true, evaluated in parallel:
+
+```joy
+[1 2 3 4 5 6 7 8] [2 rem 0 =] pfilter.
+(* Result: [2 4 6 8] - keep even numbers *)
+
+[3 1 4 1 5 9 2 6] [3 >] pfilter.
+(* Result: [4 5 9 6] - keep numbers > 3 *)
+```
+
+### `preduce` - Parallel Tree Reduction
+
+Reduce a list using an associative binary operation with divide-and-conquer parallelism:
+
+```joy
+[1 2 3 4 5 6 7 8] [+] preduce.
+(* Result: 36 - parallel sum *)
+
+[3 1 4 1 5 9 2 6] [max] preduce.
+(* Result: 9 - parallel maximum *)
+```
+
 ### Performance
 
 `pmap` has thread overhead, so it needs substantial work per element to outperform `map`:
@@ -126,6 +150,10 @@ Joy supports vectorized operations on numeric lists and matrices (lists of lists
 ```
 
 All operations include error handling for type mismatches and dimension errors.
+
+### Performance
+
+Vector and matrix operations use SIMD vectorization via `#pragma omp simd` directives, enabling automatic use of SSE/AVX instructions on modern CPUs. This is enabled by default with the `-fopenmp-simd` compiler flag and works independently of the full parallel execution feature (`-DJOY_PARALLEL`).
 
 See [doc/vector_impl.md](doc/vector_impl.md) for implementation details.
 

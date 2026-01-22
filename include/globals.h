@@ -482,6 +482,7 @@ void inimem1(pEnv env, int status);
 void inimem2(pEnv env);
 void printnode(pEnv env, Index p);
 void gc_collect(pEnv env);
+void ensure_capacity(pEnv env, int num);
 char *check_strdup(char *str);
 void *check_malloc(size_t leng);
 #endif

@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### [1.40]
+
+### Added
+
+- **SIMD vectorization** - Enabled `#pragma omp simd` directives via `-fopenmp-simd` compiler flag
+  - Applies to vector operations in `src/builtin/vector.c`
+  - Works independently of full OpenMP parallel support (`-DJOY_PARALLEL`)
+  - Enables auto-vectorization for element-wise operations on modern CPUs
+
+### Fixed
+
+- **GC invalidates local Index variables during list construction** - Critical bug fix
+  - **Symptom:** Repeated vector operations on 500+ element lists failed with
+    "numeric list needed for v+" on second/third operation
+  - **Root Cause:** `build_float_list()` and `build_int_list()` stored `Index`
+    values in local C variables (`head`, `tail`). When `newnode()` triggered GC
+    mid-loop, these local variables became stale (GC only updates `env->stck`,
+    `env->prog`, `env->dump*`, not C stack variables)
+  - **Fix:** Added `ensure_capacity(env, num)` in `src/utils.c` that pre-triggers
+    GC before any local Index variables are created
+
+---
+
 ### [1.39]
 
 ### Added
@@ -26,6 +49,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `doc/vector_impl.md` - Implementation documentation for vector/matrix operations
 - `tests/test2/vector.joy` - Test suite for vector operations (42 assertions)
 - `tests/test2/matrix.joy` - Test suite for matrix operations (26 assertions)
+- **Extended parallel combinators** (`src/builtin/parallel.c`)
+  - `pfilter` - Parallel filter: `[list] [predicate] pfilter -> [filtered]`
+  - `preduce` - Parallel tree reduction: `[list] [binary-op] preduce -> result`
 
 ### Changed
 

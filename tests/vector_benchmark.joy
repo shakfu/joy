@@ -1,0 +1,46 @@
+(* Vector/Matrix SIMD Benchmark *)
+(* Tests performance of vectorized operations *)
+
+(* Benchmark v+ on 1000 elements - run 100 times *)
+"v+ (1000 elements, 100x): " putchars
+clock
+100 [1 1000 vrange dup v+ pop] times
+clock swap - 1000.0 / . " ms\n" putchars.
+
+(* Benchmark v+ on 10000 elements - run 10 times *)
+"v+ (10000 elements, 10x): " putchars
+clock
+10 [1 10000 vrange dup v+ pop] times
+clock swap - 1000.0 / . " ms\n" putchars.
+
+(* Benchmark dot product on 10000 elements - run 100 times *)
+"dot (10000 elements, 100x): " putchars
+clock
+100 [1 10000 vrange dup dot pop] times
+clock swap - 1000.0 / . " ms\n" putchars.
+
+(* Benchmark vscale on 10000 elements - run 100 times *)
+"vscale (10000 elements, 100x): " putchars
+clock
+100 [1 10000 vrange 2.5 vscale pop] times
+clock swap - 1000.0 / . " ms\n" putchars.
+
+(* Benchmark m+ on 50x50 matrices - run 20 times *)
+"m+ (50x50, 20x): " putchars
+clock
+20 [1 50 vrange [pop 1 50 vrange] map dup m+ pop] times
+clock swap - 1000.0 / . " ms\n" putchars.
+
+(* Benchmark mm (matmul) on 50x50 matrices - run 5 times *)
+"mm (50x50, 5x): " putchars
+clock
+5 [1 50 vrange [pop 1 50 vrange] map dup mm pop] times
+clock swap - 1000.0 / . " ms\n" putchars.
+
+(* Benchmark mv on 50x50 matrix * 50-vector - run 100 times *)
+"mv (50x50 * 50-vec, 100x): " putchars
+clock
+100 [1 50 vrange [pop 1 50 vrange] map 1 50 vrange mv pop] times
+clock swap - 1000.0 / . " ms\n" putchars.
+
+"Benchmark complete.\n" putchars.
