@@ -74,41 +74,45 @@ OMP_NUM_THREADS=8 bash tests/parallel_benchmark.sh
 
 See [doc/parallel_performance.md](doc/parallel_performance.md) for detailed analysis.
 
-## Vector Operations
+## Vector and Matrix Operations
 
-Joy supports vectorized operations on numeric lists for efficient array-style computing:
+Joy supports vectorized operations on numeric lists and matrices (lists of lists):
 
-### Element-wise Arithmetic
+### Vector Arithmetic
 
 ```joy
 [1 2 3] [4 5 6] v+.    (* -> [5.0 7.0 9.0] *)
 [1 2 3] [4 5 6] v-.    (* -> [-3.0 -3.0 -3.0] *)
-[1 2 3] [4 5 6] v*.    (* -> [4.0 10.0 18.0] *)
-[10 20 30] [2 4 5] v/. (* -> [5.0 5.0 6.0] *)
-```
-
-### Scalar Operations and Linear Algebra
-
-```joy
-[1 2 3] 10 vscale.     (* -> [10.0 20.0 30.0] - scalar multiply *)
+[1 2 3] 10 vscale.     (* -> [10.0 20.0 30.0] *)
 [1 2 3] [4 5 6] dot.   (* -> 32.0 - dot product *)
 ```
 
-### Reductions
+### Vector Reductions and Creation
 
 ```joy
-[1 2 3 4 5] vsum.      (* -> 15.0 - sum all elements *)
-[1 2 3 4 5] vprod.     (* -> 120.0 - product of all elements *)
-[5 2 8 1 9] vmin.      (* -> 1.0 - minimum element *)
-[5 2 8 1 9] vmax.      (* -> 9.0 - maximum element *)
+[1 2 3 4 5] vsum.      (* -> 15.0 *)
+[5 2 8 1 9] vmax.      (* -> 9.0 *)
+5 vzeros.              (* -> [0 0 0 0 0] *)
+1 5 vrange.            (* -> [1 2 3 4 5] *)
 ```
 
-### Vector Creation
+### Matrix Operations
 
 ```joy
-5 vzeros.              (* -> [0 0 0 0 0] *)
-5 vones.               (* -> [1 1 1 1 1] *)
-1 5 vrange.            (* -> [1 2 3 4 5] *)
+[[1 2] [3 4]] [[5 6] [7 8]] m+.  (* -> [[6 8] [10 12]] *)
+[[1 2] [3 4]] 10 mscale.         (* -> [[10 20] [30 40]] *)
+```
+
+### Matrix Linear Algebra
+
+```joy
+[[1 2] [3 4]] [[5 6] [7 8]] mm.  (* -> [[19 22] [43 50]] - matmul *)
+[[1 2] [3 4]] [5 6] mv.          (* -> [17 39] - matrix-vector *)
+[[1 2] [3 4]] transpose.         (* -> [[1 3] [2 4]] *)
+[[1 2] [3 4]] det.               (* -> -2.0 - determinant *)
+[[1 2] [3 4]] inv.               (* -> [[-2 1] [1.5 -0.5]] *)
+[[1 2] [3 4]] trace.             (* -> 5.0 *)
+3 meye.                          (* -> 3x3 identity matrix *)
 ```
 
 All operations include error handling for type mismatches and dimension errors.
@@ -142,7 +146,7 @@ cmake --build .
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build .
-ctest  # Run all 181 tests
+ctest  # Run all 182 tests
 ```
 
 ### Windows (MSVC)

@@ -16,8 +16,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Linear algebra: `dot` - dot product of two vectors
   - Reductions: `vsum`, `vprod`, `vmin`, `vmax` - reduce list to single value
   - Creation: `vzeros`, `vones`, `vrange` - generate numeric lists
-- `doc/vector_impl.md` - Implementation documentation for vector operations
+- **Matrix operations** - 2D array operations on lists of lists
+  - Element-wise: `m+`, `m-`, `m*`, `m/` - arithmetic on pairs of matrices
+  - Scalar: `mscale` - multiply all elements by a scalar
+  - Linear algebra: `mm` (matmul), `mv` (matrix-vector), `transpose`
+  - Properties: `det` (determinant), `inv` (inverse), `trace`
+  - Creation: `meye` - identity matrix
+- `doc/vector_impl.md` - Implementation documentation for vector/matrix operations
 - `tests/test2/vector.joy` - Test suite for vector operations (28 assertions)
+- `tests/test2/matrix.joy` - Test suite for matrix operations (26 assertions)
 
 ### Changed
 

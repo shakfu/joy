@@ -57,15 +57,23 @@ See `doc/parallel.md` for user guide and examples.
 
 See `doc/architecture.md` for design rationale.
 
-### Vector Operations (January 2026)
+### Vector and Matrix Operations (January 2026)
 
-- [x] **Basic vector operations** - Initial vectorized operators in `src/builtin/vector.c`
+- [x] **Vector operations** - Vectorized operators in `src/builtin/vector.c`
   - Element-wise: `v+`, `v-`, `v*`, `v/`
   - Scalar: `vscale`
   - Linear algebra: `dot`
   - Reductions: `vsum`, `vprod`, `vmin`, `vmax`
   - Creation: `vzeros`, `vones`, `vrange`
   - Tests: `tests/test2/vector.joy` (28 assertions)
+
+- [x] **Matrix operations** - 2D array operations in `src/builtin/vector.c`
+  - Element-wise: `m+`, `m-`, `m*`, `m/`
+  - Scalar: `mscale`
+  - Linear algebra: `mm` (matmul), `mv` (matrix-vector), `transpose`
+  - Properties: `det`, `inv`, `trace`
+  - Creation: `meye` (identity matrix)
+  - Tests: `tests/test2/matrix.joy` (26 assertions)
 
 See `doc/vector.md` for design rationale.
 See `doc/vector_impl.md` for implementation details.
@@ -78,17 +86,16 @@ See `doc/vector_impl.md` for implementation details.
 
 #### Numeric Computing
 
-- [ ] **Matrix operations** - 2D array operations
-  - `mm` (matmul), `mv` (matrix-vector), `transpose`
-  - `m+`, `m-`, `m*`, `mscale` - element-wise and scalar operations
-  - `det`, `inv`, `trace`, `meye` - linear algebra
-  - See `doc/vector.md` for design
-
 - [ ] **Advanced vector operations** - Additional vector functionality
   - `vnorm`, `vnormalize` - magnitude and unit vector
   - `cross` - cross product (3D vectors)
   - `vmean` - mean of elements
   - `vlinspace` - linearly spaced values
+
+- [ ] **SIMD optimization** - Performance improvements for vector/matrix ops
+  - Contiguous storage for homogeneous numeric lists
+  - SIMD vectorization with `#pragma omp simd`
+  - Optional BLAS/LAPACK integration
 
 #### Extended Parallel Combinators
 
@@ -246,8 +253,9 @@ All of these now work correctly:
 | `src/utils.c` | GC and memory management (`copy` function) |
 | `src/interp.c` | Interpreter (`copy_body_from_parent`) |
 | `src/builtin/parallel.c` | Parallel combinators (pmap, pfork) |
-| `src/builtin/vector.c` | Vector operations (v+, v-, dot, vsum, etc.) |
+| `src/builtin/vector.c` | Vector and matrix operations |
 | `src/builtin/*.c` | Grouped builtin implementations (19 files) |
 | `tests/test2/vector.joy` | Vector operations test suite |
+| `tests/test2/matrix.joy` | Matrix operations test suite |
 | `tests/parallel_benchmark.sh` | Wall-time benchmark script |
 | `tests/parallel_benchmark.joy` | CPU-time benchmark (Joy) |

@@ -1,10 +1,10 @@
-# Vector Operations Implementation
+# Vector and Matrix Operations Implementation
 
-This document describes the design and implementation of vectorized operators in Joy.
+This document describes the design and implementation of vectorized and matrix operators in Joy.
 
 ## Design Philosophy
 
-The vector operations follow **Approach A** from [doc/vector.md](vector.md): explicit vectorized operators with `v`-prefixes. This approach was chosen because:
+The vector and matrix operations follow **Approach A** from [doc/vector.md](vector.md): explicit operators with `v`-prefixes for vectors and `m`-prefixes for matrices. This approach was chosen because:
 
 1. **Explicit is better than implicit** - No magic behavior changes for existing operators
 2. **Backward compatible** - Existing code continues to work unchanged
@@ -13,42 +13,53 @@ The vector operations follow **Approach A** from [doc/vector.md](vector.md): exp
 
 ## Implementation Overview
 
-All vector operations are implemented in `src/builtin/vector.c`. The implementation uses simple loops over list elements, with proper error handling for type mismatches and dimension errors.
+All operations are implemented in `src/builtin/vector.c`. The implementation uses simple loops, with proper error handling for type mismatches and dimension errors.
 
 ### Architecture
 
 ```
 src/builtin/vector.c
     |
-    +-- Helper functions (internal)
+    +-- Vector helpers (internal)
     |   +-- get_numeric()         - Extract numeric value from node
     |   +-- check_numeric_list()  - Validate list contains only numbers
     |   +-- extract_values()      - Copy list elements to C array
     |   +-- build_float_list()    - Build result list from doubles
     |   +-- build_int_list()      - Build result list from integers
     |
-    +-- Element-wise operations
-    |   +-- vplus_()   (v+)
-    |   +-- vminus_()  (v-)
-    |   +-- vmul_()    (v*)
-    |   +-- vdiv_()    (v/)
+    +-- Vector element-wise
+    |   +-- vplus_(), vminus_(), vmul_(), vdiv_()
     |
-    +-- Scalar operations
-    |   +-- vscale_()
+    +-- Vector scalar/linear algebra
+    |   +-- vscale_(), dot_()
     |
-    +-- Linear algebra
-    |   +-- dot_()
+    +-- Vector reductions
+    |   +-- vsum_(), vprod_(), vmin_(), vmax_()
     |
-    +-- Reductions
-    |   +-- vsum_()
-    |   +-- vprod_()
-    |   +-- vmin_()
-    |   +-- vmax_()
+    +-- Vector creation
+    |   +-- vzeros_(), vones_(), vrange_()
     |
-    +-- Creation
-        +-- vzeros_()
-        +-- vones_()
-        +-- vrange_()
+    +-- Matrix helpers (internal)
+    |   +-- check_matrix()        - Validate list of lists structure
+    |   +-- extract_matrix()      - Copy matrix to row-major C array
+    |   +-- build_matrix()        - Build list of lists from array
+    |
+    +-- Matrix element-wise
+    |   +-- mplus_(), mminus_(), mmul_(), mdiv_()
+    |
+    +-- Matrix scalar
+    |   +-- mscale_()
+    |
+    +-- Matrix linear algebra
+    |   +-- mm_() (matmul), mv_() (matrix-vector), transpose_()
+    |
+    +-- Matrix properties
+    |   +-- trace_(), det_(), inv_()
+    |   +-- compute_determinant() - LU decomposition helper
+    |   +-- compute_inverse()     - Gauss-Jordan elimination helper
+    |
+    +-- Matrix creation
+        +-- meye_() (identity matrix)
 ```
 
 ## Helper Functions
@@ -247,6 +258,11 @@ All operations provide clear error messages:
 | Lists of different lengths | `"lists of equal length needed for <op>"` |
 | Empty list for min/max | `"non-empty list needed for <op>"` |
 | Non-integer for creation | `"non-negative integer needed for <op>"` |
+| Invalid matrix structure | `"matrix (list of lists) needed for <op>"` |
+| Non-uniform row lengths | `"matrix with uniform row lengths needed for <op>"` |
+| Incompatible dimensions | `"compatible matrix dimensions needed for <op>"` |
+| Non-square matrix | `"square matrix needed for <op>"` |
+| Singular matrix | `"non-singular matrix needed for <op>"` |
 
 Example error outputs:
 
@@ -254,6 +270,8 @@ Example error outputs:
 run time error: lists of equal length needed for v+
 run time error: numeric list needed for v*
 run time error: non-empty list needed for vmin
+run time error: square matrix needed for det
+run time error: compatible matrix dimensions for multiplication needed for mm
 ```
 
 ## Type Handling
@@ -307,6 +325,8 @@ Vector operations work seamlessly with `pmap`:
 
 ## Testing
 
+### Vector Tests
+
 Tests are in `tests/test2/vector.joy` with 28 assertions covering:
 
 - Element-wise operations with various inputs
@@ -316,14 +336,30 @@ Tests are in `tests/test2/vector.joy` with 28 assertions covering:
 - Creation operations including edge cases (0-length)
 - Mixed integer/float input handling
 
+### Matrix Tests
+
+Tests are in `tests/test2/matrix.joy` with 26 assertions covering:
+
+- Element-wise matrix operations (m+, m-, m*, m/)
+- Scalar operations (mscale)
+- Matrix multiplication (mm) with various dimensions
+- Matrix-vector product (mv)
+- Transpose including non-square matrices
+- Trace and determinant
+- Matrix inverse with verification (M * inv(M) = I)
+- Identity matrix creation (meye)
+
 Run tests:
 
 ```bash
-make test  # Runs all 181 tests including vector tests
+make test  # Runs all 182 tests including vector/matrix tests
 ./build/joy tests/test2/vector.joy  # Run vector tests directly
+./build/joy tests/test2/matrix.joy  # Run matrix tests directly
 ```
 
 ## Operator Reference
+
+### Vector Operators
 
 | Operator | Stack Effect | Description |
 |----------|--------------|-------------|
@@ -340,6 +376,23 @@ make test  # Runs all 181 tests including vector tests
 | `vzeros` | `N -> V` | List of N zeros |
 | `vones` | `N -> V` | List of N ones |
 | `vrange` | `A B -> V` | List [A, A+1, ..., B] |
+
+### Matrix Operators
+
+| Operator | Stack Effect | Description |
+|----------|--------------|-------------|
+| `m+` | `M1 M2 -> M3` | Element-wise addition |
+| `m-` | `M1 M2 -> M3` | Element-wise subtraction |
+| `m*` | `M1 M2 -> M3` | Element-wise multiplication |
+| `m/` | `M1 M2 -> M3` | Element-wise division |
+| `mscale` | `M S -> M2` | Scalar multiplication |
+| `mm` | `M1 M2 -> M3` | Matrix multiplication (m x n) * (n x p) -> (m x p) |
+| `mv` | `M V -> V2` | Matrix-vector product (m x n) * (n) -> (m) |
+| `transpose` | `M -> M2` | Transpose matrix (m x n) -> (n x m) |
+| `trace` | `M -> N` | Sum of diagonal elements (square matrix) |
+| `det` | `M -> N` | Determinant (square matrix) |
+| `inv` | `M -> M2` | Matrix inverse (square, non-singular) |
+| `meye` | `N -> M` | N x N identity matrix |
 
 ## Related Documentation
 

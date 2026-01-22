@@ -1,0 +1,61 @@
+(* Matrix operations tests *)
+
+(* Element-wise m+ *)
+[[1 2] [3 4]] [[5 6] [7 8]] m+ [[6.0 8.0] [10.0 12.0]] equal.
+[] [] m+ [] equal.
+
+(* Element-wise m- *)
+[[1 2] [3 4]] [[5 6] [7 8]] m- [[-4.0 -4.0] [-4.0 -4.0]] equal.
+
+(* Element-wise m* *)
+[[1 2] [3 4]] [[5 6] [7 8]] m* [[5.0 12.0] [21.0 32.0]] equal.
+
+(* Element-wise m/ *)
+[[10 20] [30 40]] [[2 4] [5 8]] m/ [[5.0 5.0] [6.0 5.0]] equal.
+
+(* Scalar mscale *)
+[[1 2] [3 4]] 10 mscale [[10.0 20.0] [30.0 40.0]] equal.
+[[1 2] [3 4]] 0.5 mscale [[0.5 1.0] [1.5 2.0]] equal.
+
+(* Matrix multiplication mm *)
+[[1 2] [3 4]] [[5 6] [7 8]] mm [[19.0 22.0] [43.0 50.0]] equal.
+[[1 2 3]] [[4] [5] [6]] mm [[32.0]] equal.
+[[1] [2] [3]] [[4 5 6]] mm [[4.0 5.0 6.0] [8.0 10.0 12.0] [12.0 15.0 18.0]] equal.
+
+(* Matrix-vector multiplication mv *)
+[[1 2] [3 4]] [5 6] mv [17.0 39.0] equal.
+[[1 0] [0 1]] [5 6] mv [5.0 6.0] equal.
+
+(* Transpose *)
+[[1 2] [3 4]] transpose [[1.0 3.0] [2.0 4.0]] equal.
+[[1 2 3]] transpose [[1.0] [2.0] [3.0]] equal.
+[[1] [2] [3]] transpose [[1.0 2.0 3.0]] equal.
+
+(* Trace *)
+[[1 2] [3 4]] trace 5.0 equal.
+[[1 0 0] [0 2 0] [0 0 3]] trace 6.0 equal.
+
+(* Determinant *)
+[[1 2] [3 4]] det -2.0 equal.
+[[1 0] [0 1]] det 1.0 equal.
+[[2 0 0] [0 3 0] [0 0 4]] det 24.0 equal.
+
+(* Inverse *)
+[[1 2] [3 4]] inv [[-2.0 1.0] [1.5 -0.5]] equal.
+[[1 0] [0 1]] inv [[1.0 0.0] [0.0 1.0]] equal.
+
+(* Identity matrix meye *)
+3 meye [[1.0 0.0 0.0] [0.0 1.0 0.0] [0.0 0.0 1.0]] equal.
+2 meye [[1.0 0.0] [0.0 1.0]] equal.
+0 meye [] equal.
+
+(* Verify inverse: M * inv(M) = I *)
+[[1 2] [3 4]] dup inv mm 2 meye equal.
+
+(* Verify transpose of transpose *)
+[[1 2 3] [4 5 6]] dup transpose transpose equal.
+
+(* Mixed integer and float *)
+[[1 2.0] [3.0 4]] [[5.0 6] [7 8.0]] m+ [[6.0 8.0] [10.0 12.0]] equal.
+
+.
