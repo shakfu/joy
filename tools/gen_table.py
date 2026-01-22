@@ -2,7 +2,7 @@
 """
 Generate table.c from primitive documentation comments.
 
-Scans src/builtin/individual/*.c for doc comments of the form:
+Scans src/builtin/*.c for doc comments of the form:
     /**
     Q0  OK  1380  +\0plus  :  M I  ->  N
     Description here.
@@ -23,48 +23,66 @@ def parse_args():
 def escape(value: str) -> str:
     return value.replace("\"", "\\\"").replace("\n", "\\n")
 
+def extract_proc_name(name: str) -> str:
+    """Extract procedure name from doc comment name field.
+
+    The name field can be:
+    - 'plus' -> 'plus_'
+    - '+\\0plus' -> 'plus_'  (operator with internal name)
+    - '__memoryindex' -> '__memoryindex_'
+    - '#genrec' -> 'genrecaux_'  (auxiliary function)
+    """
+    # If there's a \0, the part after it is the internal name
+    if "\\0" in name:
+        name = name.split("\\0")[-1]
+    # Names starting with # are auxiliary functions
+    if name.startswith("#"):
+        return f"{name[1:]}aux_"
+    return f"{name}_"
+
 def main():
     args = parse_args()
-    # Scan individual/ subdirectory for doc comments
-    prim_dir = args.source_dir / "src" / "builtin" / "individual"
+    # Scan builtin/ directory for doc comments
+    prim_dir = args.source_dir / "src" / "builtin"
     entries = []
     comment_re = re.compile(r"/\*\*(.*?)\*/", re.S)
+
     for c_path in sorted(prim_dir.glob("*.c")):
         text = c_path.read_text()
-        match = comment_re.search(text)
-        if not match:
-            continue
-        block = match.group(1)
-        lines = [line.rstrip() for line in block.splitlines()]
-        while lines and not lines[0].strip():
-            lines.pop(0)
-        if not lines:
-            continue
-        header = lines[0]
-        if not header.startswith("Q"):
-            continue
-        header_parts = header.split(":", 1)
-        lhs = header_parts[0].strip()
-        signature = header_parts[1].strip() if len(header_parts) > 1 else ""
-        lhs_tokens = lhs.split()
-        if len(lhs_tokens) < 4:
-            continue
-        qcode, flags, index, name = lhs_tokens[:4]
-        desc = "\n".join(lines[1:]).strip()
-        try:
-            order = int(index)
-        except ValueError:
-            continue
-        entries.append({
-            "index": order,
-            "index_str": index,
-            "qcode": qcode,
-            "flags": flags,
-            "name": name,
-            "proc": f"{c_path.stem}_",
-            "signature": signature,
-            "desc": desc,
-        })
+        # Find ALL doc comments in the file, not just the first
+        for match in comment_re.finditer(text):
+            block = match.group(1)
+            lines = [line.rstrip() for line in block.splitlines()]
+            while lines and not lines[0].strip():
+                lines.pop(0)
+            if not lines:
+                continue
+            header = lines[0]
+            if not header.startswith("Q"):
+                continue
+            header_parts = header.split(":", 1)
+            lhs = header_parts[0].strip()
+            signature = header_parts[1].strip() if len(header_parts) > 1 else ""
+            lhs_tokens = lhs.split()
+            if len(lhs_tokens) < 4:
+                continue
+            qcode, flags, index, name = lhs_tokens[:4]
+            desc = "\n".join(lines[1:]).strip()
+            try:
+                order = int(index)
+            except ValueError:
+                continue
+            entries.append({
+                "index": order,
+                "index_str": index,
+                "qcode": qcode,
+                "flags": flags,
+                "name": name,
+                "proc": extract_proc_name(name),
+                "signature": signature,
+                "desc": desc,
+            })
+
     entries.sort(key=lambda item: item["index"])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w") as outfile:
