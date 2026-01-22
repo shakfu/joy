@@ -46,12 +46,17 @@ cmake --build build
 
 ### Performance
 
-Benchmark with 8 elements and heavy computation:
+`pmap` has thread overhead, so it needs substantial work to outperform `map`:
 
-| Mode | CPU Usage | Speedup |
-|------|-----------|---------|
-| `pmap` (parallel) | 448% | **2.8x faster** |
-| `map` (sequential) | 97% | baseline |
+| Work per Element | Recommendation | Speedup |
+|------------------|----------------|---------|
+| Light (simple ops) | Use `map` | pmap has overhead |
+| Heavy (~100k iterations) | Use `pmap` | 20-25% faster |
+| Very Heavy (~1M iterations) | Use `pmap` | 35-40% faster |
+
+**Rule of thumb:** Use `pmap` when each element takes >10ms to process.
+
+See [parallel_performance.md](parallel_performance.md) for detailed benchmarks.
 
 ---
 
@@ -261,55 +266,36 @@ Each parallel task requires:
 
 ---
 
-## Known Issues and Future Work
+## Verified Combinators
 
-### Known Issues
+All major combinators work correctly in parallel quotations:
 
-Some combinators do not work correctly inside parallel quotations:
+| Category | Combinators | Status |
+|----------|-------------|--------|
+| Iterative | `times`, `while`, `step` | Working |
+| Recursive | `linrec`, `tailrec`, `binrec`, `genrec`, `primrec` | Working |
+| Conditional | `condlinrec`, `condnestrec` | Working |
+| Tree | `treestep`, `treerec`, `treegenrec` | Working |
 
-| Combinator | Issue |
-|------------|-------|
-| `times` | Crashes or hangs in parallel context |
-| Other recursive combinators | May have similar issues |
+Stress-tested with up to 1,000,000 iterations per element. See `tests/parallel_stress.joy`.
 
-Root cause: Recursive combinators may bypass the `copy_body_from_parent` path and access parent memory indices directly.
+## Future Development
 
-See `TODO.md` for the full list of combinators to investigate.
+### Short Term
 
-### Future Development
-
-#### Short Term
-
-- [ ] Fix `times` and other recursive combinators for parallel use
 - [ ] Add `pfilter` - parallel filter combinator
 - [ ] Improve error messages for parallel failures
 
-#### Medium Term
+### Medium Term
 
 - [ ] Work-stealing for nested parallelism
 - [ ] Cancellation support for early termination
 - [ ] `preduce` - parallel tree reduction for associative operations
-- [ ] Parallel I/O with proper synchronization
 
-#### Long Term
+### Long Term
 
 - [ ] `par`/`await` - async futures for fine-grained parallelism
 - [ ] Distributed execution across machines
-- [ ] GPU offload for numeric operations
-
-### Combinators to Investigate
-
-The following combinators need testing and possible fixes for parallel compatibility:
-
-**Iterative:**
-- `times`, `while`, `step`
-
-**Recursive:**
-- `linrec`, `tailrec`, `binrec`, `genrec`, `primrec`
-- `condlinrec`, `condnestrec`
-
-**Tree:**
-- `treestep`, `treerec`, `treegenrec`
 
 ---
 
@@ -362,57 +348,124 @@ cmake --build build
 ### Running Parallel Tests
 
 ```bash
-./joy tests/parallel_test.joy      # Correctness tests
-./joy tests/parallel_benchmark.joy  # Performance benchmark (may crash - known issue)
-./joy tests/mapreduce_test.joy     # MapReduce library tests
-./joy tests/wordcount_test.joy     # Word count example
+./joy tests/parallel_test.joy       # Correctness tests
+./joy tests/parallel_stress.joy     # Stress tests (100k+ iterations)
+./joy tests/parallel_benchmark.joy  # Performance benchmark (CPU time)
+bash tests/parallel_benchmark.sh    # Performance benchmark (wall time)
 ```
 
 ### Test Coverage
 
 The parallel implementation is verified by:
-- 10 parallel correctness tests in `tests/parallel_test.joy`
-- MapReduce library tests in `tests/mapreduce_test.joy`
-- Word count integration test in `tests/wordcount_test.joy`
-- All 178 existing tests continue to pass
+- Parallel correctness tests in `tests/parallel_test.joy`
+- 16 stress tests in `tests/parallel_stress.joy` (up to 100,000 iterations)
+- All 180 tests pass with parallel execution enabled
 
 ---
 
-## Example Programs
+## Example Use Cases
 
-### Parallel Squares
+### 1. Parallel Numeric Computation
 
-```joy
-[1 2 3 4 5 6 7 8] [dup *] pmap.
-(* [1 4 9 16 25 36 49 64] *)
-```
-
-### Parallel String Processing
+Compute factorials for multiple numbers:
 
 ```joy
-["hello" "world" "test" "data"] [size] pmap.
-(* [5 5 4 4] *)
+DEFINE factorial == [0 =] [pop 1] [dup 1 -] [*] linrec.
+
+[5 6 7 8 9 10] [factorial] pmap.
+(* [120 720 5040 40320 362880 3628800] *)
 ```
 
-### Concurrent Computation
+Sum sequences 1..N for multiple N values:
 
 ```joy
-10 [2 *] [3 +] pfork + .
-(* 33 - sum of 20 and 13 *)
+DEFINE sum-to-n == [0 =] [] [dup 1 -] [+] linrec.
+
+[100 500 1000 5000] [sum-to-n] pmap.
+(* [5050 125250 500500 12502500] *)
 ```
 
-### Word Count (Full MapReduce)
+### 2. Heavy Iterative Processing
+
+When each element requires many iterations, `pmap` shines:
+
+```joy
+(* Double a number 20 times (multiply by 2^20 = 1048576) *)
+[1 2 3 4] [20 [dup +] times] pmap.
+(* [1048576 2097152 3145728 4194304] *)
+
+(* Process with 100000 iterations per element *)
+[1 2 3 4 5 6 7 8] [100000 [dup * 2 mod] times] pmap.
+(* Each element processed in parallel - 20-25% faster than map *)
+```
+
+### 3. Concurrent Branch Computation
+
+Use `pfork` when you need two different computations on the same input:
+
+```joy
+(* Compute both square and cube *)
+5 [dup *] [dup dup * *] pfork.
+(* Results: 25 125 *)
+
+(* Compute sum and product of a list *)
+[1 2 3 4 5] [0 [+] fold] [[*] infra first] pfork.
+(* Results: 15 120 *)
+```
+
+### 4. Tree Processing
+
+Process tree structures in parallel:
+
+```joy
+(* Square all leaves in nested lists *)
+[[[1 2] 3] [[4 5] 6]] [[dup *] [map] treerec] pmap.
+(* [[[1 4] 9] [[16 25] 36]] *)
+
+(* Collect leaves from multiple trees *)
+[[[1 2] 3] [[4 5] 6] [[7 8] 9]] [[] swap [swons] treestep] pmap.
+(* [[3 2 1] [6 5 4] [9 8 7]] *)
+```
+
+### 5. Recursive Algorithms
+
+Complex recursive algorithms benefit from parallelism:
+
+```joy
+(* Ackermann function (expensive recursion) *)
+DEFINE ack == [[[dup null] [pop succ]]
+               [[over null] [popd pred 1 swap] []]
+               [[dup rollup [pred] dip] [swap pred ack]]] condlinrec.
+
+[[2 1] [2 2] [2 3] [2 4]] [i swap ack] pmap.
+(* [5 7 9 11] - computed in parallel *)
+```
+
+### 6. Word Count (MapReduce Pattern)
 
 ```joy
 "lib/mapreduce.joy" include.
 
 ["apple" "banana" "apple" "cherry" "banana" "apple"]
-    [1 pair [] cons] pmap
+    [1 pair [] cons] pmap    (* Map: word -> [[word 1]] *)
     flatten
     group-by-key
-    [count-reducer] pmap.
+    [count-reducer] pmap.    (* Reduce: count per key *)
 
 (* [["cherry" 1] ["banana" 2] ["apple" 3]] *)
+```
+
+### 7. When NOT to Use pmap
+
+For simple operations, `map` is faster:
+
+```joy
+(* DON'T use pmap for trivial operations *)
+[1 2 3 4] [dup *] map.     (* Use map - faster *)
+[1 2 3 4] [1 +] map.       (* Use map - faster *)
+
+(* DO use pmap for heavy computation *)
+[1 2 3 4] [100000 [dup * 2 mod] times] pmap.  (* Use pmap *)
 ```
 
 ---

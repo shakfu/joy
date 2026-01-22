@@ -44,14 +44,35 @@ Execute two quotations concurrently with the same input:
 
 ### Performance
 
-Benchmark with 8 elements and heavy computation:
+`pmap` has thread overhead, so it needs substantial work per element to outperform `map`:
 
-| Mode | Time | CPU Usage | Speedup |
-|------|------|-----------|---------|
-| `pmap` (parallel) | 0.023s | 448% | **2.8x faster** |
-| `map` (sequential) | 0.065s | 97% | baseline |
+| Work per Element | Recommendation | Speedup |
+|------------------|----------------|---------|
+| Light (simple ops) | Use `map` | pmap has overhead |
+| Medium (~1k iterations) | Use `map` | Similar performance |
+| Heavy (~100k iterations) | Use `pmap` | 20-25% faster |
+| Very Heavy (~1M iterations) | Use `pmap` | 35-40% faster |
 
-The 448% CPU usage confirms multiple cores are being utilized.
+**Benchmark results** (OMP_NUM_THREADS=8):
+
+```
+--- Heavy Work (100000 iterations) ---
+4 elements : map=0.015s pmap=0.013s  (pmap 13% faster)
+8 elements : map=0.026s pmap=0.020s  (pmap 23% faster)
+
+--- Very Heavy Work (1000000 iterations) ---
+4 elements : map=0.133s pmap=0.086s  (pmap 35% faster)
+8 elements : map=0.247s pmap=0.155s  (pmap 37% faster)
+```
+
+**Rule of thumb:** Use `pmap` when each element takes >10ms to process.
+
+Run benchmarks:
+```bash
+OMP_NUM_THREADS=8 bash tests/parallel_benchmark.sh
+```
+
+See [doc/parallel_performance.md](doc/parallel_performance.md) for detailed analysis.
 
 ## Building
 
@@ -150,13 +171,15 @@ Each parallel task executes with:
 - Independent error handling
 - Results copied back to parent context
 
-See [PARALLEL.md](PARALLEL.md) for detailed design documentation.
+See [doc/parallel.md](doc/parallel.md) for detailed design documentation.
 
 ## Documentation
 
 | Resource | Description |
 |----------|-------------|
-| [PARALLEL.md](PARALLEL.md) | Parallel execution design and implementation |
+| [doc/parallel.md](doc/parallel.md) | Parallel execution user guide and examples |
+| [doc/parallel_performance.md](doc/parallel_performance.md) | Benchmark results and performance guide |
+| [doc/parallel_fixes.md](doc/parallel_fixes.md) | Technical documentation of parallel fixes |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and changes |
 | [Legacy Docs](https://wodan58.github.io) | Original Joy documentation |
 | [User Manual](https://wodan58.github.io/j09imp.html) | Joy language reference |

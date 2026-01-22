@@ -1,11 +1,134 @@
-(* Parallel execution benchmark *)
-(* Run with: time ./joy tests/parallel_benchmark.joy *)
+(*
+    module  : parallel_benchmark.joy
+    version : 1.0
+    date    : 01/22/26
 
-(* Heavy computation: repeat dup * 2 mod 100000 times on each element *)
-(* With 8 elements, parallel execution should use multiple CPU cores *)
+    Performance benchmarks comparing pmap vs map.
+    Tests various list sizes and computation complexities.
 
-"pmap benchmark (8 elements, heavy computation):" putchars newline
-[1 2 3 4 5 6 7 8] [100000 [dup * 2 mod] times] pmap
-size "Result size: " putchars put newline
+    Usage: joy tests/parallel_benchmark.joy
+*)
 
-"Done." putchars newline.
+(* Light computation: square a number *)
+DEFINE light-work == dup *.
+
+(* Medium computation: 100 iterations *)
+DEFINE medium-work == 100 [dup * 2 mod] times.
+
+(* Heavy computation: 10000 iterations *)
+DEFINE heavy-work == 10000 [dup * 2 mod] times.
+
+(* Very heavy computation: 100000 iterations *)
+DEFINE very-heavy-work == 100000 [dup * 2 mod] times.
+
+(* Generate test lists of various sizes *)
+DEFINE list-4   == [1 2 3 4].
+DEFINE list-8   == [1 2 3 4 5 6 7 8].
+DEFINE list-16  == [1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16].
+DEFINE list-32  == list-16 list-16 concat.
+DEFINE list-64  == list-32 list-32 concat.
+
+"========================================" putchars newline
+"  PARALLEL vs SEQUENTIAL BENCHMARK" putchars newline
+"========================================" putchars newline
+newline.
+
+(* ===== LIGHT WORK BENCHMARKS ===== *)
+
+"--- Light Work (dup *) ---" putchars newline.
+
+"  4 elements:  map=" putchars clock list-4 [light-work] map pop clock swap - .
+               " pmap=" putchars clock list-4 [light-work] pmap pop clock swap - . newline.
+
+"  8 elements:  map=" putchars clock list-8 [light-work] map pop clock swap - .
+               " pmap=" putchars clock list-8 [light-work] pmap pop clock swap - . newline.
+
+"  16 elements: map=" putchars clock list-16 [light-work] map pop clock swap - .
+               " pmap=" putchars clock list-16 [light-work] pmap pop clock swap - . newline.
+
+"  64 elements: map=" putchars clock list-64 [light-work] map pop clock swap - .
+               " pmap=" putchars clock list-64 [light-work] pmap pop clock swap - . newline.
+
+newline.
+
+(* ===== MEDIUM WORK BENCHMARKS ===== *)
+
+"--- Medium Work (100 iterations) ---" putchars newline.
+
+"  4 elements:  map=" putchars clock list-4 [medium-work] map pop clock swap - .
+               " pmap=" putchars clock list-4 [medium-work] pmap pop clock swap - . newline.
+
+"  8 elements:  map=" putchars clock list-8 [medium-work] map pop clock swap - .
+               " pmap=" putchars clock list-8 [medium-work] pmap pop clock swap - . newline.
+
+"  16 elements: map=" putchars clock list-16 [medium-work] map pop clock swap - .
+               " pmap=" putchars clock list-16 [medium-work] pmap pop clock swap - . newline.
+
+"  64 elements: map=" putchars clock list-64 [medium-work] map pop clock swap - .
+               " pmap=" putchars clock list-64 [medium-work] pmap pop clock swap - . newline.
+
+newline.
+
+(* ===== HEAVY WORK BENCHMARKS ===== *)
+
+"--- Heavy Work (10000 iterations) ---" putchars newline.
+
+"  4 elements:  map=" putchars clock list-4 [heavy-work] map pop clock swap - .
+               " pmap=" putchars clock list-4 [heavy-work] pmap pop clock swap - . newline.
+
+"  8 elements:  map=" putchars clock list-8 [heavy-work] map pop clock swap - .
+               " pmap=" putchars clock list-8 [heavy-work] pmap pop clock swap - . newline.
+
+"  16 elements: map=" putchars clock list-16 [heavy-work] map pop clock swap - .
+               " pmap=" putchars clock list-16 [heavy-work] pmap pop clock swap - . newline.
+
+newline.
+
+(* ===== VERY HEAVY WORK BENCHMARKS ===== *)
+
+"--- Very Heavy Work (100000 iterations) ---" putchars newline.
+
+"  4 elements:  map=" putchars clock list-4 [very-heavy-work] map pop clock swap - .
+               " pmap=" putchars clock list-4 [very-heavy-work] pmap pop clock swap - . newline.
+
+"  8 elements:  map=" putchars clock list-8 [very-heavy-work] map pop clock swap - .
+               " pmap=" putchars clock list-8 [very-heavy-work] pmap pop clock swap - . newline.
+
+newline.
+
+(* ===== RECURSIVE COMBINATOR BENCHMARKS ===== *)
+
+"--- Factorial (linrec) ---" putchars newline.
+
+DEFINE factorial == [0 =] [pop 1] [dup 1 -] [*] linrec.
+
+"  4 elements:  map=" putchars clock [10 11 12 13] [factorial] map pop clock swap - .
+               " pmap=" putchars clock [10 11 12 13] [factorial] pmap pop clock swap - . newline.
+
+"  8 elements:  map=" putchars clock [8 9 10 11 12 13 14 15] [factorial] map pop clock swap - .
+               " pmap=" putchars clock [8 9 10 11 12 13 14 15] [factorial] pmap pop clock swap - . newline.
+
+newline.
+
+"--- Sum 1..N (linrec) ---" putchars newline.
+
+DEFINE sum-to-n == [0 =] [] [dup 1 -] [+] linrec.
+
+"  4 elements:  map=" putchars clock [100 200 300 400] [sum-to-n] map pop clock swap - .
+               " pmap=" putchars clock [100 200 300 400] [sum-to-n] pmap pop clock swap - . newline.
+
+"  4 elements:  map=" putchars clock [500 1000 1500 2000] [sum-to-n] map pop clock swap - .
+               " pmap=" putchars clock [500 1000 1500 2000] [sum-to-n] pmap pop clock swap - . newline.
+
+"  4 elements:  map=" putchars clock [2000 4000 6000 8000] [sum-to-n] map pop clock swap - .
+               " pmap=" putchars clock [2000 4000 6000 8000] [sum-to-n] pmap pop clock swap - . newline.
+
+newline.
+
+"========================================" putchars newline
+"  BENCHMARK COMPLETE" putchars newline
+"========================================" putchars newline
+newline
+"Lower numbers = faster. Units are clock ticks." putchars newline
+"pmap has thread overhead, so it needs substantial" putchars newline
+"work per element to outperform sequential map." putchars newline.

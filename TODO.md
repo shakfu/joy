@@ -13,24 +13,24 @@
   - Conditional: `condlinrec`, `condnestrec`
   - Tree: `treestep`, `treerec`, `treegenrec`
 - [x] **Convert `copy_body_from_parent` to iterative** (`src/interp.c`) - Completes the pattern
+- [x] **Performance benchmarking** - Created `tests/parallel_benchmark.sh` and `doc/parallel_performance.md`
+  - Crossover point: ~10,000+ operations per element
+  - Heavy work (100k iterations): pmap 20-25% faster
+  - Very heavy work (1M iterations): pmap 35-40% faster
+- [x] **Parallel execution user documentation** - Updated `doc/parallel.md` with:
+  - 7 practical example use cases (factorials, tree processing, MapReduce, etc.)
+  - Updated combinator compatibility table (all working)
+  - Performance guidelines and when NOT to use pmap
 
-See `FIXES_FOR_PARALLEL.md` for technical details.
+See `doc/parallel_fixes.md` for technical details.
+See `doc/parallel_performance.md` for benchmark results and usage guidelines.
+See `doc/parallel.md` for user guide and examples.
 
 ---
 
 ## TODO (Prioritized)
 
-### Priority 3: Nice to Have
-
-- [ ] **Performance benchmarking**
-  - Compare parallel vs sequential execution times
-  - Identify optimal list sizes for parallel execution
-  - Document when `pmap` is faster than `map`
-
-- [ ] **Parallel execution documentation**
-  - User guide for `pmap` and `pfork`
-  - Best practices and limitations
-  - Example use cases
+All parallel execution tasks complete.
 
 ---
 
@@ -57,9 +57,13 @@ All of these now work correctly:
 
 | File | Description |
 |------|-------------|
-| `FIXES_FOR_PARALLEL.md` | Detailed documentation of parallel execution fixes |
+| `doc/parallel.md` | User guide and examples |
+| `doc/parallel_fixes.md` | Technical documentation of parallel execution fixes |
+| `doc/parallel_performance.md` | Performance benchmarks and usage guidelines |
 | `include/parallel.h` | Parallel infrastructure (`copy_node_to_parent`) |
 | `src/utils.c` | GC and memory management (`copy` function) |
 | `src/interp.c` | Interpreter (`copy_body_from_parent`) |
 | `src/builtin/pmap.c` | Parallel map implementation |
 | `src/builtin/pfork.c` | Parallel fork implementation |
+| `tests/parallel_benchmark.sh` | Wall-time benchmark script |
+| `tests/parallel_benchmark.joy` | CPU-time benchmark (Joy) |

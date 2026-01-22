@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- `PARALLEL.md` - Design document for adding concurrency/parallelism to Joy
+- `doc/parallel.md` - User guide and design document for parallel execution (updated with 7 practical examples)
 - `include/parallel.h` - Infrastructure for parallel execution (env cloning, task structures, result copying)
 - `pmap` combinator - Parallel map: `[list] [quotation] pmap -> [results]`
 - `pfork` combinator - Parallel fork/join: `X [P1] [P2] pfork -> R1 R2`
@@ -82,7 +82,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - `tests/parallel_stress.joy` - 16 stress tests for parallel execution (up to 100,000 iterations)
-- `FIXES_FOR_PARALLEL.md` - Technical documentation of parallel execution fixes
+- `tests/parallel_benchmark.joy` - Joy benchmark comparing `pmap` vs `map` (CPU time)
+- `tests/parallel_benchmark.sh` - Shell benchmark measuring wall clock time
+- `doc/parallel_fixes.md` - Technical documentation of parallel execution fixes
+- `doc/parallel_performance.md` - Performance guide documenting when `pmap` is faster than `map`
 
 ### Upstream Sync
 
