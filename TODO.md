@@ -30,7 +30,125 @@ See `doc/parallel.md` for user guide and examples.
 
 ## TODO (Prioritized)
 
-All parallel execution tasks complete.
+### Priority 1: High Value / Low-Medium Effort
+
+#### Numeric Computing
+
+- [ ] **Vectors/Matrices** - Vectorized operators on numeric lists
+  - See `doc/vector.md` for design
+  - Start with: `v+`, `v-`, `v*`, `vscale`, `dot`, `vsum`
+  - Later: `mm` (matmul), `transpose`, `inv`, `det`
+  - Internal SIMD optimization for contiguous numeric lists
+
+#### Extended Parallel Combinators
+
+- [ ] **pfilter** - Parallel filter combinator
+  - `[list] [predicate] pfilter -> [filtered]`
+  - Similar implementation pattern to `pmap`
+
+- [ ] **preduce** - Parallel tree reduction
+  - `[list] [binary-op] preduce -> result`
+  - For associative operations (sum, product, max, min)
+  - Divide-and-conquer parallelism
+
+### Priority 2: Medium Value / Medium Effort
+
+#### Language Features
+
+- [ ] **Local bindings** - Bind stack values to names within quotation
+  - `10 20 [x y] let [x y + x y *]` -> `30 200`
+  - Alternative: `10 20 [+ *] [x y] bindrec`
+  - Reduces stack juggling for complex expressions
+
+- [ ] **Pattern matching** - Match and destructure values
+  - `value [[pattern1] [action1]] [[pattern2] [action2]] cases`
+  - `[1 2 3] [[[x . xs]] [x xs]] match` -> `1 [2 3]`
+
+- [ ] **Lazy sequences** - Infinite/deferred lists
+  - `1 [1 +] iterate` -> lazy `[1 2 3 4 ...]`
+  - `lazy-seq 10 take` -> `[1 2 3 4 5 6 7 8 9 10]`
+  - Generators: `[yield-value] generator`
+
+- [ ] **Hash tables** - Dictionary/map data structure
+  - `{key1 val1 key2 val2}` literal syntax or `alist>hash`
+  - `hash key get`, `hash key val put`, `hash keys`, `hash vals`
+
+#### Data Formats
+
+- [ ] **JSON support** - Parse and emit JSON
+  - `"[1,2,3]" json>` -> `[1 2 3]`
+  - `[1 2 3] >json` -> `"[1,2,3]"`
+  - Maps to Joy lists/strings/numbers
+
+### Priority 3: Nice to Have
+
+#### Language Features
+
+- [ ] **Regular expressions** - Pattern matching on strings
+  - `"hello world" "w.*d" regex-match` -> `true`
+  - `"hello world" "(\w+)" regex-find-all` -> `["hello" "world"]`
+
+- [ ] **String interpolation** - Embed expressions in strings
+  - `name "world" def "Hello ${name}!" interp` -> `"Hello world!"`
+
+- [ ] **Futures/async** - Asynchronous computation
+  - `[expensive-computation] future` -> future-handle
+  - `future-handle await` -> result (blocks until ready)
+
+#### Interop
+
+- [ ] **FFI (Foreign Function Interface)** - Call C functions
+  - `"libm.so" "sin" [double] [double] ffi` -> callable
+  - Would enable integration with native libraries
+
+- [ ] **HTTP client** - Basic HTTP requests
+  - `"https://api.example.com" http-get` -> response
+  - `url headers body http-post` -> response
+
+#### Developer Experience
+
+- [ ] **Stepper/debugger** - Interactive debugging
+  - Step through execution one operation at a time
+  - Inspect stack, dump, symbol table at each step
+  - Breakpoints on symbols
+
+- [ ] **Profiler** - Performance analysis
+  - Time spent in each user-defined symbol
+  - Call counts and cumulative times
+  - `profile [code]` combinator
+
+- [ ] **Doc generator** - Generate documentation
+  - Extract `(* ... *)` comments from library files
+  - Generate markdown/HTML documentation
+  - Include stack effects and examples
+
+- [ ] **Code formatter** - Auto-format Joy code
+  - Consistent indentation and spacing
+  - `joy --fmt file.joy`
+
+#### Performance
+
+- [ ] **Bytecode compiler** - Faster execution
+  - Compile Joy to bytecode instead of interpreting AST
+  - Would significantly speed up tight loops
+
+- [ ] **String interning** - Deduplicate strings
+  - Identical strings share storage
+  - Faster string comparison (pointer equality)
+
+### Future Ideas (Research Required)
+
+- [ ] **Channels/CSP** - Communicating Sequential Processes
+  - `chan` creates channel, `send`/`recv` for message passing
+  - Would enable more concurrent programming patterns
+
+- [ ] **LSP server** - Editor integration
+  - Autocompletion, go-to-definition, hover docs
+  - VSCode, Neovim, Emacs integration
+
+- [ ] **Effect system** - Algebraic effects
+  - Track side effects in types
+  - Enable effect handlers
 
 ---
 
@@ -57,9 +175,10 @@ All of these now work correctly:
 
 | File | Description |
 |------|-------------|
-| `doc/parallel.md` | User guide and examples |
+| `doc/parallel.md` | Parallel execution user guide and examples |
 | `doc/parallel_fixes.md` | Technical documentation of parallel execution fixes |
 | `doc/parallel_performance.md` | Performance benchmarks and usage guidelines |
+| `doc/vector.md` | Vector/matrix operations design document |
 | `include/parallel.h` | Parallel infrastructure (`copy_node_to_parent`) |
 | `src/utils.c` | GC and memory management (`copy` function) |
 | `src/interp.c` | Interpreter (`copy_body_from_parent`) |
