@@ -1,0 +1,44 @@
+(* Vector operations tests *)
+
+(* Element-wise v+ *)
+[1 2 3] [4 5 6] v+ [5.0 7.0 9.0] equal.
+[] [] v+ [] equal.
+
+(* Element-wise v- *)
+[1 2 3] [4 5 6] v- [-3.0 -3.0 -3.0] equal.
+
+(* Element-wise v* *)
+[1 2 3] [4 5 6] v* [4.0 10.0 18.0] equal.
+
+(* Element-wise v/ *)
+[10 20 30] [2 4 5] v/ [5.0 5.0 6.0] equal.
+
+(* Scalar vscale *)
+[1 2 3] 10 vscale [10.0 20.0 30.0] equal.
+[1 2 3] 0.5 vscale [0.5 1.0 1.5] equal.
+
+(* Dot product *)
+[1 2 3] [4 5 6] dot 32.0 equal.
+[1 0 0] [0 1 0] dot 0.0 equal.
+[] [] dot 0.0 equal.
+
+(* Reductions *)
+[1 2 3 4 5] vsum 15.0 equal.
+[1 2 3 4 5] vprod 120.0 equal.
+[5 2 8 1 9] vmin 1.0 equal.
+[5 2 8 1 9] vmax 9.0 equal.
+[-5 -2 -8] vmin -8.0 equal.
+[-5 -2 -8] vmax -2.0 equal.
+
+(* Creation *)
+5 vzeros [0 0 0 0 0] equal.
+0 vzeros [] equal.
+5 vones [1 1 1 1 1] equal.
+1 5 vrange [1 2 3 4 5] equal.
+5 1 vrange [] equal.
+-2 2 vrange [-2 -1 0 1 2] equal.
+
+(* Mixed integer and float *)
+[1 2.0 3] [4.0 5 6.0] v+ [5.0 7.0 9.0] equal.
+
+.

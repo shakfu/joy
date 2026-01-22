@@ -74,6 +74,47 @@ OMP_NUM_THREADS=8 bash tests/parallel_benchmark.sh
 
 See [doc/parallel_performance.md](doc/parallel_performance.md) for detailed analysis.
 
+## Vector Operations
+
+Joy supports vectorized operations on numeric lists for efficient array-style computing:
+
+### Element-wise Arithmetic
+
+```joy
+[1 2 3] [4 5 6] v+.    (* -> [5.0 7.0 9.0] *)
+[1 2 3] [4 5 6] v-.    (* -> [-3.0 -3.0 -3.0] *)
+[1 2 3] [4 5 6] v*.    (* -> [4.0 10.0 18.0] *)
+[10 20 30] [2 4 5] v/. (* -> [5.0 5.0 6.0] *)
+```
+
+### Scalar Operations and Linear Algebra
+
+```joy
+[1 2 3] 10 vscale.     (* -> [10.0 20.0 30.0] - scalar multiply *)
+[1 2 3] [4 5 6] dot.   (* -> 32.0 - dot product *)
+```
+
+### Reductions
+
+```joy
+[1 2 3 4 5] vsum.      (* -> 15.0 - sum all elements *)
+[1 2 3 4 5] vprod.     (* -> 120.0 - product of all elements *)
+[5 2 8 1 9] vmin.      (* -> 1.0 - minimum element *)
+[5 2 8 1 9] vmax.      (* -> 9.0 - maximum element *)
+```
+
+### Vector Creation
+
+```joy
+5 vzeros.              (* -> [0 0 0 0 0] *)
+5 vones.               (* -> [1 1 1 1 1] *)
+1 5 vrange.            (* -> [1 2 3 4 5] *)
+```
+
+All operations include error handling for type mismatches and dimension errors.
+
+See [doc/vector_impl.md](doc/vector_impl.md) for implementation details.
+
 ## Building
 
 ### Standard Build (without parallel support)
@@ -101,7 +142,7 @@ cmake --build .
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build .
-ctest  # Run all 178 tests
+ctest  # Run all 181 tests
 ```
 
 ### Windows (MSVC)
@@ -180,6 +221,8 @@ See [doc/parallel.md](doc/parallel.md) for detailed design documentation.
 | [doc/parallel.md](doc/parallel.md) | Parallel execution user guide and examples |
 | [doc/parallel_performance.md](doc/parallel_performance.md) | Benchmark results and performance guide |
 | [doc/parallel_fixes.md](doc/parallel_fixes.md) | Technical documentation of parallel fixes |
+| [doc/vector.md](doc/vector.md) | Vector operations design document |
+| [doc/vector_impl.md](doc/vector_impl.md) | Vector operations implementation guide |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and changes |
 | [Legacy Docs](https://wodan58.github.io) | Original Joy documentation |
 | [User Manual](https://wodan58.github.io/j09imp.html) | Joy language reference |

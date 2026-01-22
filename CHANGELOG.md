@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### [1.39]
+
+### Added
+
+- **Vector operations** - Vectorized operators on numeric lists (`src/builtin/vector.c`)
+  - Element-wise: `v+`, `v-`, `v*`, `v/` - arithmetic on pairs of numeric lists
+  - Scalar: `vscale` - multiply all elements by a scalar
+  - Linear algebra: `dot` - dot product of two vectors
+  - Reductions: `vsum`, `vprod`, `vmin`, `vmax` - reduce list to single value
+  - Creation: `vzeros`, `vones`, `vrange` - generate numeric lists
+- `doc/vector_impl.md` - Implementation documentation for vector operations
+- `tests/test2/vector.joy` - Test suite for vector operations (28 assertions)
+
+### Changed
+
+- Architecture refactoring - consolidated builtin macro headers into `src/builtin/builtin_macros.h`
+- Fixed `gen_table.py` to scan grouped builtin files instead of individual files
+- Added `include/joy/joy.h` public API header for embedding
+
+---
+
 ### [1.38]
 
 ### Added

@@ -61,14 +61,27 @@ See `doc/architecture.md` for design rationale.
 
 ## TODO (Prioritized)
 
+### Vector Operations (January 2026)
+
+- [x] **Basic vector operations** - Initial vectorized operators
+  - Element-wise: `v+`, `v-`, `v*`, `v/`
+  - Scalar: `vscale`
+  - Linear algebra: `dot`
+  - Reductions: `vsum`, `vprod`, `vmin`, `vmax`
+  - Creation: `vzeros`, `vones`, `vrange`
+  - See `doc/vector.md` for design, `src/builtin/vector.c` for implementation
+
+---
+
+## TODO (Prioritized)
+
 ### Priority 1: High Value / Low-Medium Effort
 
-#### Numeric Computing
+#### Numeric Computing (Phase 2)
 
-- [ ] **Vectors/Matrices** - Vectorized operators on numeric lists
-  - See `doc/vector.md` for design
-  - Start with: `v+`, `v-`, `v*`, `vscale`, `dot`, `vsum`
-  - Later: `mm` (matmul), `transpose`, `inv`, `det`
+- [ ] **Matrix operations** - 2D array operations
+  - `mm` (matmul), `mv` (matrix-vector), `transpose`
+  - `det`, `inv`, `trace`, `meye`
   - Internal SIMD optimization for contiguous numeric lists
 
 #### Extended Parallel Combinators
