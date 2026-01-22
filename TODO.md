@@ -255,18 +255,17 @@ See `doc/vector_impl.md` for implementation details.
   - `lazy-seq 10 take` -> `[1 2 3 4 5 6 7 8 9 10]`
   - Generators: `[yield-value] generator`
 
-- [ ] **Dictionaries** - Key-value data structure
-  - Note: `{...}` is already Joy's set literal syntax
-  - `d{"name" "Alice" "age" 30}` literal syntax (consistent with `v[...]`, `m[[...]]`)
-  - Or constructor: `[["name" "Alice"] ["age" 30]] >dict`
-  - `dict key get`, `dict key val put`, `dict keys`, `dict vals`
+- [x] **Dictionaries** - Key-value data structure (DONE)
+  - `dempty`, `dput`, `dget`, `dgetd`, `dhas`, `ddel`, `dkeys`, `dvals`, `dsize`
+  - `>dict` from assoc list, `dict>` to assoc list, `dmerge`
+  - See `tests/test2/dict.joy`
 
 #### Data Formats
 
-- [ ] **JSON support** - Parse and emit JSON
-  - `"[1,2,3]" json>` -> `[1 2 3]`
-  - `[1 2 3] >json` -> `"[1,2,3]"`
-  - Maps to Joy lists/strings/numbers
+- [x] **JSON support** - Parse and emit JSON (DONE)
+  - `json>` parses JSON to Joy values (dicts, lists, strings, numbers, bools, null)
+  - `>json` emits Joy values as JSON
+  - See `tests/test2/json.joy`
 
 ### Priority 3: Nice to Have
 
@@ -276,8 +275,9 @@ See `doc/vector_impl.md` for implementation details.
   - `"hello world" "w.*d" regex-match` -> `true`
   - `"hello world" "(\w+)" regex-find-all` -> `["hello" "world"]`
 
-- [ ] **String interpolation** - Embed expressions in strings
-  - `name "world" def "Hello ${name}!" interp` -> `"Hello world!"`
+- [x] **String interpolation** - Embed expressions in strings (DONE)
+  - `$"Hello ${name}!"` syntax with `${...}` for expressions
+  - See `tests/test2/strinterp.joy`
 
 - [ ] **Futures/async** - Asynchronous computation
   - `[expensive-computation] future` -> future-handle
@@ -337,6 +337,14 @@ See `doc/vector_impl.md` for implementation details.
 - [ ] **Effect system** - Algebraic effects
   - Track side effects in types
   - Enable effect handlers
+
+- [ ] **Persistent sessions** - SQLite-backed transparent persistence
+  - `"name" session.` opens persistent session where all DEFINEs survive
+  - Snapshots: `"name" snapshot.` / `"name" restore.`
+  - Session merging: `"other" session-merge.` with conflict detection
+  - Lazy loading for large structures
+  - SQL queries on session data
+  - See `doc/persistent_session_design.md`
 
 ---
 
