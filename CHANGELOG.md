@@ -27,6 +27,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `doc/contiguous_matrix_exploration.md` - Analysis of native array types for Joy
   - Would enable full BLAS performance for all operations (10-50x projected speedup)
 
+- **Local bindings (`let` combinator)** - Bind stack values to names within quotation
+  - Syntax: `X1 X2 ... Xn [name1 name2 ... namen] [body] let -> result`
+  - Binds n values from stack to names, executes body, restores original bindings
+  - Example: `10 20 [aa bb] [aa bb + aa bb - *] let` -> `-300`
+  - Simplifies complex stack manipulation into readable, math-like expressions
+  - Limitation: Names must be user symbols, not builtins (`i` and `x` are reserved; other letters work)
+  - Tests: `tests/test2/let.joy` (12 test cases)
+
 ### Fixed
 
 - **GC invalidates local Index variables during list construction** - Critical bug fix

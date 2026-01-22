@@ -1,0 +1,68 @@
+(*
+    module  : let.joy
+    version : 1.0
+    date    : 01/22/26
+
+    Tests for the let combinator.
+    let binds stack values to names for the duration of body execution.
+
+    Syntax: X1 X2 ... Xn [name1 name2 ... namen] [body] let -> result
+*)
+
+(* Test 1: Single binding *)
+5 [n] [n n *] let 25 equal.
+
+(* Test 2: Two bindings - (a+b) * (a-b) *)
+10 20 [aa bb] [aa bb + aa bb - *] let -300 equal.
+
+(* Test 3: Three bindings - 2*3 + 5 *)
+2 3 5 [p q r] [p q * r +] let 11 equal.
+
+(* Test 4: Access same value multiple times *)
+7 [val] [val val * val +] let 56 equal.
+
+(* Test 5: Empty body - stack unchanged after popping values *)
+[] unstack.
+1 2 [aa bb] [] let stack [] equal.
+
+(* Test 6: Nested let - inner binding shadows outer *)
+[] unstack.
+10 [num] [
+    20 [num] [num] let
+] let 20 equal.
+
+(* Test 7: Binding restored after let - define, shadow, verify restored *)
+[] unstack.
+DEFINE saved_val == 999.
+5 [saved_val] [saved_val] let pop
+saved_val 999 equal.
+
+(* Test 8: Point distance example sqrt((x2-x1)^2 + (y2-y1)^2) *)
+[] unstack.
+0 0 3 4 [x1 y1 x2 y2] [
+    x2 x1 - dup *
+    y2 y1 - dup * + sqrt
+] let 5.0 equal.
+
+(* Test 9: Quadratic formula root *)
+(* For a=1, b=-3, c=2: x = (3 + sqrt(9-8))/2 = (3+1)/2 = 2 *)
+[] unstack.
+1 -3 2 [a_coef b_coef c_coef] [
+    b_coef neg
+    b_coef b_coef * 4 a_coef * c_coef * - sqrt +
+    2 a_coef * /
+] let 2.0 equal.
+
+(* Test 10: Using let in a definition *)
+[] unstack.
+DEFINE pyth == [a_val b_val] [a_val a_val * b_val b_val * + sqrt] let.
+3 4 pyth 5.0 equal.
+
+(* Test 11: let with list operations *)
+[] unstack.
+[1 2 3] [4 5 6] [xs ys] [xs ys concat] let [1 2 3 4 5 6] equal.
+
+(* Test 12: let preserves rest of stack *)
+[] unstack.
+100 200 10 20 [m n] [m n +] let
+stack [30 200 100] equal.

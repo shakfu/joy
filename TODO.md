@@ -134,10 +134,66 @@ See `doc/vector_impl.md` for implementation details.
 
 #### Language Features
 
-- [ ] **Local bindings** - Bind stack values to names within quotation
-  - `10 20 [x y] let [x y + x y *]` -> `30 200`
-  - Alternative: `10 20 [+ *] [x y] bindrec`
-  - Reduces stack juggling for complex expressions
+- [x] **Local bindings (`let`)** - Bind stack values to names within quotation
+
+  **Syntax:** `X1 X2 ... Xn [name1 name2 ... namen] [body] let -> result`
+
+  Binds `n` values from the stack to names, executes body, then restores original bindings.
+  Names are bound in order: `name1` gets `X1` (deepest), `namen` gets `Xn` (TOS).
+
+  **Example: `(a + b) * (a - b)`**
+  ```joy
+  (* Without local bindings - stack juggling *)
+  (* Stack: a b *)
+  dup2           (* a b a b *)
+  +              (* a b sum *)
+  rolldown       (* sum a b *)
+  -              (* sum diff *)
+  *              (* result *)
+
+  (* With local bindings - clear and direct *)
+  10 20 [aa bb] [aa bb + aa bb - *] let   (* -> -300 *)
+  ```
+
+  **Example: Point distance between (x1,y1) and (x2,y2)**
+  ```joy
+  (* Without - error-prone stack manipulation *)
+  rolldown - dup * rolldown swap - dup * + sqrt
+
+  (* With local bindings *)
+  0 0 3 4 [x1 y1 x2 y2] [
+    x2 x1 - dup *
+    y2 y1 - dup * + sqrt
+  ] let   (* -> 5.0 *)
+  ```
+
+  **Example: Quadratic formula root**
+  ```joy
+  (* For a=1, b=-3, c=2: x = (3 + sqrt(9-8))/2 = 2 *)
+  1 -3 2 [a_coef b_coef c_coef] [
+    b_coef neg
+    b_coef b_coef * 4 a_coef * c_coef * - sqrt +
+    2 a_coef * /
+  ] let   (* -> 2.0 *)
+  ```
+
+  **Example: Using let in definitions**
+  ```joy
+  DEFINE pyth == [a_val b_val] [a_val a_val * b_val b_val * + sqrt] let.
+  3 4 pyth   (* -> 5.0 *)
+  ```
+
+  **Limitations:**
+  - Names must be user symbols, not builtin operators
+  - Only `i` and `x` are single-letter builtins; all other letters (`a`-`h`, `j`-`w`, `y`, `z`) work fine
+
+  **Benefits:**
+  - **Readability** - Code reads like math, not stack manipulation
+  - **Correctness** - No risk of wrong `swap`/`rollup`/`rolldown` sequence
+  - **Maintainability** - Adding a term doesn't require rethinking the whole stack
+  - **Debugging** - Variables have names, not stack positions
+
+  See `tests/test2/let.joy` for more examples.
 
 - [ ] **Pattern matching** - Match and destructure values
 

@@ -387,3 +387,118 @@ void while_(pEnv env)
     POP(env->dump);
 }
 
+/**
+Q2  OK  2390  let  :  X1 X2 ... Xn [name1 name2 ... namen] [body]  ->  result
+Binds n values from the stack to names, executes body, restores original bindings.
+Names are bound in reverse order: name1 gets X1 (deepest), namen gets Xn (top).
+
+Example:
+  10 20 [a b] [a b + a b - *] let  =>  300
+  (* a=10, b=20, computes (a+b)*(a-b) = 30*(-10) = -300 *)
+*/
+void let_(pEnv env)
+{
+    Index names, body, cur;
+    int num_names, i;
+    Entry* saved_entries;
+    int* indices;
+    Index* bodies;
+
+    TWOPARAMS("let");
+    TWOQUOTES("let");
+
+    /* Get body and names quotations */
+    body = nodevalue(env->stck).lis;
+    names = nodevalue(nextnode1(env->stck)).lis;
+    env->stck = nextnode2(env->stck);  /* Pop both quotations */
+
+    /* Count names and validate they are user symbols (not builtins) */
+    num_names = 0;
+    for (cur = names; cur; cur = nextnode1(cur)) {
+        Operator op = nodetype(cur);
+        if (op == ANON_FUNCT_) {
+            /* Builtins won't work because the body already has the function pointer */
+            execerror(env, "let", "cannot bind builtin names; use fresh identifiers");
+            return;
+        }
+        if (op != USR_) {
+            execerror(env, "let", "names must be symbols (got literal value)");
+            return;
+        }
+        num_names++;
+    }
+
+    if (num_names == 0) {
+        /* No bindings, just execute body */
+        exec_term(env, body);
+        return;
+    }
+
+    /* Allocate arrays to save state */
+    saved_entries = (Entry*)malloc(num_names * sizeof(Entry));
+    indices = (int*)malloc(num_names * sizeof(int));
+    bodies = (Index*)malloc(num_names * sizeof(Index));
+
+    if (!saved_entries || !indices || !bodies) {
+        free(saved_entries);
+        free(indices);
+        free(bodies);
+        execerror(env, "let", "memory allocation failed");
+        return;
+    }
+
+    /* Collect symbol table indices (all must be USR_ at this point) */
+    i = 0;
+    for (cur = names; cur; cur = nextnode1(cur)) {
+        indices[i++] = nodevalue(cur).ent;
+    }
+
+    /* Bind values (reverse order: pop values for namen first) */
+    for (i = num_names - 1; i >= 0; i--) {
+        Index value;
+        Entry ent;
+        int index = indices[i];
+
+        /* Check we have enough values on stack */
+        if (!env->stck) {
+            /* Restore already-bound entries */
+            for (int j = num_names - 1; j > i; j--) {
+                vec_at(env->symtab, indices[j]) = saved_entries[j];
+            }
+            free(saved_entries);
+            free(indices);
+            free(bodies);
+            execerror(env, "let", "not enough values for names");
+            return;
+        }
+
+        /* Pop value from stack */
+        value = env->stck;
+        env->stck = nextnode1(env->stck);
+
+        /* Save original entry */
+        saved_entries[i] = vec_at(env->symtab, index);
+
+        /* Create a body that pushes the value */
+        bodies[i] = newnode2(env, value, 0);
+
+        /* Update symbol table entry */
+        ent = saved_entries[i];
+        ent.is_user = 1;
+        ent.u.body = bodies[i];
+        vec_at(env->symtab, index) = ent;
+    }
+
+    /* Execute body */
+    exec_term(env, body);
+
+    /* Restore original entries */
+    for (i = 0; i < num_names; i++) {
+        vec_at(env->symtab, indices[i]) = saved_entries[i];
+    }
+
+    free(saved_entries);
+    free(indices);
+    free(bodies);
+}
+
