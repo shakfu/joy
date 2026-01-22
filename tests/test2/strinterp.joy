@@ -1,0 +1,63 @@
+(*
+    module  : interp.joy
+    version : 1.0
+    date    : 01/22/26
+
+    String interpolation tests.
+
+    Note: Expression parsing inside ${...} uses a simple tokenizer that
+    handles integers, floats, strings, and identifiers. Complex Joy syntax
+    like character literals ('A) or list literals ([1 2 3]) is not supported
+    inside interpolation expressions.
+*)
+
+(* Simple literal string - no interpolation *)
+$"hello" "hello" =.
+
+(* Empty string *)
+$"" "" =.
+
+(* Single expression interpolation *)
+$"${42}" "42" =.
+
+(* Expression at start *)
+$"${1}abc" "1abc" =.
+
+(* Expression at end *)
+$"abc${1}" "abc1" =.
+
+(* Expression in middle *)
+$"a${1}b" "a1b" =.
+
+(* Multiple expressions *)
+$"${1}${2}" "12" =.
+$"a${1}b${2}c" "a1b2c" =.
+
+(* Literal dollar sign - not followed by { *)
+$"$100" "$100" =.
+
+(* Float interpolation *)
+$"pi=${3.14}" "pi=3.14" =.
+
+(* Negative number *)
+$"n=${-5}" "n=-5" =.
+
+(* Expression with operators *)
+$"sum=${2 3 +}" "sum=5" =.
+$"prod=${3 4 *}" "prod=12" =.
+
+(* Nested string in expression *)
+$"say=${"hello"}" "say=hello" =.
+
+(* Boolean interpolation *)
+$"t=${true}" "t=true" =.
+$"f=${false}" "f=false" =.
+
+(* User-defined symbol *)
+LIBRA myval == "world".
+$"Hello ${myval}!" "Hello world!" =.
+
+(* Expression that produces a number *)
+LIBRA five == 5.
+$"five=${five}" "five=5" =.
+

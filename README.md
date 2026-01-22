@@ -243,6 +243,116 @@ DEFINE len ==
 
 **Note:** The `:` in cons patterns follows Haskell convention and disambiguates `[h : t]` (1+ elements) from `[h t]` (exactly 2 elements).
 
+## Dictionaries
+
+Dictionaries provide key-value data structures with O(1) average lookup:
+
+```joy
+(* Create and populate a dictionary *)
+dempty "name" "Alice" dput "age" 30 dput.
+(* -> {age: 30, name: "Alice"} *)
+
+(* Create from association list *)
+[["name" "Bob"] ["score" 100]] >dict.
+
+(* Access operations *)
+mydict "name" dget.         (* -> "Bob" *)
+mydict "missing" 0 dgetd.   (* -> 0 - default value *)
+mydict "name" dhas.         (* -> true *)
+
+(* Introspection *)
+mydict dkeys.               (* -> ["name" "score"] *)
+mydict dvals.               (* -> ["Bob" 100] *)
+mydict dsize.               (* -> 2 *)
+
+(* Modification *)
+mydict "score" ddel.        (* Remove key *)
+dict1 dict2 dmerge.         (* Merge dictionaries *)
+mydict dict>.               (* -> [["name" "Bob"] ["score" 100]] *)
+```
+
+### Dictionary Operators
+
+| Operator | Signature | Description |
+|----------|-----------|-------------|
+| `dempty` | `-> dict` | Create empty dictionary |
+| `dput` | `dict "key" value -> dict'` | Insert or update key |
+| `dget` | `dict "key" -> value` | Get value (error if missing) |
+| `dgetd` | `dict "key" default -> value` | Get with default |
+| `dhas` | `dict "key" -> bool` | Check if key exists |
+| `ddel` | `dict "key" -> dict'` | Delete key |
+| `dkeys` | `dict -> [keys...]` | Get all keys |
+| `dvals` | `dict -> [values...]` | Get all values |
+| `dsize` | `dict -> int` | Number of entries |
+| `>dict` | `[[k v]...] -> dict` | Create from assoc list |
+| `dict>` | `dict -> [[k v]...]` | Convert to assoc list |
+| `dmerge` | `dict1 dict2 -> dict'` | Merge (dict2 overwrites) |
+
+## JSON Support
+
+Parse and emit JSON with automatic type mapping:
+
+```joy
+(* Parse JSON to Joy values *)
+"{\"name\": \"Alice\", \"scores\": [95, 87]}" json>.
+(* -> dict with name="Alice", scores=[95 87] *)
+
+"[1, 2, 3]" json>.           (* -> [1 2 3] *)
+"true" json>.                (* -> true *)
+"null" json>.                (* -> null *)
+
+(* Emit Joy values as JSON *)
+mydict >json.
+(* -> "{\"name\":\"Alice\",\"scores\":[95,87]}" *)
+
+[1 2 3] >json.               (* -> "[1,2,3]" *)
+true >json.                  (* -> "true" *)
+```
+
+### Type Mapping
+
+| JSON | Joy |
+|------|-----|
+| object | dictionary (DICT_) |
+| array | list |
+| string | string |
+| number (int) | integer |
+| number (float) | float |
+| true/false | true/false |
+| null | null |
+
+## String Interpolation
+
+Embed expressions in strings with `$"..."` syntax:
+
+```joy
+(* Basic interpolation *)
+$"2+2=${2 2 +}".             (* -> "2+2=4" *)
+$"pi=${3.14159}".            (* -> "pi=3.14159" *)
+
+(* With defined symbols *)
+world == "world".
+$"Hello ${world}!".          (* -> "Hello world!" *)
+
+(* Multiple interpolations *)
+$"a=${1}, b=${2}".           (* -> "a=1, b=2" *)
+
+(* Expressions at any position *)
+$"${1}+${2}=${1 2 +}".       (* -> "1+2=3" *)
+
+(* Literal $ preserved when not followed by { *)
+$"Price: $100".              (* -> "Price: $100" *)
+```
+
+Expressions in `${...}` are evaluated and converted to strings using `unquoted`. Supports integers, floats, strings, booleans, and user-defined symbols.
+
+### String Conversion Operators
+
+| Operator | Signature | Description |
+|----------|-----------|-------------|
+| `toString` | `value -> "string"` | Convert to quoted string representation |
+| `unquoted` | `value -> "string"` | Convert to string (strings unquoted) |
+
 ### Performance
 
 Vector and matrix operations use SIMD vectorization via `#pragma omp simd` directives, enabling automatic use of SSE/AVX instructions on modern CPUs. This is enabled by default with the `-fopenmp-simd` compiler flag.
@@ -290,7 +400,7 @@ cmake --build .
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build .
-ctest  # Run all 185 tests
+ctest  # Run all tests
 ```
 
 ### Windows (MSVC)
@@ -345,6 +455,9 @@ Or manually:
 ./joy tests/test2/match.joy      # Pattern matching tests
 ./joy tests/test2/cases.joy      # Multi-pattern dispatch tests
 ./joy tests/test2/let.joy        # Local bindings tests
+./joy tests/test2/dict.joy       # Dictionary tests
+./joy tests/test2/json.joy       # JSON tests
+./joy tests/test2/strinterp.joy  # String interpolation tests
 ```
 
 ## Architecture

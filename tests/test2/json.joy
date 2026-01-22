@@ -1,0 +1,61 @@
+(*
+    module  : json.joy
+    version : 1.0
+    date    : 01/22/26
+
+    JSON parsing and emitting tests.
+*)
+
+(* json> - parse JSON to Joy values *)
+
+(* Parse empty object *)
+"{}" json> dsize 0 =.
+
+(* Parse empty array *)
+"[]" json> size 0 =.
+
+(* Parse object with values *)
+"{\"name\": \"Alice\"}" json> "name" dget "Alice" =.
+"{\"age\": 30}" json> "age" dget 30 =.
+
+(* Parse array *)
+"[1, 2, 3]" json> size 3 =.
+"[1, 2, 3]" json> first 1 =.
+
+(* Parse primitives *)
+"true" json> true =.
+"false" json> false =.
+"42" json> 42 =.
+"-17" json> -17 =.
+"3.14" json> 3.14 =.
+"\"hello\"" json> "hello" =.
+
+(* Parse nested structures *)
+"{\"arr\": [1, 2]}" json> "arr" dget size 2 =.
+"[{\"x\": 1}, {\"x\": 2}]" json> first "x" dget 1 =.
+
+(* >json - emit Joy values as JSON *)
+
+(* Emit empty dict *)
+dempty >json "{}" =.
+
+(* Emit empty list *)
+[] >json "[]" =.
+
+(* Emit primitives *)
+true >json "true" =.
+false >json "false" =.
+42 >json "42" =.
+3.14 >json "3.14" =.
+
+(* Emit string with escapes *)
+"hello" >json "\"hello\"" =.
+
+(* Emit list *)
+[1 2 3] >json "[1,2,3]" =.
+
+(* Roundtrip tests *)
+"[1, 2, 3]" json> >json "[1,2,3]" =.
+"true" json> >json "true" =.
+"42" json> >json "42" =.
+"\"test\"" json> >json "\"test\"" =.

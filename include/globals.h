@@ -168,6 +168,7 @@ enum {
     BIGNUM_,
 
     LIST_PRIME_,
+    DICT_,
 
     LIBRA,
     EQDEF,
@@ -212,6 +213,7 @@ typedef union {
     double dbl;   /* FLOAT */
     FILE* fil;    /* FILE */
     int ent;      /* SYMBOL */
+    void* dict;   /* DICT */
 } Types;
 
 #ifdef NOBDW
@@ -252,6 +254,13 @@ KHASHL_MAP_INIT(KH_LOCAL, funtab_t, funtab, uint64_t, int, kh_hash_uint64,
 #else
 KHASH_MAP_INIT_STR(Symtab, int)
 KHASH_MAP_INIT_INT64(Funtab, int)
+#endif
+
+/* Dictionary type: string keys, Index values */
+#ifdef NOBDW
+KHASH_MAP_INIT_STR(Dict, unsigned)
+#else
+KHASH_MAP_INIT_STR(Dict, struct Node*)
 #endif
 
 /*

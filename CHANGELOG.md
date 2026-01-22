@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### [1.41]
+
+### Added
+
+- **Dictionary type** - Key-value data structure using khash (`src/builtin/dict.c`)
+  - `dempty` - Create empty dictionary
+  - `dput` - Insert or update key-value pair: `dict "key" value dput -> dict'`
+  - `dget` - Get value by key (error if missing): `dict "key" dget -> value`
+  - `dgetd` - Get value with default: `dict "key" default dgetd -> value`
+  - `dhas` - Check if key exists: `dict "key" dhas -> bool`
+  - `ddel` - Delete key: `dict "key" ddel -> dict'`
+  - `dkeys` - Get all keys: `dict dkeys -> [keys...]`
+  - `dvals` - Get all values: `dict dvals -> [values...]`
+  - `dsize` - Get entry count: `dict dsize -> int`
+  - `>dict` - Create from assoc list: `[["k1" v1] ["k2" v2]] >dict -> dict`
+  - `dict>` - Convert to assoc list: `dict dict> -> [["k1" v1] ...]`
+  - `dmerge` - Merge two dicts: `dict1 dict2 dmerge -> dict'`
+  - Tests: `tests/test2/dict.joy` (24 test cases)
+
+- **JSON support** - Parse and emit JSON (`src/builtin/json.c`)
+  - `json>` - Parse JSON string to Joy value: `"[1,2,3]" json> -> [1 2 3]`
+  - `>json` - Emit Joy value as JSON string: `[1 2 3] >json -> "[1,2,3]"`
+  - Type mapping: object<->dict, array<->list, string<->string, number<->int/float, true/false<->bool
+  - Handles nested structures, escape sequences, Unicode
+  - Tests: `tests/test2/json.joy` (26 test cases)
+
+- **String interpolation** - Embed expressions in strings (`src/scan.c`)
+  - Syntax: `$"Hello ${expr}!"` - expressions in `${...}` are evaluated and converted to strings
+  - Example: `$"2+2=${2 2 +}"` -> `"2+2=4"`
+  - Example: `$"pi=${3.14159}"` -> `"pi=3.14159"`
+  - Supports integers, floats, strings, booleans, user-defined symbols, operators
+  - Multiple interpolations: `$"a=${1}b=${2}"` -> `"a=1b=2"`
+  - Literal `$` preserved when not followed by `{`: `$"$100"` -> `"$100"`
+  - Tests: `tests/test2/strinterp.joy` (18 test cases)
+
+- **String conversion operators** (`src/builtin/tostring.c`)
+  - `toString` - Convert any value to its string representation: `42 toString -> "42"`
+  - `unquoted` - Convert to string without quotes for strings: `42 unquoted -> "42"`, `"hi" unquoted -> "hi"`
+
+---
+
 ### [1.40]
 
 ### Added

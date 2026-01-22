@@ -69,6 +69,8 @@
     (env->bucket.fil = u, newnode(env, FILE_, env->bucket, r))
 #define BIGNUM_NEWNODE(u, r)                                                  \
     (env->bucket.str = u, newnode(env, BIGNUM_, env->bucket, r))
+#define DICT_NEWNODE(u, r)                                                    \
+    (env->bucket.dict = u, newnode(env, DICT_, env->bucket, r))
 
 /*
  * NULLARY/UNARY/BINARY - Push result onto stack, consuming 0/1/2 items

@@ -62,7 +62,17 @@ again:
         goto again;
     }
     if (!env->scanner.linepos && ch == SHELLESCAPE) {
-        vec_setsize(env->string, 0);
+        /* Check if this is string interpolation $"..." rather than shell escape */
+        int next = joy_getc(env, env->scanner.srcfile);
+        if (next == '"') {
+            /* It's string interpolation, push back the " and return $ */
+            vec_push(env->pushback, next);
+            env->scanner.linebuf[env->scanner.linepos++] = ch;
+            env->scanner.linebuf[env->scanner.linepos] = 0;
+            return ch;
+        }
+        /* It's a shell escape, continue with shell command processing */
+        vec_push(env->string, next);
         while ((ch = joy_getc(env, env->scanner.srcfile)) != '\n' && ch != EOF)
             vec_push(env->string, ch);
         vec_push(env->string, 0);
@@ -283,6 +293,214 @@ static int special(pEnv env)
 }
 
 /*
+ * parse_interpolated_string - parse $"..." string interpolation.
+ * Converts $"Hello ${name}!" into: "Hello " name unquoted concat "!" concat
+ * Returns the next character after the closing quote.
+ */
+static int parse_interpolated_string(pEnv env)
+{
+    int ch, brace_depth;
+    Token tok;
+    int part_count = 0;
+
+    /* We use a separate vector for building the interpolation tokens */
+    vector(Token)* interp_tokens;
+    vec_init(interp_tokens);
+
+    /* We're positioned right after $" */
+    ch = getch(env);
+
+    vec_setsize(env->string, 0);
+
+    while (ch != '"' && ch != EOF) {
+        if (ch == '$') {
+            ch = getch(env);
+            if (ch == '{') {
+                /* Found ${...} - emit current string literal if any */
+                if (vec_size(env->string) > 0) {
+                    vec_push(env->string, 0);
+                    tok.op = STRING_;
+                    tok.u.str = GC_CTX_STRDUP(env, &vec_at(env->string, 0));
+                    tok.y = env->scanner.startnum;
+                    tok.x = env->scanner.startpos;
+                    tok.pos = env->scanner.endpos;
+                    vec_push(interp_tokens, tok);
+                    /* Add concat if we have previous parts */
+                    if (part_count > 0) {
+                        tok.op = USR_;
+                        tok.u.str = GC_CTX_STRDUP(env, "concat");
+                        vec_push(interp_tokens, tok);
+                    }
+                    part_count++;
+                    vec_setsize(env->string, 0);
+                }
+
+                /* Parse the expression inside ${...} */
+                brace_depth = 1;
+                ch = getch(env);
+                while (brace_depth > 0 && ch != EOF) {
+                    if (ch == '{') {
+                        brace_depth++;
+                        vec_push(env->string, ch);
+                    } else if (ch == '}') {
+                        brace_depth--;
+                        if (brace_depth > 0)
+                            vec_push(env->string, ch);
+                    } else if (ch == '"') {
+                        /* String inside expression */
+                        vec_push(env->string, ch);
+                        ch = getch(env);
+                        while (ch != '"' && ch != EOF) {
+                            if (ch == '\\') {
+                                vec_push(env->string, ch);
+                                ch = getch(env);
+                            }
+                            vec_push(env->string, ch);
+                            ch = getch(env);
+                        }
+                        vec_push(env->string, ch);
+                    } else {
+                        vec_push(env->string, ch);
+                    }
+                    ch = getch(env);
+                }
+
+                /* We have the expression in env->string */
+                vec_push(env->string, 0);
+
+                /* Parse the expression text into tokens */
+                {
+                    char* expr = GC_CTX_STRDUP(env, &vec_at(env->string, 0));
+                    char* p = expr;
+                    /* Push each whitespace-separated token */
+                    while (*p) {
+                        while (*p && (*p == ' ' || *p == '\t' || *p == '\n'))
+                            p++;
+                        if (!*p) break;
+                        char* start = p;
+                        if (*p == '"') {
+                            /* String literal */
+                            p++;
+                            while (*p && *p != '"') {
+                                if (*p == '\\' && p[1]) p++;
+                                if (*p) p++;
+                            }
+                            if (*p == '"') p++;
+                        } else {
+                            while (*p && *p != ' ' && *p != '\t' && *p != '\n')
+                                p++;
+                        }
+                        size_t len = (size_t)(p - start);
+                        char* token_str = GC_CTX_MALLOC_ATOMIC(env, len + 1);
+                        memcpy(token_str, start, len);
+                        token_str[len] = '\0';
+
+                        /* Parse the token */
+                        char* end;
+                        if (token_str[0] == '"') {
+                            /* String literal */
+                            tok.op = STRING_;
+                            size_t slen = strlen(token_str);
+                            if (slen >= 2) {
+                                token_str[slen-1] = '\0';
+                                tok.u.str = GC_CTX_STRDUP(env, token_str + 1);
+                            } else {
+                                tok.u.str = GC_CTX_STRDUP(env, "");
+                            }
+                        } else if ((token_str[0] >= '0' && token_str[0] <= '9') ||
+                                   (token_str[0] == '-' && token_str[1] >= '0' && token_str[1] <= '9')) {
+                            if (strchr(token_str, '.') || strchr(token_str, 'e') || strchr(token_str, 'E')) {
+                                tok.op = FLOAT_;
+                                tok.u.dbl = strtod(token_str, &end);
+                            } else {
+                                tok.op = INTEGER_;
+                                tok.u.num = strtoll(token_str, &end, 10);
+                            }
+                        } else {
+                            tok.op = USR_;
+                            tok.u.str = token_str;
+                        }
+                        tok.y = env->scanner.startnum;
+                        tok.x = env->scanner.startpos;
+                        tok.pos = env->scanner.endpos;
+                        vec_push(interp_tokens, tok);
+                    }
+                }
+
+                /* Add unquoted to convert to string */
+                tok.op = USR_;
+                tok.u.str = GC_CTX_STRDUP(env, "unquoted");
+                tok.y = env->scanner.startnum;
+                tok.x = env->scanner.startpos;
+                tok.pos = env->scanner.endpos;
+                vec_push(interp_tokens, tok);
+
+                /* If we have previous parts, add concat */
+                if (part_count > 0) {
+                    tok.op = USR_;
+                    tok.u.str = GC_CTX_STRDUP(env, "concat");
+                    vec_push(interp_tokens, tok);
+                }
+                part_count++;
+                vec_setsize(env->string, 0);
+            } else {
+                /* Not ${, just a literal $ */
+                vec_push(env->string, '$');
+                if (ch != '"') {
+                    vec_push(env->string, ch);
+                    ch = getch(env);
+                }
+                /* Don't call getch again, let outer loop handle ch */
+            }
+        } else if (ch == '\\') {
+            ch = special(env);
+            vec_push(env->string, ch);
+            ch = getch(env);
+        } else {
+            vec_push(env->string, ch);
+            ch = getch(env);
+        }
+    }
+
+    /* Emit final string literal if any */
+    if (vec_size(env->string) > 0) {
+        vec_push(env->string, 0);
+        tok.op = STRING_;
+        tok.u.str = GC_CTX_STRDUP(env, &vec_at(env->string, 0));
+        tok.y = env->scanner.startnum;
+        tok.x = env->scanner.startpos;
+        tok.pos = env->scanner.endpos;
+        vec_push(interp_tokens, tok);
+        if (part_count > 0) {
+            tok.op = USR_;
+            tok.u.str = GC_CTX_STRDUP(env, "concat");
+            vec_push(interp_tokens, tok);
+        }
+        part_count++;
+    }
+
+    /* If empty string, just push empty string */
+    if (part_count == 0) {
+        tok.op = STRING_;
+        tok.u.str = GC_CTX_STRDUP(env, "");
+        tok.y = env->scanner.startnum;
+        tok.x = env->scanner.startpos;
+        tok.pos = env->scanner.endpos;
+        vec_push(interp_tokens, tok);
+    }
+
+    /* Now push all tokens onto env->tokens in reverse order */
+    /* (because env->tokens is processed as a stack) */
+    for (int i = vec_size(interp_tokens) - 1; i >= 0; i--) {
+        vec_push(env->tokens, vec_at(interp_tokens, i));
+    }
+
+    /* Don't pop the first token here - let getsym's final token check
+     * handle it. We just need to return with a valid ch value. */
+    return getch(env); /* read past closing " */
+}
+
+/*
  * getsym reads the next symbol from code or from srcfile. The return value is
  * the character after the symbol that was read.
  */
@@ -354,7 +572,18 @@ start:
         env->scanner.endpos = env->scanner.linepos;
         return getch(env); /* read past " */
 
+    case '$':
+        ch = getch(env);
+        if (ch == '"') {
+            /* String interpolation: $"Hello ${expr}!" */
+            return parse_interpolated_string(env);
+        }
+        /* Not interpolation, treat $ as start of identifier */
+        vec_push(env->string, '$');
+        goto identifier;
+
     default:
+    identifier:
         vec_push(env->string, ch);
         sign = ch; /* possible sign */
         ch = getch(env);

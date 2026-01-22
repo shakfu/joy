@@ -96,6 +96,8 @@ static int get_boolean(pEnv env, Index node)
         return nodevalue(node).dbl != 0;
     case FILE_:
         return nodevalue(node).fil != 0;
+    case DICT_:
+        return nodevalue(node).dict != 0;
     }
     return rv;
 }
@@ -131,6 +133,10 @@ static int is_null(pEnv env, Index node)
         return !nodevalue(node).dbl;
     case FILE_:
         return !nodevalue(node).fil;
+    case DICT_: {
+        khash_t(Dict)* d = (khash_t(Dict)*)nodevalue(node).dict;
+        return !d || kh_size(d) == 0;
+    }
     }
     return 0;
 }
@@ -274,6 +280,13 @@ int Compare(pEnv env, Index first, Index second)
         case FILE_:
             fp2 = nodevalue(second).fil;
             return fp1 < fp2 ? -1 : fp1 > fp2;
+        }
+        break;
+    case DICT_:
+        if (type2 == DICT_) {
+            void* d1 = nodevalue(first).dict;
+            void* d2 = nodevalue(second).dict;
+            return d1 < d2 ? -1 : d1 > d2;
         }
         break;
     }

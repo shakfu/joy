@@ -1,0 +1,57 @@
+(*
+    module  : dict.joy
+    version : 1.0
+    date    : 01/22/26
+
+    Dictionary operations tests.
+*)
+
+(* dempty - create empty dictionary *)
+dempty dsize 0 =.
+
+(* dput - insert key-value pair *)
+dempty "a" 1 dput dsize 1 =.
+dempty "a" 1 dput "b" 2 dput dsize 2 =.
+
+(* dget - retrieve value by key *)
+dempty "a" 42 dput "a" dget 42 =.
+dempty "name" "Alice" dput "name" dget "Alice" =.
+
+(* dhas - check if key exists *)
+dempty "a" 1 dput "a" dhas.
+dempty "a" 1 dput "x" dhas not.
+
+(* ddel - remove key *)
+dempty "a" 1 dput "b" 2 dput "a" ddel dsize 1 =.
+dempty "a" 1 dput "a" ddel dsize 0 =.
+
+(* dkeys - get all keys *)
+dempty "a" 1 dput "b" 2 dput dkeys size 2 =.
+
+(* dvals - get all values *)
+dempty "a" 1 dput "b" 2 dput dvals size 2 =.
+
+(* >dict - create from assoc list *)
+[["a" 1] ["b" 2]] >dict dsize 2 =.
+[["name" "Bob"]] >dict "name" dget "Bob" =.
+
+(* dict> - convert to assoc list *)
+dempty "x" 10 dput dict> size 1 =.
+
+(* dict - type predicate *)
+dempty dict.
+1 dict not.
+"hello" dict not.
+[] dict not.
+
+(* dmerge - merge two dictionaries *)
+dempty "a" 1 dput dempty "b" 2 dput dmerge dsize 2 =.
+dempty "a" 1 dput dempty "a" 2 dput dmerge "a" dget 2 =.
+
+(* dgetd - get with default *)
+dempty "a" 1 dput "a" 99 dgetd 1 =.
+dempty "a" 1 dput "x" 99 dgetd 99 =.
+
+(* nested values *)
+dempty "list" [1 2 3] dput "list" dget size 3 =.
+dempty "inner" dempty "x" 42 dput dput "inner" dget "x" dget 42 =.

@@ -125,6 +125,30 @@ void writefactor(pEnv env, Index n, FILE* fp)
 #endif
         break;
 
+    case DICT_: {
+        khash_t(Dict)* d = (khash_t(Dict)*)nodevalue(n).dict;
+        khint_t k;
+        int first = 1;
+        joy_fputs(env, "{", fp);
+        if (d) {
+            for (k = kh_begin(d); k != kh_end(d); ++k) {
+                if (kh_exist(d, k)) {
+                    if (!first)
+                        joy_fputs(env, " ", fp);
+                    first = 0;
+                    /* Print key */
+                    joy_putc(env, '"', fp);
+                    joy_fputs(env, kh_key(d, k), fp);
+                    joy_fputs(env, "\": ", fp);
+                    /* Print value */
+                    writefactor(env, kh_value(d, k), fp);
+                }
+            }
+        }
+        joy_fputs(env, "}", fp);
+        break;
+    }
+
     default:
         error(env, "a factor cannot begin with this symbol");
         break;
