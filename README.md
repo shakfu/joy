@@ -1,8 +1,8 @@
 # Joy
 
-A parallel-capable implementation of the Joy programming language.
+A parallel-capable implementation of the Manfred von Thun's Joy programming language.
 
-This implementation is a friendly fork of Ruurd Wiersma's [Joy implementation](https://github.com/Wodan58/Joy).
+This implementation is a friendly fork of Ruurd Wiersma's [Joy implementation](https://github.com/Wodan58/Joy), which I believe is based on Manfred von Thun's implementation.
 
 Build|Linux|Windows|Coverity
 ---|---|---|---
@@ -85,15 +85,25 @@ Joy supports vectorized operations on numeric lists and matrices (lists of lists
 [1 2 3] [4 5 6] v-.    (* -> [-3.0 -3.0 -3.0] *)
 [1 2 3] 10 vscale.     (* -> [10.0 20.0 30.0] *)
 [1 2 3] [4 5 6] dot.   (* -> 32.0 - dot product *)
+[1 0 0] [0 1 0] cross. (* -> [0.0 0.0 1.0] - cross product *)
 ```
 
-### Vector Reductions and Creation
+### Vector Norms and Reductions
 
 ```joy
+[3 4] vnorm.           (* -> 5.0 - Euclidean magnitude *)
+[3 4] vnormalize.      (* -> [0.6 0.8] - unit vector *)
 [1 2 3 4 5] vsum.      (* -> 15.0 *)
+[1 2 3 4 5] vmean.     (* -> 3.0 - arithmetic mean *)
 [5 2 8 1 9] vmax.      (* -> 9.0 *)
+```
+
+### Vector Creation
+
+```joy
 5 vzeros.              (* -> [0 0 0 0 0] *)
 1 5 vrange.            (* -> [1 2 3 4 5] *)
+0 1 5 vlinspace.       (* -> [0.0 0.25 0.5 0.75 1.0] *)
 ```
 
 ### Matrix Operations

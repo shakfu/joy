@@ -62,10 +62,11 @@ See `doc/architecture.md` for design rationale.
 - [x] **Vector operations** - Vectorized operators in `src/builtin/vector.c`
   - Element-wise: `v+`, `v-`, `v*`, `v/`
   - Scalar: `vscale`
-  - Linear algebra: `dot`
-  - Reductions: `vsum`, `vprod`, `vmin`, `vmax`
-  - Creation: `vzeros`, `vones`, `vrange`
-  - Tests: `tests/test2/vector.joy` (28 assertions)
+  - Linear algebra: `dot`, `cross`
+  - Reductions: `vsum`, `vprod`, `vmin`, `vmax`, `vmean`
+  - Norms: `vnorm`, `vnormalize`
+  - Creation: `vzeros`, `vones`, `vrange`, `vlinspace`
+  - Tests: `tests/test2/vector.joy` (42 assertions)
 
 - [x] **Matrix operations** - 2D array operations in `src/builtin/vector.c`
   - Element-wise: `m+`, `m-`, `m*`, `m/`
@@ -85,12 +86,6 @@ See `doc/vector_impl.md` for implementation details.
 ### Priority 1: High Value / Low-Medium Effort
 
 #### Numeric Computing
-
-- [ ] **Advanced vector operations** - Additional vector functionality
-  - `vnorm`, `vnormalize` - magnitude and unit vector
-  - `cross` - cross product (3D vectors)
-  - `vmean` - mean of elements
-  - `vlinspace` - linearly spaced values
 
 - [ ] **SIMD optimization** - Performance improvements for vector/matrix ops
   - Contiguous storage for homogeneous numeric lists

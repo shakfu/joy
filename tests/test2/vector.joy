@@ -41,4 +41,36 @@
 (* Mixed integer and float *)
 [1 2.0 3] [4.0 5 6.0] v+ [5.0 7.0 9.0] equal.
 
+(* vnorm - Euclidean magnitude *)
+[3 4] vnorm 5.0 equal.
+[1 0 0] vnorm 1.0 equal.
+[0 0 0] vnorm 0.0 equal.
+[1 2 2] vnorm 3.0 equal.
+
+(* vnormalize - unit vector *)
+[3 4] vnormalize [0.6 0.8] equal.
+[1 0 0] vnormalize [1.0 0.0 0.0] equal.
+[0 0 0] vnormalize [0.0 0.0 0.0] equal.
+
+(* cross - cross product *)
+[1 0 0] [0 1 0] cross [0.0 0.0 1.0] equal.
+[0 1 0] [0 0 1] cross [1.0 0.0 0.0] equal.
+[0 0 1] [1 0 0] cross [0.0 1.0 0.0] equal.
+[1 2 3] [4 5 6] cross [-3.0 6.0 -3.0] equal.
+[2 3 4] [5 6 7] cross [-3.0 6.0 -3.0] equal.
+
+(* vmean - arithmetic mean *)
+[1 2 3 4 5] vmean 3.0 equal.
+[10] vmean 10.0 equal.
+[-2 2] vmean 0.0 equal.
+[1.5 2.5 3.0] vmean dup 2.33 > swap 2.34 < and.
+
+(* vlinspace - linearly spaced values *)
+0 10 11 vlinspace [0.0 1.0 2.0 3.0 4.0 5.0 6.0 7.0 8.0 9.0 10.0] equal.
+0 1 2 vlinspace [0.0 1.0] equal.
+5 5 1 vlinspace [5.0] equal.
+0 10 0 vlinspace [] equal.
+0 4 5 vlinspace [0.0 1.0 2.0 3.0 4.0] equal.
+
 .
+

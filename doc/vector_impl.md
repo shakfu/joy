@@ -31,13 +31,16 @@ src/builtin/vector.c
     |   +-- vplus_(), vminus_(), vmul_(), vdiv_()
     |
     +-- Vector scalar/linear algebra
-    |   +-- vscale_(), dot_()
+    |   +-- vscale_(), dot_(), cross_()
     |
     +-- Vector reductions
-    |   +-- vsum_(), vprod_(), vmin_(), vmax_()
+    |   +-- vsum_(), vprod_(), vmin_(), vmax_(), vmean_()
+    |
+    +-- Vector norms
+    |   +-- vnorm_(), vnormalize_()
     |
     +-- Vector creation
-    |   +-- vzeros_(), vones_(), vrange_()
+    |   +-- vzeros_(), vones_(), vrange_(), vlinspace_()
     |
     +-- Matrix helpers (internal)
     |   +-- check_matrix()        - Validate list of lists structure
@@ -373,9 +376,14 @@ make test  # Runs all 182 tests including vector/matrix tests
 | `vprod` | `V -> N` | Product of elements |
 | `vmin` | `V -> N` | Minimum element |
 | `vmax` | `V -> N` | Maximum element |
+| `vnorm` | `V -> N` | Euclidean norm (magnitude) |
+| `vnormalize` | `V -> V2` | Unit vector in direction of V |
+| `vmean` | `V -> N` | Arithmetic mean of elements |
+| `cross` | `V1 V2 -> V3` | Cross product (3D vectors only) |
 | `vzeros` | `N -> V` | List of N zeros |
 | `vones` | `N -> V` | List of N ones |
 | `vrange` | `A B -> V` | List [A, A+1, ..., B] |
+| `vlinspace` | `A B N -> V` | N linearly spaced values from A to B |
 
 ### Matrix Operators
 

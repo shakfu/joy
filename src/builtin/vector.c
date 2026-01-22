@@ -652,6 +652,216 @@ void vrange_(pEnv env)
     free(values);
 }
 
+/* ========== Advanced vector operations ========== */
+
+/**
+Q0  OK  3530  vnorm  :  V  ->  N
+N is the Euclidean norm (magnitude) of numeric list V.
+*/
+void vnorm_(pEnv env)
+{
+    Index list, node;
+    int ok;
+    double sum = 0.0;
+
+    ONEPARAM("vnorm");
+    LIST("vnorm");
+
+    list = nodevalue(env->stck).lis;
+
+    for (node = list; node; node = nextnode1(node)) {
+        double val = get_numeric(env, node, &ok);
+        if (!ok) {
+            execerror(env, "numeric list", "vnorm");
+            return;
+        }
+        sum += val * val;
+    }
+
+    UNARY(FLOAT_NEWNODE, sqrt(sum));
+}
+
+/**
+Q0  OK  3540  vnormalize  :  V  ->  V2
+V2 is the unit vector in the direction of numeric list V.
+Returns zero vector if V has zero magnitude.
+*/
+void vnormalize_(pEnv env)
+{
+    Index list;
+    int len, i;
+    double *values, *result;
+    double norm = 0.0;
+
+    ONEPARAM("vnormalize");
+    LIST("vnormalize");
+
+    list = nodevalue(env->stck).lis;
+    len = check_numeric_list(env, list, "vnormalize");
+    if (len < 0) return;
+
+    if (len == 0) {
+        UNARY(LIST_NEWNODE, 0);
+        return;
+    }
+
+    values = malloc(len * sizeof(double));
+    result = malloc(len * sizeof(double));
+
+    extract_values(env, list, values, len);
+
+    /* Calculate norm */
+    for (i = 0; i < len; i++) {
+        norm += values[i] * values[i];
+    }
+    norm = sqrt(norm);
+
+    /* Normalize (handle zero vector) */
+    if (norm > 1e-15) {
+        for (i = 0; i < len; i++) {
+            result[i] = values[i] / norm;
+        }
+    } else {
+        for (i = 0; i < len; i++) {
+            result[i] = 0.0;
+        }
+    }
+
+    UNARY(LIST_NEWNODE, build_float_list(env, result, len));
+
+    free(values);
+    free(result);
+}
+
+/**
+Q0  OK  3550  cross  :  V1 V2  ->  V3
+V3 is the cross product of 3D vectors V1 and V2.
+Both vectors must have exactly 3 elements.
+*/
+void cross_(pEnv env)
+{
+    Index list1, list2;
+    int len1, len2;
+    double a[3], b[3], result[3];
+
+    TWOPARAMS("cross");
+    LIST("cross");
+    LIST2("cross");
+
+    list2 = nodevalue(env->stck).lis;
+    list1 = nodevalue(nextnode1(env->stck)).lis;
+
+    len2 = check_numeric_list(env, list2, "cross");
+    if (len2 < 0) return;
+    len1 = check_numeric_list(env, list1, "cross");
+    if (len1 < 0) return;
+
+    if (len1 != 3 || len2 != 3) {
+        execerror(env, "3-element vectors", "cross");
+        return;
+    }
+
+    extract_values(env, list1, a, 3);
+    extract_values(env, list2, b, 3);
+
+    /* Cross product: a x b */
+    result[0] = a[1] * b[2] - a[2] * b[1];
+    result[1] = a[2] * b[0] - a[0] * b[2];
+    result[2] = a[0] * b[1] - a[1] * b[0];
+
+    BINARY(LIST_NEWNODE, build_float_list(env, result, 3));
+}
+
+/**
+Q0  OK  3560  vmean  :  V  ->  N
+N is the arithmetic mean of all elements in numeric list V.
+*/
+void vmean_(pEnv env)
+{
+    Index list, node;
+    int ok, count = 0;
+    double sum = 0.0;
+
+    ONEPARAM("vmean");
+    LIST("vmean");
+
+    list = nodevalue(env->stck).lis;
+
+    if (!list) {
+        execerror(env, "non-empty list", "vmean");
+        return;
+    }
+
+    for (node = list; node; node = nextnode1(node)) {
+        double val = get_numeric(env, node, &ok);
+        if (!ok) {
+            execerror(env, "numeric list", "vmean");
+            return;
+        }
+        sum += val;
+        count++;
+    }
+
+    UNARY(FLOAT_NEWNODE, sum / count);
+}
+
+/**
+Q0  OK  3570  vlinspace  :  A B N  ->  V
+V is a list of N linearly spaced values from A to B inclusive.
+*/
+void vlinspace_(pEnv env)
+{
+    int64_t n;
+    int i, ok;
+    double a, b, step;
+    double *result;
+
+    THREEPARAMS("vlinspace");
+    POSITIVEINDEX(env->stck, "vlinspace");
+
+    n = nodevalue(env->stck).num;
+    POP(env->stck);
+
+    b = get_numeric(env, env->stck, &ok);
+    if (!ok) {
+        execerror(env, "numeric end value", "vlinspace");
+        return;
+    }
+    POP(env->stck);
+
+    a = get_numeric(env, env->stck, &ok);
+    if (!ok) {
+        execerror(env, "numeric start value", "vlinspace");
+        return;
+    }
+
+    if (n == 0) {
+        UNARY(LIST_NEWNODE, 0);
+        return;
+    }
+
+    if (n == 1) {
+        result = malloc(sizeof(double));
+        result[0] = a;
+        UNARY(LIST_NEWNODE, build_float_list(env, result, 1));
+        free(result);
+        return;
+    }
+
+    result = malloc(n * sizeof(double));
+    step = (b - a) / (n - 1);
+
+    for (i = 0; i < n; i++) {
+        result[i] = a + i * step;
+    }
+    /* Ensure last element is exactly b (avoid floating point drift) */
+    result[n - 1] = b;
+
+    UNARY(LIST_NEWNODE, build_float_list(env, result, (int)n));
+
+    free(result);
+}
+
 /* ========== Matrix helpers ========== */
 
 /*

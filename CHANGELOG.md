@@ -13,9 +13,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Vector operations** - Vectorized operators on numeric lists (`src/builtin/vector.c`)
   - Element-wise: `v+`, `v-`, `v*`, `v/` - arithmetic on pairs of numeric lists
   - Scalar: `vscale` - multiply all elements by a scalar
-  - Linear algebra: `dot` - dot product of two vectors
-  - Reductions: `vsum`, `vprod`, `vmin`, `vmax` - reduce list to single value
-  - Creation: `vzeros`, `vones`, `vrange` - generate numeric lists
+  - Linear algebra: `dot` - dot product, `cross` - cross product (3D)
+  - Reductions: `vsum`, `vprod`, `vmin`, `vmax`, `vmean` - reduce list to single value
+  - Norms: `vnorm` - Euclidean magnitude, `vnormalize` - unit vector
+  - Creation: `vzeros`, `vones`, `vrange`, `vlinspace` - generate numeric lists
 - **Matrix operations** - 2D array operations on lists of lists
   - Element-wise: `m+`, `m-`, `m*`, `m/` - arithmetic on pairs of matrices
   - Scalar: `mscale` - multiply all elements by a scalar
@@ -23,7 +24,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Properties: `det` (determinant), `inv` (inverse), `trace`
   - Creation: `meye` - identity matrix
 - `doc/vector_impl.md` - Implementation documentation for vector/matrix operations
-- `tests/test2/vector.joy` - Test suite for vector operations (28 assertions)
+- `tests/test2/vector.joy` - Test suite for vector operations (42 assertions)
 - `tests/test2/matrix.joy` - Test suite for matrix operations (26 assertions)
 
 ### Changed
