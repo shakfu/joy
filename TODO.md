@@ -57,19 +57,18 @@ See `doc/parallel.md` for user guide and examples.
 
 See `doc/architecture.md` for design rationale.
 
----
-
-## TODO (Prioritized)
-
 ### Vector Operations (January 2026)
 
-- [x] **Basic vector operations** - Initial vectorized operators
+- [x] **Basic vector operations** - Initial vectorized operators in `src/builtin/vector.c`
   - Element-wise: `v+`, `v-`, `v*`, `v/`
   - Scalar: `vscale`
   - Linear algebra: `dot`
   - Reductions: `vsum`, `vprod`, `vmin`, `vmax`
   - Creation: `vzeros`, `vones`, `vrange`
-  - See `doc/vector.md` for design, `src/builtin/vector.c` for implementation
+  - Tests: `tests/test2/vector.joy` (28 assertions)
+
+See `doc/vector.md` for design rationale.
+See `doc/vector_impl.md` for implementation details.
 
 ---
 
@@ -77,12 +76,19 @@ See `doc/architecture.md` for design rationale.
 
 ### Priority 1: High Value / Low-Medium Effort
 
-#### Numeric Computing (Phase 2)
+#### Numeric Computing
 
 - [ ] **Matrix operations** - 2D array operations
   - `mm` (matmul), `mv` (matrix-vector), `transpose`
-  - `det`, `inv`, `trace`, `meye`
-  - Internal SIMD optimization for contiguous numeric lists
+  - `m+`, `m-`, `m*`, `mscale` - element-wise and scalar operations
+  - `det`, `inv`, `trace`, `meye` - linear algebra
+  - See `doc/vector.md` for design
+
+- [ ] **Advanced vector operations** - Additional vector functionality
+  - `vnorm`, `vnormalize` - magnitude and unit vector
+  - `cross` - cross product (3D vectors)
+  - `vmean` - mean of elements
+  - `vlinspace` - linearly spaced values
 
 #### Extended Parallel Combinators
 
@@ -201,6 +207,13 @@ See `doc/architecture.md` for design rationale.
 All of these now work correctly:
 
 ```joy
+(* Vector operations *)
+[1 2 3] [4 5 6] v+.                                       (* -> [5.0 7.0 9.0] *)
+[1 2 3] [4 5 6] dot.                                      (* -> 32.0 *)
+[1 2 3 4 5] vsum.                                         (* -> 15.0 *)
+[1 2 3] 10 vscale.                                        (* -> [10.0 20.0 30.0] *)
+1 5 vrange.                                               (* -> [1 2 3 4 5] *)
+
 (* Iterative combinators *)
 [1 2 3 4] [10 [dup +] times] pmap.                        (* -> [1024 2048 3072 4096] *)
 [10 20 30 40] [[0 >] [1 -] while] pmap.                   (* -> [0 0 0 0] *)
@@ -208,6 +221,9 @@ All of these now work correctly:
 (* Recursive combinators *)
 [5 6 7 8] [[0 =] [pop 1] [dup 1 -] [*] linrec] pmap.     (* -> [120 720 5040 40320] *)
 [100 500 1000] [[0 =] [] [dup 1 -] [+] linrec] pmap.     (* -> [5050 125250 500500] *)
+
+(* Vectors with parallel execution *)
+[[1 2 3] [4 5 6] [7 8 9]] [[10 10 10] v+] pmap.          (* -> [[11 12 13] [14 15 16] [17 18 19]] *)
 
 (* Stress test *)
 [1 2 3 4 5 6 7 8] [1000000 [dup * 2 mod] times] pmap.    (* 1M iterations - works! *)
@@ -223,11 +239,15 @@ All of these now work correctly:
 | `doc/parallel_fixes.md` | Technical documentation of parallel execution fixes |
 | `doc/parallel_performance.md` | Performance benchmarks and usage guidelines |
 | `doc/vector.md` | Vector/matrix operations design document |
+| `doc/vector_impl.md` | Vector operations implementation guide |
 | `doc/architecture.md` | Architecture review and improvement plan |
 | `include/parallel.h` | Parallel infrastructure (`copy_node_to_parent`) |
+| `include/joy/joy.h` | Public API header for embedding |
 | `src/utils.c` | GC and memory management (`copy` function) |
 | `src/interp.c` | Interpreter (`copy_body_from_parent`) |
 | `src/builtin/parallel.c` | Parallel combinators (pmap, pfork) |
-| `src/builtin/*.c` | Grouped builtin implementations (18 files) |
+| `src/builtin/vector.c` | Vector operations (v+, v-, dot, vsum, etc.) |
+| `src/builtin/*.c` | Grouped builtin implementations (19 files) |
+| `tests/test2/vector.joy` | Vector operations test suite |
 | `tests/parallel_benchmark.sh` | Wall-time benchmark script |
 | `tests/parallel_benchmark.joy` | CPU-time benchmark (Joy) |
