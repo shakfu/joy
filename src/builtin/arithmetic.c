@@ -9,11 +9,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "plusminus.h"
-#include "predsucc.h"
-#include "maxmin.h"
-#include "ufloat.h"
-#include "bfloat.h"
 
 /* Arithmetic operations */
 /**

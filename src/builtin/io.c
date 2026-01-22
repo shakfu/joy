@@ -11,9 +11,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "fileget.h"
-#include "push.h"
-#include "usetop.h"
 
 /* I/O operations */
 /**

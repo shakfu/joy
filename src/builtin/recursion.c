@@ -10,7 +10,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "boolean.h"
 
 /* Forward declarations for mutually recursive aux functions */
 void condnestrecaux(pEnv env);

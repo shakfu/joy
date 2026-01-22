@@ -10,9 +10,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "type.h"
-#include "if_type.h"
-#include "boolean.h"
 
 /* Type operations */
 /**

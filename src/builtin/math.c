@@ -9,8 +9,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "ufloat.h"
-#include "bfloat.h"
 
 /* Math operations */
 /**

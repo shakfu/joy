@@ -9,8 +9,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "boolean.h"
-#include "decode.h"
 
 /* Control flow operations */
 /**

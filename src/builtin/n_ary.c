@@ -9,7 +9,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "n_ary.h"
 
 /* N-ary operations */
 /**

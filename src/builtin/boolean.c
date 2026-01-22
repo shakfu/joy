@@ -8,8 +8,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "boolean.h"
-#include "someall.h"
 
 /* Boolean operations */
 /**

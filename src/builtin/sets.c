@@ -8,8 +8,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "andorxor.h"
-#include "inhas.h"
 
 /* Set operations */
 /**

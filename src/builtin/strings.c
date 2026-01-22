@@ -8,7 +8,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "ordchr.h"
 
 /* String operations */
 /**

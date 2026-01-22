@@ -13,7 +13,6 @@
 #include <stdlib.h>
 
 /* Include shared helper headers */
-#include "unmktime.h"
 
 /* Helper for rand_ */
 static int joy_random(void)

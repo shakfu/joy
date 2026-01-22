@@ -9,9 +9,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "compare.h"
-#include "comprel.h"
-#include "comprel2.h"
 
 /* Comparison operations */
 /**

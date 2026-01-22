@@ -10,9 +10,6 @@
 #include "globals.h"
 
 /* Include shared helper headers */
-#include "boolean.h"
-#include "cons_swons.h"
-#include "of_at.h"
 
 /* List operations */
 /**
