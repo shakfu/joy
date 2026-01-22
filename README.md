@@ -151,6 +151,98 @@ Joy supports vectorized operations on numeric lists and matrices (lists of lists
 
 All operations include error handling for type mismatches and dimension errors.
 
+## Local Bindings
+
+The `let` combinator binds stack values to names within a quotation, making complex stack manipulation more readable:
+
+```joy
+(* Syntax: X1 X2 ... Xn [name1 name2 ... namen] [body] let -> result *)
+
+(* Without let - confusing stack juggling *)
+(* Calculate (a + b) * (a - b) for a=10, b=20 *)
+10 20 dup2 + rolldown - *.    (* -> -300 *)
+
+(* With let - clear and direct *)
+10 20 [a b] [a b + a b - *] let.    (* -> -300 *)
+
+(* Point distance: sqrt((x2-x1)^2 + (y2-y1)^2) *)
+0 0 3 4 [x1 y1 x2 y2] [
+    x2 x1 - dup *
+    y2 y1 - dup * + sqrt
+] let.    (* -> 5.0 *)
+
+(* Using let in definitions *)
+DEFINE pyth == [a b] [a a * b b * + sqrt] let.
+3 4 pyth.    (* -> 5.0 *)
+```
+
+**Note:** Names must be user symbols, not builtins (`i` and `x` are reserved; other letters work fine).
+
+## Pattern Matching
+
+Pattern matching enables destructuring and dispatch based on value structure:
+
+### `match` - Single Pattern
+
+```joy
+(* Syntax: value [pattern] [action] match -> result | false *)
+
+(* Variable binding *)
+5 [n] [n n *] match.           (* -> 25 *)
+
+(* List destructuring with cons pattern *)
+[1 2 3] [[h : t]] [h] match.   (* -> 1 *)
+[1 2 3] [[h : t]] [t] match.   (* -> [2 3] *)
+
+(* Exact list pattern *)
+[1 2 3] [[a b c]] [a b + c +] match.   (* -> 6 *)
+
+(* Wildcard *)
+"anything" [_] [42] match.     (* -> 42 *)
+
+(* Literal match *)
+5 [5] [true] match.            (* -> true *)
+5 [6] [true] match.            (* -> false - no match *)
+```
+
+### `cases` - Multi-Pattern Dispatch
+
+```joy
+(* Syntax: value [[pat1] [act1]] [[pat2] [act2]] ... cases -> result *)
+
+(* Factorial with pattern matching *)
+DEFINE fact ==
+    [[[0] [1]]
+     [[n] [n 1 - fact n *]]] cases.
+5 fact.    (* -> 120 *)
+
+(* Safe head with default *)
+DEFINE safehead ==
+    [[[[]] [0]]
+     [[[h : _]] [h]]] cases.
+[] safehead.       (* -> 0 *)
+[5 6 7] safehead.  (* -> 5 *)
+
+(* List length *)
+DEFINE len ==
+    [[[[]] [0]]
+     [[[_ : t]] [t len 1 +]]] cases.
+[1 2 3 4] len.    (* -> 4 *)
+```
+
+### Pattern Syntax
+
+| Pattern | Matches | Binds |
+|---------|---------|-------|
+| `0`, `"hi"`, `true` | Literal value | nothing |
+| `_` | Anything (wildcard) | nothing |
+| `n` | Anything | `n` = matched value |
+| `[h : t]` | Non-empty list | `h` = head, `t` = tail |
+| `[a b c]` | Exactly 3 elements | `a`, `b`, `c` = elements |
+| `[]` | Empty list | nothing |
+
+**Note:** The `:` in cons patterns follows Haskell convention and disambiguates `[h : t]` (1+ elements) from `[h t]` (exactly 2 elements).
+
 ### Performance
 
 Vector and matrix operations use SIMD vectorization via `#pragma omp simd` directives, enabling automatic use of SSE/AVX instructions on modern CPUs. This is enabled by default with the `-fopenmp-simd` compiler flag.
@@ -198,7 +290,7 @@ cmake --build .
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug ..
 cmake --build .
-ctest  # Run all 182 tests
+ctest  # Run all 185 tests
 ```
 
 ### Windows (MSVC)
@@ -250,6 +342,9 @@ Or manually:
 ```bash
 ./joy tests/parallel_test.joy
 ./joy tests/parallel_benchmark.joy
+./joy tests/test2/match.joy      # Pattern matching tests
+./joy tests/test2/cases.joy      # Multi-pattern dispatch tests
+./joy tests/test2/let.joy        # Local bindings tests
 ```
 
 ## Architecture
