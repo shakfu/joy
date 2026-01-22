@@ -140,17 +140,61 @@ See `doc/vector_impl.md` for implementation details.
   - Reduces stack juggling for complex expressions
 
 - [ ] **Pattern matching** - Match and destructure values
-  - `value [[pattern1] [action1]] [[pattern2] [action2]] cases`
-  - `[1 2 3] [[[x . xs]] [x xs]] match` -> `1 [2 3]`
+
+  **Combinators:**
+  - `cases` - Multi-pattern dispatch: `value [[pat1] [act1]] [[pat2] [act2]] ... cases`
+  - `match` - Single pattern: `value [pattern] [action] match`
+
+  **Pattern syntax:**
+  | Pattern | Matches | Binds |
+  |---------|---------|-------|
+  | `0`, `"hi"`, `true` | Literal value | nothing |
+  | `_` | Anything (wildcard) | nothing |
+  | `x` | Anything | `x` = matched value |
+  | `[x : xs]` | Non-empty list | `x` = head, `xs` = tail |
+  | `[a b c]` | Exactly 3-element list | `a`, `b`, `c` = elements |
+  | `[]` | Empty list | nothing |
+
+  Note: `:` follows Haskell convention and disambiguates `[x : xs]` (1+ elements)
+  from `[x xs]` (exactly 2 elements).
+
+  **Examples:**
+  ```joy
+  (* Destructure list *)
+  [1 2 3] [[x : xs]] [x xs] match .       (* -> 1 [2 3] *)
+
+  (* Factorial with pattern matching *)
+  fact == [[0] [pop 1]]
+          [[_] [dup 1 - fact *]] cases.
+  5 fact .                                 (* -> 120 *)
+
+  (* Safe head with default *)
+  safehead == [[[]      ] [pop 0]]
+              [[[x : _ ]] [x    ]] cases.
+  [] safehead .                            (* -> 0 *)
+  [5 6] safehead .                         (* -> 5 *)
+
+  (* List length *)
+  len == [[[]       ] [pop 0          ]]
+         [[[_ : xs ]] [pop xs len 1 +]] cases.
+  [1 2 3 4] len .                          (* -> 4 *)
+  ```
+
+  **Difference from existing combinators:**
+  - `ifte` - Tests conditions, doesn't destructure
+  - `opcase` - Dispatches on type, doesn't bind parts
+  - `cases`/`match` - Destructures AND binds in one step
 
 - [ ] **Lazy sequences** - Infinite/deferred lists
   - `1 [1 +] iterate` -> lazy `[1 2 3 4 ...]`
   - `lazy-seq 10 take` -> `[1 2 3 4 5 6 7 8 9 10]`
   - Generators: `[yield-value] generator`
 
-- [ ] **Hash tables** - Dictionary/map data structure
-  - `{key1 val1 key2 val2}` literal syntax or `alist>hash`
-  - `hash key get`, `hash key val put`, `hash keys`, `hash vals`
+- [ ] **Dictionaries** - Key-value data structure
+  - Note: `{...}` is already Joy's set literal syntax
+  - `d{"name" "Alice" "age" 30}` literal syntax (consistent with `v[...]`, `m[[...]]`)
+  - Or constructor: `[["name" "Alice"] ["age" 30]] >dict`
+  - `dict key get`, `dict key val put`, `dict keys`, `dict vals`
 
 #### Data Formats
 
