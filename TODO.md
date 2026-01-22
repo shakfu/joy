@@ -29,12 +29,11 @@ See `doc/parallel.md` for user guide and examples.
 ### Architecture Refactoring (January 2026)
 
 - [x] **Group related builtins** - Reduced 229 files to 18 grouped files
-  - Individual files moved to `src/builtin/individual/`
   - Grouped files in `src/builtin/`: `arithmetic.c`, `aggregate.c`, `boolean.c`,
     `combinators.c`, `comparison.c`, `config.c`, `control.c`, `internal.c`,
     `io.c`, `math.c`, `n_ary.c`, `parallel.c`, `recursion.c`, `sets.c`,
     `stacks.c`, `strings.c`, `systems.c`, `type.c`
-  - Build system updated (`gen_builtins.py`, `CMakeLists.txt`)
+  - Build system updated (`gen_builtins.py`, `gen_table.py`, `CMakeLists.txt`)
 
 - [x] **Extract Env sub-structs** - Refactored monolithic Env struct
   - `EnvConfig` - configuration flags (autoput, echoflag, debugging, etc.)
@@ -42,32 +41,25 @@ See `doc/parallel.md` for user guide and examples.
   - `EnvScanner` - scanner/lexer state (srcfile, linenum, linebuf, infile[])
   - `EnvError` - error handling state (message, line, column)
 
+- [x] **Add inline node accessors** - Type-safe alternatives to macros
+  - `node_type()`, `node_value()`, `node_next()`, `node_next2()` in `globals.h`
+  - Macros retained for performance-critical paths
+  - Better debugging, IDE support, type safety
+
+- [x] **Document macro contracts** - Added documentation
+  - `@requires`, `@param`, `@modifies` annotations in `macros.h`, `runtime.h`
+  - Examples for all major macro categories
+  - Stack effects documented for NULLARY/UNARY/BINARY
+
+- [x] **Standardize naming conventions** - Incremental
+  - Core functions use `module_action` pattern
+  - Removed `my_` prefix from public functions (remaining only in static helpers)
+
 See `doc/architecture.md` for design rationale.
 
 ---
 
 ## TODO (Prioritized)
-
-### Priority 0: Architecture & Code Quality
-
-*See `doc/architecture.md` for details.*
-
-#### Code Quality
-
-- [ ] **Add inline node accessors** - Replace some macros
-  - `node_type()`, `node_value()`, `node_next()`
-  - Keep macros as fallback for performance-critical paths
-  - Better debugging, IDE support, type safety
-
-- [ ] **Document macro contracts** - Add documentation
-  - Required preconditions (e.g., `env` in scope)
-  - Side effects and modifications
-  - Examples
-
-- [ ] **Standardize naming conventions** - Incremental
-  - Functions: `module_action` pattern (e.g., `scan_symbol`)
-  - Remove `my_` prefix from functions
-  - Consistent case: snake_case for functions
 
 ### Priority 1: High Value / Low-Medium Effort
 
@@ -223,6 +215,6 @@ All of these now work correctly:
 | `src/utils.c` | GC and memory management (`copy` function) |
 | `src/interp.c` | Interpreter (`copy_body_from_parent`) |
 | `src/builtin/parallel.c` | Parallel combinators (pmap, pfork) |
-| `src/builtin/individual/` | Individual builtin implementations (229 files) |
+| `src/builtin/*.c` | Grouped builtin implementations (18 files) |
 | `tests/parallel_benchmark.sh` | Wall-time benchmark script |
 | `tests/parallel_benchmark.joy` | CPU-time benchmark (Joy) |
