@@ -13,7 +13,7 @@
         ONEQUOTE(NAME);                                                       \
         SAVESTACK;                                                            \
         POP(env->stck);                                                       \
-        exeterm(env, nodevalue(SAVED1).lis);                                  \
+        exec_term(env, nodevalue(SAVED1).lis);                                  \
         CHECKVALUE(NAME);                                                     \
         env->stck = newnode2(env, env->stck, TOP);                            \
         POP(env->dump);                                                       \

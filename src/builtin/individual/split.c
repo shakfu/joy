@@ -27,7 +27,7 @@ void split_(pEnv env)
         for (; i < SETSIZE; i++)
             if (nodevalue(SAVED2).set & ((int64_t)1 << i)) {
                 env->stck = INTEGER_NEWNODE(i, SAVED3);
-                exeterm(env, nodevalue(SAVED1).lis);
+                exec_term(env, nodevalue(SAVED1).lis);
                 CHECKSTACK("split");
                 result = get_boolean(env, env->stck);
                 if (result)
@@ -43,7 +43,7 @@ void split_(pEnv env)
         nostring = malloc(nodeleng(SAVED2) + 1);
         for (str = strdup((char*)&nodevalue(SAVED2)); str[i]; i++) {
             env->stck = CHAR_NEWNODE(str[i], SAVED3);
-            exeterm(env, nodevalue(SAVED1).lis);
+            exec_term(env, nodevalue(SAVED1).lis);
             CHECKSTACK("split");
             result = get_boolean(env, env->stck);
             if (result)
@@ -67,7 +67,7 @@ void split_(pEnv env)
         env->dump5 = LIST_NEWNODE(0, env->dump5); /* last false */
         for (; DMP1; DMP1 = nextnode1(DMP1)) {
             env->stck = newnode2(env, DMP1, SAVED3);
-            exeterm(env, nodevalue(SAVED1).lis);
+            exec_term(env, nodevalue(SAVED1).lis);
             CHECKSTACK("split");
             temp = newnode2(env, DMP1, 0);
             result = get_boolean(env, env->stck);

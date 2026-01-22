@@ -252,7 +252,7 @@ static inline void execute_parallel_task(void* context)
 
     /* Execute with error handling */
     if (setjmp(env->error_jmp) == 0) {
-        exeterm(env, task->quotation);
+        exec_term(env, task->quotation);
         task->result = env->stck;
         task->has_error = 0;
     } else {

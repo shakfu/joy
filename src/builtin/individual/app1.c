@@ -16,7 +16,7 @@ void app1_(pEnv env)
     ONEQUOTE("app1");
     SAVESTACK;
     POP(env->stck);
-    exeterm(env, nodevalue(SAVED1).lis);
+    exec_term(env, nodevalue(SAVED1).lis);
     POP(env->dump);
 }
 #endif

@@ -28,10 +28,10 @@ void case_(pEnv env)
     CHECKLIST(nodetype(n), "case");
     if (nextnode1(n)) {
         env->stck = nextnode2(env->stck);
-        exeterm(env, nextnode1(nodevalue(n).lis));
+        exec_term(env, nextnode1(nodevalue(n).lis));
     } else {
         env->stck = nextnode1(env->stck);
-        exeterm(env, nodevalue(n).lis);
+        exec_term(env, nodevalue(n).lis);
     }
 }
 #endif

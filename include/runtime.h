@@ -1,7 +1,55 @@
 /*
  *  module  : runtime.h
- *  version : 1.3
- *  date    : 11/11/24
+ *  version : 1.4
+ *  date    : 01/22/26
+ *
+ *  Runtime validation macros for Joy builtins.
+ *
+ *  IMPORTANT: All macros require 'pEnv env' to be in scope.
+ *
+ *  These macros provide runtime parameter checking for builtins. When NCHECK
+ *  is defined, all checks become no-ops for maximum performance (use only
+ *  after thorough testing).
+ *
+ *  Macro Categories:
+ *
+ *  1. Stack Depth Checks:
+ *     ONEPARAM, TWOPARAMS, THREEPARAMS, FOURPARAMS, FIVEPARAMS
+ *     - Verify minimum number of items on stack
+ *     - Call execerror() and return on failure
+ *
+ *  2. Type Checks (single parameter):
+ *     ONEQUOTE, STRING, INTEGER, CHARACTER, FLOAT, LIST, USERDEF, ISFILE
+ *     - Verify top of stack is expected type
+ *
+ *  3. Type Checks (multiple parameters):
+ *     TWOQUOTES, THREEQUOTES, FOURQUOTES - Multiple quotations
+ *     STRING2, INTEGER2, NUMERIC2, LIST2 - Second parameter type
+ *     INTEGERS2, FLOAT2, SAME2TYPES - Both parameters
+ *
+ *  4. Value Checks:
+ *     CHECKZERO, CHECKDIVISOR - Non-zero values
+ *     CHECKEMPTYSET, CHECKEMPTYSTRING, CHECKEMPTYLIST - Non-empty
+ *     POSITIVEINDEX - Non-negative integer
+ *     CHECKSETMEMBER - Valid set element (0-63)
+ *
+ *  5. Float Conversion Helpers:
+ *     FLOATABLE, FLOATABLE2, FLOATVAL, FLOATVAL2
+ *     FLOAT_U, FLOAT_P, FLOAT_I - Apply float operations
+ *
+ *  Usage Pattern:
+ *     void plus_(pEnv env) {
+ *         TWOPARAMS("+");       // Need 2 params
+ *         INTEGERS2("+");       // Both must be integers
+ *         BINARY(INTEGER_NEWNODE,
+ *                nodevalue(nextnode1(env->stck)).num +
+ *                nodevalue(env->stck).num);
+ *     }
+ */
+
+/*
+ * Float conversion helpers - check if values can be treated as floats
+ * and extract float values from INTEGER_ or FLOAT_ nodes.
  */
 #define FLOATABLE                                                             \
     (nodetype(env->stck) == INTEGER_ || nodetype(env->stck) == FLOAT_)
@@ -35,7 +83,20 @@
         return;                                                               \
     }
 
+/*
+ * Parameter validation macros (active when NCHECK is not defined)
+ *
+ * These macros check preconditions and call execerror() + return on failure.
+ * The NAME parameter is used in error messages to identify the failing op.
+ *
+ * All macros have these properties:
+ * @requires: env in scope
+ * @param NAME: String name of operation (for error messages)
+ * @modifies: Nothing on success; calls execerror() and returns on failure
+ */
 #ifndef NCHECK
+
+/* Stack depth checks - verify minimum items on stack */
 #define ONEPARAM(NAME)                                                        \
     if (!env->stck) {                                                         \
         execerror(env, "one parameter", NAME);                                \
@@ -63,6 +124,8 @@
         execerror(env, "five parameters", NAME);                              \
         return;                                                               \
     }
+
+/* Type checks - verify stack items are expected types */
 #define ONEQUOTE(NAME)                                                        \
     if (nodetype(env->stck) != LIST_) {                                       \
         execerror(env, "quotation as top parameter", NAME);                   \
@@ -250,6 +313,8 @@
         execerror(env, "non-negative integer", NAME);                         \
         return;                                                               \
     }
+
+/* Error macros - report specific error conditions */
 #define INDEXTOOLARGE(NAME)                                                   \
     {                                                                         \
         execerror(env, "smaller index", NAME);                                \
@@ -266,6 +331,10 @@
         return;                                                               \
     }
 #else
+/*
+ * NCHECK mode: All validation macros become no-ops.
+ * Use only after thorough testing for maximum performance.
+ */
 #define ONEPARAM(NAME)
 #define TWOPARAMS(NAME)
 #define THREEPARAMS(NAME)
@@ -311,6 +380,15 @@
 #define BADDATA(NAME)
 #endif
 
+/*
+ * Dump stack macros - for saving/restoring state during combinator execution
+ *
+ * The dump is a stack of saved states used by combinators like 'dip', 'i',
+ * and recursive combinators. DMP/DMP1-5 access the list inside dump nodes.
+ * SAVESTACK pushes current stack onto dump. SAVED1-6 access saved values.
+ *
+ * @requires: env in scope
+ */
 #define DMP nodevalue(env->dump).lis
 #define DMP1 nodevalue(env->dump1).lis
 #define DMP2 nodevalue(env->dump2).lis

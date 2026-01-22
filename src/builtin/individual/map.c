@@ -28,7 +28,7 @@ void map_(pEnv env)
         env->dump3 = LIST_NEWNODE(0, env->dump3); /* last new */
         for (; DMP1; DMP1 = nextnode1(DMP1)) {
             env->stck = newnode2(env, DMP1, SAVED3);
-            exeterm(env, nodevalue(SAVED1).lis);
+            exec_term(env, nodevalue(SAVED1).lis);
             CHECKSTACK("map");
             temp = newnode2(env, env->stck, 0);
             if (!DMP2) { /* first */
@@ -47,7 +47,7 @@ void map_(pEnv env)
     case STRING_:
         for (str = strdup((char*)&nodevalue(SAVED2)); str[i]; i++) {
             env->stck = CHAR_NEWNODE(str[i], SAVED3);
-            exeterm(env, nodevalue(SAVED1).lis);
+            exec_term(env, nodevalue(SAVED1).lis);
             CHECKSTACK("map");
             str[j++] = nodevalue(env->stck).num;
         }
@@ -59,7 +59,7 @@ void map_(pEnv env)
         for (set = 0; i < SETSIZE; i++)
             if (nodevalue(SAVED2).set & ((int64_t)1 << i)) {
                 env->stck = INTEGER_NEWNODE(i, SAVED3);
-                exeterm(env, nodevalue(SAVED1).lis);
+                exec_term(env, nodevalue(SAVED1).lis);
                 CHECKSTACK("map");
                 set |= ((int64_t)1 << nodevalue(env->stck).num);
             }

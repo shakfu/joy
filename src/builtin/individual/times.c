@@ -21,7 +21,7 @@ void times_(pEnv env)
     env->stck = nextnode2(env->stck);
     n = nodevalue(SAVED2).num;
     for (i = 0; i < n; i++)
-        exeterm(env, nodevalue(SAVED1).lis);
+        exec_term(env, nodevalue(SAVED1).lis);
     POP(env->dump);
 }
 #endif

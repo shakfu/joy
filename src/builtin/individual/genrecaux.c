@@ -20,21 +20,21 @@ void genrecaux_(pEnv env)
 
     SAVESTACK;
     POP(env->stck);
-    exeterm(env, nodevalue(nodevalue(SAVED1).lis).lis); /* [B] */
+    exec_term(env, nodevalue(nodevalue(SAVED1).lis).lis); /* [B] */
     CHECKSTACK("genrecaux");
     result = get_boolean(env, env->stck);
     env->stck = SAVED2;
     if (result)
-        exeterm(env,
+        exec_term(env,
                 nodevalue(nextnode1(nodevalue(SAVED1).lis)).lis); /* [T] */
     else {
-        exeterm(env,
+        exec_term(env,
                 nodevalue(nextnode2(nodevalue(SAVED1).lis)).lis); /* [R1] */
         NULLARY(LIST_NEWNODE, nodevalue(SAVED1).lis);
         temp = ANON_FUNCT_NEWNODE(genrecaux_, 0);
         NULLARY(LIST_NEWNODE, temp);
         cons_(env);
-        exeterm(env, nextnode3(nodevalue(SAVED1).lis)); /* [R2] */
+        exec_term(env, nextnode3(nodevalue(SAVED1).lis)); /* [R2] */
     }
     POP(env->dump);
 }

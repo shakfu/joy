@@ -237,7 +237,7 @@ JoyResult joy_eval_string(JoyContext* ctx, const char* source)
         } else {
             ch = readterm(env, ch);
             if (env->stck) {
-                exeterm(env, nodevalue(env->stck).lis);
+                exec_term(env, nodevalue(env->stck).lis);
                 env->stck = nextnode1(env->stck);
             }
             /* readterm reads until terminator, check if it's '.' */

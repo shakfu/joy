@@ -26,41 +26,31 @@ See `doc/parallel_fixes.md` for technical details.
 See `doc/parallel_performance.md` for benchmark results and usage guidelines.
 See `doc/parallel.md` for user guide and examples.
 
+### Architecture Refactoring (January 2026)
+
+- [x] **Group related builtins** - Reduced 229 files to 18 grouped files
+  - Individual files moved to `src/builtin/individual/`
+  - Grouped files in `src/builtin/`: `arithmetic.c`, `aggregate.c`, `boolean.c`,
+    `combinators.c`, `comparison.c`, `config.c`, `control.c`, `internal.c`,
+    `io.c`, `math.c`, `n_ary.c`, `parallel.c`, `recursion.c`, `sets.c`,
+    `stacks.c`, `strings.c`, `systems.c`, `type.c`
+  - Build system updated (`gen_builtins.py`, `CMakeLists.txt`)
+
+- [x] **Extract Env sub-structs** - Refactored monolithic Env struct
+  - `EnvConfig` - configuration flags (autoput, echoflag, debugging, etc.)
+  - `EnvStats` - runtime statistics (nodes, avail, collect, calls, opers)
+  - `EnvScanner` - scanner/lexer state (srcfile, linenum, linebuf, infile[])
+  - `EnvError` - error handling state (message, line, column)
+
+See `doc/architecture.md` for design rationale.
+
 ---
 
 ## TODO (Prioritized)
 
 ### Priority 0: Architecture & Code Quality
 
-*Address before adding new features. See `doc/architecture.md` for details.*
-
-#### Builtin Organization
-
-- [ ] **Group related builtins** - Reduce 229 files to ~15 grouped files
-  - `arithmetic.c` - plus, minus, times, divide, mod, abs, neg
-  - `comparison.c` - equal, less, greater, compare
-  - `stack.c` - dup, swap, pop, rot, roll
-  - `list.c` - cons, first, rest, concat, size, at
-  - `control.c` - if, ifte, branch, cond, case
-  - `combinators.c` - map, fold, filter, times, while
-  - `recursion.c` - linrec, binrec, genrec, primrec, tailrec
-  - `io.c` - put, get, file operations
-  - `math.c` - sin, cos, sqrt, exp, log
-  - Migration: grouped files include individual files initially
-
-#### Env Struct Refactoring
-
-- [ ] **Extract EnvConfig** - Group configuration flags
-  - `autoput`, `echoflag`, `debugging`, `tracegc`, etc.
-  - Low risk, improves readability
-
-- [ ] **Extract EnvError** - Group error handling state
-  - `error_jmp`, `error_message`, `error_line`, `error_column`
-  - Enables better error handling patterns
-
-- [ ] **Extract EnvScanner** - Group scanner/lexer state
-  - `srcfile`, `linenum`, `linepos`, `linebuf`, `infile[]`
-  - Prerequisite for adding new syntax features
+*See `doc/architecture.md` for details.*
 
 #### Code Quality
 
@@ -232,7 +222,7 @@ All of these now work correctly:
 | `include/parallel.h` | Parallel infrastructure (`copy_node_to_parent`) |
 | `src/utils.c` | GC and memory management (`copy` function) |
 | `src/interp.c` | Interpreter (`copy_body_from_parent`) |
-| `src/builtin/pmap.c` | Parallel map implementation |
-| `src/builtin/pfork.c` | Parallel fork implementation |
+| `src/builtin/parallel.c` | Parallel combinators (pmap, pfork) |
+| `src/builtin/individual/` | Individual builtin implementations (229 files) |
 | `tests/parallel_benchmark.sh` | Wall-time benchmark script |
 | `tests/parallel_benchmark.joy` | CPU-time benchmark (Joy) |

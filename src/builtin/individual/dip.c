@@ -16,7 +16,7 @@ void dip_(pEnv env)
     ONEQUOTE("dip");
     SAVESTACK;
     env->stck = nextnode2(env->stck);
-    exeterm(env, nodevalue(SAVED1).lis);
+    exec_term(env, nodevalue(SAVED1).lis);
     GNULLARY(SAVED2);
     POP(env->dump);
 }

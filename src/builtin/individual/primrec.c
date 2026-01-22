@@ -55,9 +55,9 @@ void primrec_(pEnv env)
     default:
         BADDATA("primrec");
     }
-    exeterm(env, nodevalue(SAVED2).lis);
+    exec_term(env, nodevalue(SAVED2).lis);
     for (i = 1; i <= n; i++)
-        exeterm(env, nodevalue(SAVED1).lis);
+        exec_term(env, nodevalue(SAVED1).lis);
     POP(env->dump);
 }
 #endif

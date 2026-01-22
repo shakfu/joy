@@ -128,7 +128,7 @@ void pmap_(pEnv env)
 
         /* Execute with error handling */
         if (setjmp(child->error_jmp) == 0) {
-            exeterm(child, child_quot);
+            exec_term(child, child_quot);
             task->result = child->stck;
             task->has_error = 0;
         } else {
@@ -207,7 +207,7 @@ sequential:
         env->dump3 = LIST_NEWNODE(0, env->dump3); /* tail of new list */
         for (; DMP1; DMP1 = nextnode1(DMP1)) {
             env->stck = newnode2(env, DMP1, SAVED3);
-            exeterm(env, nodevalue(SAVED1).lis);
+            exec_term(env, nodevalue(SAVED1).lis);
             CHECKSTACK("pmap");
             temp = newnode2(env, env->stck, 0);
             if (!DMP2) { /* first element */

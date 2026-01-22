@@ -175,10 +175,10 @@ int is_valid_C_identifier(char* str)
 #endif
 
 /*
- * exeterm evaluates a sequence of factors. There is no protection against
+ * exec_term evaluates a sequence of factors. There is no protection against
  * recursion without end condition: it will overflow the call stack.
  */
-void exeterm(pEnv env, Index n)
+void exec_term(pEnv env, Index n)
 {
     Index p;
     int index;
@@ -200,7 +200,7 @@ start:
 #endif
 #ifdef TRACEGC
         if (env->config.tracegc > 5) {
-            printf("exeterm1: ");
+            printf("exec_term1: ");
             printnode(env, n);
         }
 #endif
@@ -224,7 +224,7 @@ start:
         case ILLEGAL_:
         case COPIED_:
             fflush(stdout);
-            fputs("exeterm: attempting to execute bad node\n", stderr);
+            fputs("exec_term: attempting to execute bad node\n", stderr);
 #ifdef TRACEGC
             printnode(env, p);
 #endif
@@ -252,7 +252,7 @@ start:
                      */
                     ent.cflags |= IS_ACTIVE;
                     vec_at(env->symtab, index) = ent;
-                    exeterm(env, ent.u.body);
+                    exec_term(env, ent.u.body);
                     /*
                      * Update symbol table, but first reread the entry.
                      */
@@ -295,7 +295,7 @@ start:
                     n = body;
                     goto start; /* tail call optimization */
                 }
-                exeterm(env, body); /* subroutine call */
+                exec_term(env, body); /* subroutine call */
             }
             break;
         case ANON_FUNCT_:
@@ -353,11 +353,11 @@ start:
             GNULLARY(p);
             break;
         default:
-            execerror(env, "valid factor", "exeterm");
+            execerror(env, "valid factor", "exec_term");
         }
 #ifdef TRACEGC
         if (env->config.tracegc > 5) {
-            printf("exeterm2: ");
+            printf("exec_term2: ");
             printnode(env, p);
         }
 #endif

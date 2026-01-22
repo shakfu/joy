@@ -19,11 +19,11 @@ void construct_(pEnv env)
     env->stck = SAVED3;                                /* pop progs */
     env->dump1 = LIST_NEWNODE(env->dump2, env->dump1); /* save env->dump2 */
     env->dump2 = env->stck;                            /* save old stack */
-    exeterm(env, nodevalue(SAVED2).lis);               /* [P] */
+    exec_term(env, nodevalue(SAVED2).lis);               /* [P] */
     env->dump3 = LIST_NEWNODE(env->stck, env->dump3);  /* save new stack */
     env->dump4 = LIST_NEWNODE(nodevalue(SAVED1).lis, env->dump4);
     for (; DMP4; DMP4 = nextnode1(DMP4)) { /* step [..] */
-        exeterm(env, nodevalue(DMP4).lis);
+        exec_term(env, nodevalue(DMP4).lis);
         env->dump2 = newnode2(env, env->stck, env->dump2); /* result */
         env->stck = DMP3; /* restore new stack */
     }

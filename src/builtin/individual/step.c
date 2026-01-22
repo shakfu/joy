@@ -25,14 +25,14 @@ void step_(pEnv env)
         env->dump1 = LIST_NEWNODE(nodevalue(SAVED2).lis, env->dump1);
         for (; DMP1; DMP1 = nextnode1(DMP1)) {
             GNULLARY(DMP1);
-            exeterm(env, nodevalue(SAVED1).lis);
+            exec_term(env, nodevalue(SAVED1).lis);
         }
         POP(env->dump1);
         break;
     case STRING_:
         for (str = strdup((char*)&nodevalue(SAVED2)); str[i]; i++) {
             NULLARY(CHAR_NEWNODE, str[i]);
-            exeterm(env, nodevalue(SAVED1).lis);
+            exec_term(env, nodevalue(SAVED1).lis);
         }
         free(str);
         break;
@@ -40,7 +40,7 @@ void step_(pEnv env)
         for (; i < SETSIZE; i++)
             if (nodevalue(SAVED2).set & ((int64_t)1 << i)) {
                 NULLARY(INTEGER_NEWNODE, i);
-                exeterm(env, nodevalue(SAVED1).lis);
+                exec_term(env, nodevalue(SAVED1).lis);
             }
         break;
     default:

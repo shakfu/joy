@@ -13,7 +13,7 @@
         TWOQUOTES(NAME);                                                      \
         SAVESTACK;                                                            \
         env->stck = SAVED3;                                                   \
-        exeterm(env,                                                          \
+        exec_term(env,                                                          \
                 nodetype(env->stck) == TYP ? nodevalue(SAVED2).lis            \
                                            : nodevalue(SAVED1).lis);          \
         POP(env->dump);                                                       \

@@ -407,7 +407,7 @@ static void gc2(pEnv env)
 #endif
 }
 
-void my_gc(pEnv env)
+void gc_collect(pEnv env)
 {
     gc1(env, 0, 0);
     gc2(env);
@@ -532,9 +532,9 @@ Index newnode2(pEnv env, Index p, Index r)
 /*
  * Report the number of nodes that are currently being used.
  */
-void my_memoryindex(pEnv env) { NULLARY(INTEGER_NEWNODE, env->memoryindex); }
+void mem_index(pEnv env) { NULLARY(INTEGER_NEWNODE, env->memoryindex); }
 
 /*
  * Report the total number of nodes that are currently available.
  */
-void my_memorymax(pEnv env) { NULLARY(INTEGER_NEWNODE, (int64_t)env->memorymax); }
+void mem_max(pEnv env) { NULLARY(INTEGER_NEWNODE, (int64_t)env->memorymax); }

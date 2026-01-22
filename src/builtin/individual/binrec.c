@@ -19,21 +19,21 @@ void binrecaux(pEnv env)
     int result;
 
     env->dump1 = LIST_NEWNODE(env->stck, env->dump1);
-    exeterm(env, nodevalue(SAVED4).lis);
+    exec_term(env, nodevalue(SAVED4).lis);
     result = get_boolean(env, env->stck);
     env->stck = DMP1;
     POP(env->dump1);
     if (result)
-        exeterm(env, nodevalue(SAVED3).lis);
+        exec_term(env, nodevalue(SAVED3).lis);
     else {
-        exeterm(env, nodevalue(SAVED2).lis); /* split */
+        exec_term(env, nodevalue(SAVED2).lis); /* split */
         env->dump2 = newnode2(env, env->stck, env->dump2);
         POP(env->stck);
         binrecaux(env); /* first */
         GNULLARY(env->dump2);
         POP(env->dump2);
         binrecaux(env); /* second */
-        exeterm(env, nodevalue(SAVED1).lis);
+        exec_term(env, nodevalue(SAVED1).lis);
     } /* combine */
 }
 

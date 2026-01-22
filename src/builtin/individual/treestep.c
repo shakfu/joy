@@ -14,7 +14,7 @@ void treestepaux(pEnv env, Index item)
 {
     if (nodetype(item) != LIST_) {
         GNULLARY(item);
-        exeterm(env, nodevalue(SAVED1).lis);
+        exec_term(env, nodevalue(SAVED1).lis);
     } else {
         env->dump1 = LIST_NEWNODE(nodevalue(item).lis, env->dump1);
         for (; DMP1; DMP1 = nextnode1(DMP1))

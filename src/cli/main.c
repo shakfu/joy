@@ -381,7 +381,7 @@ static void linenoise_repl(pEnv env)
 #ifdef NOBDW
                     env->conts = 0;
 #endif
-                    exeterm(env, env->prog);
+                    exec_term(env, env->prog);
                 }
                 print(env);
                 if (env->scanner.sym == '.')
@@ -693,7 +693,7 @@ start:
             compile(&env, env.prog); /* compile to C code */
         } else {
 #endif
-            exeterm(&env, env.prog); /* execute main program */
+            exec_term(&env, env.prog); /* execute main program */
             print(&env);             /* print result */
 #ifdef COMPILER
         }

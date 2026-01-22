@@ -10,5 +10,5 @@
 Q0  OK  3010  gc  :  ->
 [IMPURE] Initiates garbage collection.
 */
-void gc_(pEnv env) { my_gc(env); }
+void gc_(pEnv env) { gc_collect(env); }
 #endif

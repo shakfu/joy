@@ -83,7 +83,7 @@ void pfork_(pEnv env)
 #endif
 
             if (setjmp(child->error_jmp) == 0) {
-                exeterm(child, child_quot);
+                exec_term(child, child_quot);
                 task->result = child->stck;
                 task->has_error = 0;
             } else {
@@ -116,7 +116,7 @@ void pfork_(pEnv env)
 #endif
 
             if (setjmp(child->error_jmp) == 0) {
-                exeterm(child, child_quot);
+                exec_term(child, child_quot);
                 task->result = child->stck;
                 task->has_error = 0;
             } else {
@@ -175,10 +175,10 @@ sequential:
      * Equivalent to cleave.
      */
     env->stck = SAVED3;
-    exeterm(env, nodevalue(SAVED2).lis);               /* [P1] */
+    exec_term(env, nodevalue(SAVED2).lis);               /* [P1] */
     env->dump1 = newnode2(env, env->stck, env->dump1); /* R1 */
     env->stck = SAVED3;
-    exeterm(env, nodevalue(SAVED1).lis);               /* [P2] */
+    exec_term(env, nodevalue(SAVED1).lis);               /* [P2] */
     env->dump1 = newnode2(env, env->stck, env->dump1); /* R2 */
     env->stck = env->dump1;
     env->dump1 = nextnode2(env->dump1);

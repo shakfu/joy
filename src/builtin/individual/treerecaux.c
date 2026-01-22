@@ -18,11 +18,11 @@ void treerecaux_(pEnv env)
         temp = ANON_FUNCT_NEWNODE(treerecaux_, 0);
         NULLARY(LIST_NEWNODE, temp);
         cons_(env); /*  D  [[[O] C] ANON_FUNCT_]  */
-        exeterm(env, nextnode1(nodevalue(nodevalue(env->stck).lis).lis));
+        exec_term(env, nextnode1(nodevalue(nodevalue(env->stck).lis).lis));
     } else {
         env->dump1 = LIST_NEWNODE(nodevalue(env->stck).lis, env->dump1);
         POP(env->stck);
-        exeterm(env, nodevalue(DMP1).lis);
+        exec_term(env, nodevalue(DMP1).lis);
         POP(env->dump1);
     }
 }

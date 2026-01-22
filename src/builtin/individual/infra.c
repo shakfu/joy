@@ -19,7 +19,7 @@ void infra_(pEnv env)
     LIST2("infra");
     SAVESTACK;
     env->stck = nodevalue(SAVED2).lis;
-    exeterm(env, nodevalue(SAVED1).lis);
+    exec_term(env, nodevalue(SAVED1).lis);
     env->stck = LIST_NEWNODE(env->stck, SAVED3);
     POP(env->dump);
 }

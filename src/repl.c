@@ -71,7 +71,7 @@ void repl(pEnv env)
                     return;
                 }
 #endif
-                exeterm(env, env->prog);
+                exec_term(env, env->prog);
             }
 #ifdef NOBDW
             if (env->conts || env->dump || env->dump1 || env->dump2

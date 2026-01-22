@@ -84,6 +84,25 @@
 #include "khash.h"
 #endif
 
+/*
+ * Node access macros (legacy interface)
+ *
+ * IMPORTANT: These macros require 'pEnv env' to be in scope (NOBDW mode).
+ *
+ * These macros provide access to node fields. For new code, prefer the
+ * inline accessor functions (node_type, node_value, node_next) defined
+ * later in this file, which have explicit env parameters.
+ *
+ * @requires: env in scope (NOBDW mode only)
+ * @param n/p: Index (node pointer/index) to access
+ *
+ * Macros:
+ *   nodetype(n)  - Get node's type/opcode (Operator)
+ *   nodevalue(n) - Get node's value union (Types)
+ *   nodeleng(n)  - Get string length (NOBDW only)
+ *   nextnode1(n) - Get next pointer (1 hop)
+ *   nextnode2-5  - Get next pointer (2-5 hops)
+ */
 #ifdef NOBDW
 #define nodetype(n) env->memory[n].op
 #define nodeleng(n) env->memory[n].len
@@ -358,6 +377,67 @@ typedef struct Env {
     } io;
 } Env;
 
+/*
+ * Inline node accessors
+ *
+ * Type-safe functions for accessing node fields with explicit env parameter.
+ * These complement the legacy macros (nodetype, nodevalue, nextnode1, etc.)
+ * which assume 'env' is in scope.
+ *
+ * Benefits over macros:
+ * - Type checking at compile time
+ * - Explicit env parameter (no hidden dependency)
+ * - Better debugging (show in stack traces)
+ * - IDE navigation and autocomplete work
+ *
+ * The macros are retained for backward compatibility and for use in
+ * performance-critical code where the explicit parameter passing overhead
+ * might matter (though compilers typically optimize this away).
+ */
+
+static inline Operator node_type(pEnv env, Index n)
+{
+#ifdef NOBDW
+    return env->memory[n].op;
+#else
+    (void)env;
+    return n->op;
+#endif
+}
+
+static inline Types node_value(pEnv env, Index n)
+{
+#ifdef NOBDW
+    return env->memory[n].u;
+#else
+    (void)env;
+    return n->u;
+#endif
+}
+
+static inline Index node_next(pEnv env, Index n)
+{
+#ifdef NOBDW
+    return env->memory[n].next;
+#else
+    (void)env;
+    return n->next;
+#endif
+}
+
+#ifdef NOBDW
+static inline unsigned node_leng(pEnv env, Index n)
+{
+    return env->memory[n].len;
+}
+#endif
+
+/* Convenience accessor for getting the next node's next (2 hops) */
+static inline Index node_next2(pEnv env, Index n)
+{
+    return node_next(env, node_next(env, n));
+}
+
 typedef struct table_t {
     proc_t proc;
     char* name;
@@ -383,7 +463,7 @@ void fatal(char* str);
 /* error.c */
 void abortexecution_(pEnv env, int num);
 /* interp.c */
-void exeterm(pEnv env, Index n);
+void exec_term(pEnv env, Index n);
 /* scan.c */
 void inilinebuffer(pEnv env);
 int getch(pEnv env);
@@ -395,13 +475,13 @@ int getsym(pEnv env, int ch);
 void set_push_int_env(pEnv env);
 Index newnode(pEnv env, Operator o, Types u, Index r);
 Index newnode2(pEnv env, Index n, Index r);
-void my_memoryindex(pEnv env);
-void my_memorymax(pEnv env);
+void mem_index(pEnv env);
+void mem_max(pEnv env);
 #ifdef NOBDW
 void inimem1(pEnv env, int status);
 void inimem2(pEnv env);
 void printnode(pEnv env, Index p);
-void my_gc(pEnv env);
+void gc_collect(pEnv env);
 char *check_strdup(char *str);
 void *check_malloc(size_t leng);
 #endif

@@ -29,16 +29,16 @@ void cond_(pEnv env)
     env->dump1 = LIST_NEWNODE(nodevalue(env->stck).lis, env->dump1);
     for (; DMP1 && nextnode1(DMP1); DMP1 = nextnode1(DMP1)) {
         env->stck = SAVED2;
-        exeterm(env, nodevalue(nodevalue(DMP1).lis).lis);
+        exec_term(env, nodevalue(nodevalue(DMP1).lis).lis);
         result = get_boolean(env, env->stck);
         if (result)
             break;
     }
     env->stck = SAVED2;
     if (result)
-        exeterm(env, nextnode1(nodevalue(DMP1).lis));
+        exec_term(env, nextnode1(nodevalue(DMP1).lis));
     else
-        exeterm(env, nodevalue(DMP1).lis); /* default */
+        exec_term(env, nodevalue(DMP1).lis); /* default */
     POP(env->dump1);
     POP(env->dump);
 }

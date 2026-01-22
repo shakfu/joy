@@ -50,7 +50,7 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
         /* execute immediate functions at compile time */
         if (ent.flags == IMMEDIATE) {
             if (ent.is_user)
-                exeterm(env, ent.u.body);
+                exec_term(env, ent.u.body);
             else
                 (*ent.u.proc)(env);
         } else if (ent.is_user)

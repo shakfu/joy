@@ -21,7 +21,7 @@ void branch_(pEnv env)
     SAVESTACK;
     env->stck = SAVED4;
     result = get_boolean(env, SAVED3);
-    exeterm(env, result ? nodevalue(SAVED2).lis : nodevalue(SAVED1).lis);
+    exec_term(env, result ? nodevalue(SAVED2).lis : nodevalue(SAVED1).lis);
     POP(env->dump);
 }
 #endif

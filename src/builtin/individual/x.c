@@ -14,6 +14,6 @@ void x_(pEnv env)
 {
     ONEPARAM("x");
     ONEQUOTE("x");
-    exeterm(env, nodevalue(env->stck).lis);
+    exec_term(env, nodevalue(env->stck).lis);
 }
 #endif

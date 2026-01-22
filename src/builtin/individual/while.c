@@ -21,13 +21,13 @@ void while_(pEnv env)
     SAVESTACK;
     while (1) {
         env->stck = SAVED3;
-        exeterm(env, nodevalue(SAVED2).lis); /* TEST */
+        exec_term(env, nodevalue(SAVED2).lis); /* TEST */
         CHECKSTACK("while");
         result = get_boolean(env, env->stck);
         if (!result)
             break;
         env->stck = SAVED3;
-        exeterm(env, nodevalue(SAVED1).lis); /* DO */
+        exec_term(env, nodevalue(SAVED1).lis); /* DO */
         SAVED3 = env->stck;
     }
     env->stck = SAVED3;

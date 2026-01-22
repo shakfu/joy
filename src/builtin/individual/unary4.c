@@ -16,16 +16,16 @@ void unary4_(pEnv env)
     ONEQUOTE("unary4");
     SAVESTACK;
     env->stck = nextnode1(SAVED4);                        /* just X on top */
-    exeterm(env, nodevalue(SAVED1).lis);                  /* execute P */
+    exec_term(env, nodevalue(SAVED1).lis);                  /* execute P */
     env->dump1 = newnode2(env, env->stck, env->dump1);    /* save p(X) */
     env->stck = newnode2(env, SAVED4, nextnode1(SAVED5)); /* just Y on top */
-    exeterm(env, nodevalue(SAVED1).lis);                  /* execute P */
+    exec_term(env, nodevalue(SAVED1).lis);                  /* execute P */
     env->dump1 = newnode2(env, env->stck, env->dump1);    /* save P(Y) */
     env->stck = newnode2(env, SAVED3, nextnode1(SAVED5)); /* just Z on top */
-    exeterm(env, nodevalue(SAVED1).lis);                  /* execute P */
+    exec_term(env, nodevalue(SAVED1).lis);                  /* execute P */
     env->dump1 = newnode2(env, env->stck, env->dump1);    /* save P(Z) */
     env->stck = newnode2(env, SAVED2, nextnode1(SAVED5)); /* just W on top */
-    exeterm(env, nodevalue(SAVED1).lis);                  /* execute P */
+    exec_term(env, nodevalue(SAVED1).lis);                  /* execute P */
     env->dump1 = newnode2(env, env->stck, env->dump1);    /* save P(W) */
     env->stck = env->dump1;
     env->dump1 = nextnode4(env->dump1);
