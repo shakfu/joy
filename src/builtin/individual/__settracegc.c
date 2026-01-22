@@ -14,9 +14,9 @@ void __settracegc_(pEnv env)
 {
     ONEPARAM("settracegc");
     NUMERICTYPE("settracegc");
-    env->tracegc = nodevalue(env->stck).num;
+    env->config.tracegc = nodevalue(env->stck).num;
 #ifndef NOBDW
-    if (env->tracegc) /* 0=enable bytecoding or compiling */
+    if (env->config.tracegc) /* 0=enable bytecoding or compiling */
         ;
     /*
      * The flags are initially negative; when activating, they are made

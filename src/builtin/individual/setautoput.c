@@ -15,8 +15,8 @@ void setautoput_(pEnv env)
 {
     ONEPARAM("setautoput");
     NUMERICTYPE("setautoput");
-    if (!env->autoput_set)
-        env->autoput = nodevalue(env->stck).num;
+    if (!env->config.autoput_set)
+        env->config.autoput = nodevalue(env->stck).num;
     POP(env->stck);
 }
 #endif

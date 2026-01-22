@@ -10,7 +10,7 @@
 Q0  OK  1100  undeferror  :  ->  I
 [SETTINGS] Pushes current value of undefined-is-error flag.
 */
-PUSH(undeferror_, INTEGER_NEWNODE, env->undeferror)
+PUSH(undeferror_, INTEGER_NEWNODE, env->config.undeferror)
 
 
 #endif

@@ -45,13 +45,13 @@ static inline void env_clone_for_parallel(pEnv parent, pEnv child)
     memset(child, 0, sizeof(Env));
 
     /* Copy configuration flags */
-    child->autoput = parent->autoput;
-    child->echoflag = parent->echoflag;
-    child->tracegc = parent->tracegc;
-    child->undeferror = parent->undeferror;
-    child->debugging = parent->debugging;
+    child->config.autoput = parent->config.autoput;
+    child->config.echoflag = parent->config.echoflag;
+    child->config.tracegc = parent->config.tracegc;
+    child->config.undeferror = parent->config.undeferror;
+    child->config.debugging = parent->config.debugging;
     child->ignore = parent->ignore;
-    child->overwrite = parent->overwrite;
+    child->config.overwrite = parent->config.overwrite;
 
     /* Share read-only tables (no locking needed for reads) */
     child->symtab = parent->symtab;
@@ -80,9 +80,9 @@ static inline void env_clone_for_parallel(pEnv parent, pEnv child)
 #endif
 
     /* Isolated error handling */
-    child->error_message[0] = '\0';
-    child->error_line = 0;
-    child->error_column = 0;
+    child->error.message[0] = '\0';
+    child->error.line = 0;
+    child->error.column = 0;
 
     /* No I/O in parallel tasks */
     child->io.user_data = NULL;
@@ -257,7 +257,7 @@ static inline void execute_parallel_task(void* context)
         task->has_error = 0;
     } else {
         task->has_error = 1;
-        strncpy(task->error_msg, env->error_message, 255);
+        strncpy(task->error_msg, env->error.message, 255);
         task->error_msg[255] = '\0';
         task->result = 0;
     }

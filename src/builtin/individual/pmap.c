@@ -133,7 +133,7 @@ void pmap_(pEnv env)
             task->has_error = 0;
         } else {
             task->has_error = 1;
-            strncpy(task->error_msg, child->error_message, 255);
+            strncpy(task->error_msg, child->error.message, 255);
             task->error_msg[255] = '\0';
             task->result = 0;
         }

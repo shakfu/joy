@@ -209,7 +209,7 @@ void joy_report_error(pEnv env, int code, const char* msg)
 {
     if (env->io.on_error) {
         env->io.on_error(env->io.user_data, code, msg,
-                         env->srcfilename, env->linenum, env->linepos);
+                         env->scanner.srcfilename, env->scanner.linenum, env->scanner.linepos);
     } else {
         /* Default: write to stderr */
         fflush(stdout);
@@ -217,8 +217,8 @@ void joy_report_error(pEnv env, int code, const char* msg)
     }
 
     /* Store error info in env for later retrieval */
-    strncpy(env->error_message, msg, sizeof(env->error_message) - 1);
-    env->error_message[sizeof(env->error_message) - 1] = '\0';
-    env->error_line = env->linenum;
-    env->error_column = env->linepos;
+    strncpy(env->error.message, msg, sizeof(env->error.message) - 1);
+    env->error.message[sizeof(env->error.message) - 1] = '\0';
+    env->error.line = env->scanner.linenum;
+    env->error.column = env->scanner.linepos;
 }

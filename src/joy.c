@@ -92,7 +92,7 @@ JoyContext* joy_create(const JoyConfig* config)
 #endif
 
     /* Initialize scanner state */
-    env->ilevel = -1;
+    env->scanner.ilevel = -1;
 
     /* Initialize clock */
     env->startclock = clock();
@@ -116,10 +116,10 @@ JoyContext* joy_create(const JoyConfig* config)
     /* Apply configuration */
     if (config) {
         ctx->io = config->io;
-        env->autoput = config->enable_autoput ? 1 : 0;
-        env->autoput_set = 1;
-        env->echoflag = config->enable_echo ? 1 : 0;
-        env->tracegc = config->enable_gc_trace ? 1 : 0;
+        env->config.autoput = config->enable_autoput ? 1 : 0;
+        env->config.autoput_set = 1;
+        env->config.echoflag = config->enable_echo ? 1 : 0;
+        env->config.tracegc = config->enable_gc_trace ? 1 : 0;
 
         /* Copy I/O callbacks to env for use by internal functions */
         if (config->io) {
@@ -133,13 +133,13 @@ JoyContext* joy_create(const JoyConfig* config)
         }
     } else {
         /* Defaults */
-        env->autoput = INIAUTOPUT;
-        env->echoflag = INIECHOFLAG;
-        env->tracegc = INITRACEGC;
+        env->config.autoput = INIAUTOPUT;
+        env->config.echoflag = INIECHOFLAG;
+        env->config.tracegc = INITRACEGC;
     }
 
-    env->undeferror = INIUNDEFERROR;
-    env->overwrite = INIWARNING;
+    env->config.undeferror = INIUNDEFERROR;
+    env->config.overwrite = INIWARNING;
 
     /* Disable output buffering */
     setbuf(stdout, 0);
@@ -218,7 +218,7 @@ JoyResult joy_eval_string(JoyContext* ctx, const char* source)
     }
 
     /* Initialize line buffer if not already done */
-    if (!env->srcfile) {
+    if (!env->scanner.srcfile) {
         inilinebuffer(env);
     }
 
@@ -226,12 +226,12 @@ JoyResult joy_eval_string(JoyContext* ctx, const char* source)
     int ch = getch(env);
     ch = getsym(env, ch);
 
-    while (env->sym != '.') {
-        if (env->sym == LIBRA || env->sym == HIDE || env->sym == MODULE_ ||
-            env->sym == PRIVATE || env->sym == PUBLIC || env->sym == CONST_) {
+    while (env->scanner.sym != '.') {
+        if (env->scanner.sym == LIBRA || env->scanner.sym == HIDE || env->scanner.sym == MODULE_ ||
+            env->scanner.sym == PRIVATE || env->scanner.sym == PUBLIC || env->scanner.sym == CONST_) {
             ch = compound_def(env, ch);
             /* compound_def may leave sym as '.', check before continuing */
-            if (env->sym == '.')
+            if (env->scanner.sym == '.')
                 break;
             ch = getsym(env, ch);
         } else {
@@ -241,7 +241,7 @@ JoyResult joy_eval_string(JoyContext* ctx, const char* source)
                 env->stck = nextnode1(env->stck);
             }
             /* readterm reads until terminator, check if it's '.' */
-            if (env->sym == '.')
+            if (env->scanner.sym == '.')
                 break;
             ch = getsym(env, ch);
         }
@@ -274,11 +274,11 @@ JoyResult joy_eval_file(JoyContext* ctx, FILE* fp, const char* filename)
     }
 
     /* Set up source file */
-    env->srcfile = fp;
-    env->srcfilename = (char*)filename;
-    env->linenum = 0;
-    env->linepos = 0;
-    env->linebuf[0] = 0;
+    env->scanner.srcfile = fp;
+    env->scanner.srcfilename = (char*)filename;
+    env->scanner.linenum = 0;
+    env->scanner.linepos = 0;
+    env->scanner.linebuf[0] = 0;
 
     /* Use repl to process the file */
     repl(env);
@@ -359,7 +359,7 @@ const char* joy_error_message(JoyContext* ctx)
 {
     if (!ctx)
         return "";
-    return ctx->env.error_message;
+    return ctx->env.error.message;
 }
 
 /*
@@ -369,7 +369,7 @@ int joy_error_line(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return ctx->env.error_line;
+    return ctx->env.error.line;
 }
 
 /*
@@ -379,7 +379,7 @@ int joy_error_column(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return ctx->env.error_column;
+    return ctx->env.error.column;
 }
 
 /*
@@ -388,8 +388,8 @@ int joy_error_column(JoyContext* ctx)
 void joy_set_autoput(JoyContext* ctx, int enabled)
 {
     if (ctx) {
-        ctx->env.autoput = enabled ? 1 : 0;
-        ctx->env.autoput_set = 1;
+        ctx->env.config.autoput = enabled ? 1 : 0;
+        ctx->env.config.autoput_set = 1;
     }
 }
 
@@ -400,7 +400,7 @@ int joy_get_autoput(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return ctx->env.autoput;
+    return ctx->env.config.autoput;
 }
 
 /*
@@ -409,7 +409,7 @@ int joy_get_autoput(JoyContext* ctx)
 void joy_set_echo(JoyContext* ctx, int enabled)
 {
     if (ctx)
-        ctx->env.echoflag = enabled ? 1 : 0;
+        ctx->env.config.echoflag = enabled ? 1 : 0;
 }
 
 /*
@@ -419,7 +419,7 @@ int joy_get_echo(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return ctx->env.echoflag;
+    return ctx->env.config.echoflag;
 }
 
 /*
@@ -429,7 +429,7 @@ size_t joy_memory_used(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return (size_t)ctx->env.nodes;
+    return (size_t)ctx->env.stats.nodes;
 }
 
 /*
@@ -439,7 +439,7 @@ size_t joy_memory_max(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return (size_t)ctx->env.avail;
+    return (size_t)ctx->env.stats.avail;
 }
 
 /*
@@ -449,5 +449,5 @@ size_t joy_gc_count(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return (size_t)ctx->env.collect;
+    return (size_t)ctx->env.stats.collect;
 }

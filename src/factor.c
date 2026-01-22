@@ -39,7 +39,7 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
     uint64_t set;
 
     *rv = 1; /* assume that a factor will be read */
-    switch (env->sym) {
+    switch (env->scanner.sym) {
     case USR_:
         if ((index = lookup(env, env->str)) == 0) {
             error(env, "no such field in module");
@@ -87,14 +87,14 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
         ch = readterm(env, ch);
         set = list2set(env, nodevalue(env->stck).lis);
         UNARY(SET_NEWNODE, set);
-        if (env->sym != '}')
+        if (env->scanner.sym != '}')
             error(env, "'}' expected");
         break;
 
     case '[':
         ch = getsym(env, ch);
         ch = readterm(env, ch);
-        if (env->sym != ']')
+        if (env->scanner.sym != ']')
             error(env, "']' expected");
         break;
 
@@ -121,8 +121,8 @@ int readterm(pEnv env, int ch)
 
     NULLARY(LIST_NEWNODE, 0);
     while (1) {
-        if (strchr(".;]}", env->sym)
-            || (env->sym >= LIBRA && env->sym <= CONST_))
+        if (strchr(".;]}", env->scanner.sym)
+            || (env->scanner.sym >= LIBRA && env->scanner.sym <= CONST_))
             break;
         ch = readfactor(env, ch, &rv);
         if (rv) {
@@ -157,8 +157,8 @@ int readterm(pEnv env, int ch)
     NULLARY(LIST_NEWNODE, 0);
     dump = &nodevalue(env->stck).lis;
     while (1) {
-        if (strchr(".;]}", env->sym)
-            || (env->sym >= LIBRA && env->sym <= CONST_))
+        if (strchr(".;]}", env->scanner.sym)
+            || (env->scanner.sym >= LIBRA && env->scanner.sym <= CONST_))
             break;
         ch = readfactor(env, ch, &rv);
         if (rv) {

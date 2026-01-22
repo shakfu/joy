@@ -235,17 +235,65 @@ KHASH_MAP_INIT_STR(Symtab, int)
 KHASH_MAP_INIT_INT64(Funtab, int)
 #endif
 
+/*
+ * Env subsystem types (Phase 1.2 architecture improvements)
+ *
+ * These structs group related fields from Env for better organization.
+ */
+
+/* EnvError - Error state */
+typedef struct EnvError {
+    char message[256];  /* last error message */
+    int line;           /* line number of error */
+    int column;         /* column of error */
+} EnvError;
+
+/* EnvStats - Runtime statistics */
+typedef struct EnvStats {
+    double nodes;    /* current node count */
+    double avail;    /* available memory */
+    double collect;  /* GC collection count */
+    double calls;    /* function call count */
+    double opers;    /* operation count */
+} EnvStats;
+
+/* EnvConfig - Configuration flags */
+typedef struct EnvConfig {
+    unsigned char autoput;        /* auto-print top of stack after each line */
+    unsigned char autoput_set;    /* whether autoput was explicitly set */
+    unsigned char echoflag;       /* echo input lines */
+    unsigned char tracegc;        /* trace garbage collection */
+    unsigned char undeferror;     /* report undefined symbol errors */
+    unsigned char undeferror_set; /* whether undeferror was explicitly set */
+    unsigned char debugging;      /* debugging mode enabled */
+    unsigned char overwrite;      /* warn on symbol redefinition */
+    unsigned char inlining;       /* inline expansion enabled */
+} EnvConfig;
+
+/* EnvScanner - Scanner/lexer state */
+typedef struct EnvScanner {
+    FILE* srcfile;                        /* current input file */
+    char* srcfilename;                    /* name of current input file */
+    int linenum;                          /* current line number */
+    int linepos;                          /* position in current line */
+    char linebuf[INPLINEMAX + 1];         /* buffered input line */
+    struct {
+        FILE* fp;
+        int line;
+        char name[FILENAMEMAX + 1];
+    } infile[INPSTACKMAX];                /* include file stack */
+    int ilevel;                           /* index in infile stack (-1 = empty) */
+    int startnum;                         /* line number of token start */
+    int startpos;                         /* position of token start */
+    int endpos;                           /* position of token end */
+    Operator sym;                         /* current symbol */
+} EnvScanner;
+
 typedef struct Env {
     jmp_buf error_jmp; /* error recovery point */
     jmp_buf finclude;  /* return point in finclude */
-    char error_message[256]; /* last error message */
-    int error_line;    /* line number of error */
-    int error_column;  /* column of error */
-    double nodes;     /* statistics */
-    double avail;
-    double collect;
-    double calls;
-    double opers;
+    EnvError error;    /* error state (message, line, column) */
+    EnvStats stats;    /* runtime statistics */
     double dbl; /* numerics */
     int64_t num;
     char* str;                 /* string */
@@ -289,38 +337,16 @@ typedef struct Env {
         char* name;
         int hide;
     } module_stack[DISPLAYMAX];
-    Operator sym; /* symbol */
-    unsigned char inlining;
-    unsigned char autoput;
-    unsigned char autoput_set;
-    unsigned char echoflag;
-    unsigned char tracegc;
-    unsigned char undeferror;
-    unsigned char undeferror_set;
-    unsigned char debugging;
-    unsigned char ignore;
-    unsigned char overwrite;
-    unsigned char printing;
-    unsigned char finclude_busy;
-    unsigned char flibrary_busy;
-    unsigned char variable_busy;
-    signed char bytecoding; /* BDW only */
-    signed char compiling;  /* BDW only */
-    /* Scanner state (moved from static variables in scan.c) */
-    FILE* srcfile;                       /* current input file */
-    char* srcfilename;                   /* name of current input file */
-    int linenum;                         /* current line number */
-    int linepos;                         /* position in current line */
-    char linebuf[INPLINEMAX + 1];        /* buffered input line */
-    struct {
-        FILE* fp;
-        int line;
-        char name[FILENAMEMAX + 1];
-    } infile[INPSTACKMAX];               /* include file stack */
-    int ilevel;                          /* index in infile stack (-1 = empty) */
-    int startnum;                        /* line number of token start */
-    int startpos;                        /* position of token start */
-    int endpos;                          /* position of token end */
+    EnvConfig config;    /* configuration flags */
+    EnvScanner scanner;  /* scanner/lexer state */
+    /* Runtime state flags (not configuration) */
+    unsigned char ignore;         /* ignore errors during include */
+    unsigned char printing;       /* currently printing output */
+    unsigned char finclude_busy;  /* finclude is active */
+    unsigned char flibrary_busy;  /* loading library */
+    unsigned char variable_busy;  /* variable lookup in progress */
+    signed char bytecoding;       /* bytecode mode (BDW only) */
+    signed char compiling;        /* compiling mode (BDW only) */
     /* I/O callbacks for embedding (Phase 4) */
     struct {
         void* user_data;

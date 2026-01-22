@@ -12,13 +12,13 @@
 void print(pEnv env)
 {
     if (env->stck) {
-        if (env->autoput == 2)
+        if (env->config.autoput == 2)
             writeterm(env, env->stck, stdout);
-        else if (env->autoput == 1) {
+        else if (env->config.autoput == 1) {
             writefactor(env, env->stck, stdout);
             env->stck = nextnode1(env->stck);
         }
-        if (env->autoput) {
+        if (env->config.autoput) {
             joy_putchar(env, '\n');
             joy_flush(env);
         }

@@ -24,16 +24,16 @@ static struct keys {
                  { "==", EQDEF } };
 
 /* Scanner state is now in Env struct:
- *   env->srcfile     - FILE pointer to input file
- *   env->srcfilename - name of input file in messages
- *   env->linenum     - line number for errors
- *   env->linepos     - position in line
+ *   env->scanner.srcfile     - FILE pointer to input file
+ *   env->scanner.srcfilename - name of input file in messages
+ *   env->scanner.linenum     - line number for errors
+ *   env->scanner.linepos     - position in line
  *   env->linebuf     - buffered input line
- *   env->infile[]    - include file stack
- *   env->ilevel      - index in infile-structure (-1 = empty)
- *   env->startnum    - line of token start
- *   env->startpos    - position of token start
- *   env->endpos      - position of token end
+ *   env->scanner.infile[]    - include file stack
+ *   env->scanner.ilevel      - index in infile-structure (-1 = empty)
+ *   env->scanner.startnum    - line of token start
+ *   env->scanner.startpos    - position of token start
+ *   env->scanner.endpos      - position of token end
  */
 static int stderr_printf_count(const char *fmt, ...);
 #ifdef ALLOW_SYSTEM_CALLS
@@ -50,20 +50,20 @@ int getch(pEnv env)
 again:
     if (vec_size(env->pushback))
         return vec_pop(env->pushback);
-    if ((ch = joy_getc(env, env->srcfile)) == EOF) {
-        if (!env->ilevel)
+    if ((ch = joy_getc(env, env->scanner.srcfile)) == EOF) {
+        if (!env->scanner.ilevel)
             abortexecution_(env, ABORT_QUIT);
-        fclose(env->srcfile);
+        fclose(env->scanner.srcfile);
         if (env->finclude_busy)
             longjmp(env->finclude, 1); /* back to finclude */
-        env->srcfile = env->infile[--env->ilevel].fp;
-        env->linenum = env->infile[env->ilevel].line;
-        env->srcfilename = env->infile[env->ilevel].name;
+        env->scanner.srcfile = env->scanner.infile[--env->scanner.ilevel].fp;
+        env->scanner.linenum = env->scanner.infile[env->scanner.ilevel].line;
+        env->scanner.srcfilename = env->scanner.infile[env->scanner.ilevel].name;
         goto again;
     }
-    if (!env->linepos && ch == SHELLESCAPE) {
+    if (!env->scanner.linepos && ch == SHELLESCAPE) {
         vec_setsize(env->string, 0);
-        while ((ch = joy_getc(env, env->srcfile)) != '\n' && ch != EOF)
+        while ((ch = joy_getc(env, env->scanner.srcfile)) != '\n' && ch != EOF)
             vec_push(env->string, ch);
         vec_push(env->string, 0);
 #ifdef ALLOW_SYSTEM_CALLS
@@ -84,17 +84,17 @@ again:
         goto again;
     }
     if (ch == '\n') {
-        if (env->echoflag > 2)
-            joy_printf(env, "%4d", env->linenum);
-        if (env->echoflag > 1)
+        if (env->config.echoflag > 2)
+            joy_printf(env, "%4d", env->scanner.linenum);
+        if (env->config.echoflag > 1)
             joy_putchar(env, '\t');
-        if (env->echoflag)
-            joy_printf(env, "%.*s\n", env->linepos, env->linebuf); /* echo line */
-        env->linenum++;
-        env->linepos = 0;
-    } else if (env->linepos < INPLINEMAX)
-        env->linebuf[env->linepos++] = ch;
-    env->linebuf[env->linepos] = 0;
+        if (env->config.echoflag)
+            joy_printf(env, "%.*s\n", env->scanner.linepos, env->scanner.linebuf); /* echo line */
+        env->scanner.linenum++;
+        env->scanner.linepos = 0;
+    } else if (env->scanner.linepos < INPLINEMAX)
+        env->scanner.linebuf[env->scanner.linepos++] = ch;
+    env->scanner.linebuf[env->scanner.linepos] = 0;
     return ch;
 }
 
@@ -104,9 +104,9 @@ again:
 void ungetch(pEnv env, int ch)
 {
     if (ch == '\n')
-        env->linenum--; /* about to unread newline */
-    ungetc(ch, env->srcfile);
-    env->linepos--; /* read too far, push back */
+        env->scanner.linenum--; /* about to unread newline */
+    ungetc(ch, env->scanner.srcfile);
+    env->scanner.linepos--; /* read too far, push back */
 }
 
 /*
@@ -142,8 +142,8 @@ void error(pEnv env, char* str)
     int leng;
 
     fflush(stdout);
-    leng = stderr_printf_count("%s:%d:", env->srcfilename, env->linenum);
-    leng += stderr_printf_count("%.*s", env->linepos, env->linebuf);
+    leng = stderr_printf_count("%s:%d:", env->scanner.srcfilename, env->scanner.linenum);
+    leng += stderr_printf_count("%.*s", env->scanner.linepos, env->scanner.linebuf);
     if (leng > 0) {
         stderr_printf_count("\n%*s^", --leng, "");
         stderr_printf_count("\n%*s%s\n", leng, "", str);
@@ -176,13 +176,13 @@ static void redirect(pEnv env, char* str, int j, FILE* fp)
         if (i == j)
             vec_push(env->pathnames, new_path);
     }
-    if (env->ilevel >= 0)
-        env->infile[env->ilevel].line = env->linenum; /* save last line number */
-    if (env->ilevel + 1 == INPSTACKMAX)     /* increase include level */
+    if (env->scanner.ilevel >= 0)
+        env->scanner.infile[env->scanner.ilevel].line = env->scanner.linenum; /* save last line number */
+    if (env->scanner.ilevel + 1 == INPSTACKMAX)     /* increase include level */
         execerror(env, "fewer include files", "include");
-    env->infile[++env->ilevel].fp = env->srcfile = fp; /* use new file pointer */
-    env->infile[env->ilevel].line = env->linenum = 1;  /* start with line 1 */
-    strncpy(env->srcfilename = env->infile[env->ilevel].name, str, FILENAMEMAX);
+    env->scanner.infile[++env->scanner.ilevel].fp = env->scanner.srcfile = fp; /* use new file pointer */
+    env->scanner.infile[env->scanner.ilevel].line = env->scanner.linenum = 1;  /* start with line 1 */
+    strncpy(env->scanner.srcfilename = env->scanner.infile[env->scanner.ilevel].name, str, FILENAMEMAX);
 }
 
 /*
@@ -296,8 +296,8 @@ static int my_getsym(pEnv env, int ch)
 start:
     while (ch <= ' ')
         ch = getch(env);
-    env->startnum = env->linenum; /* line of a token */
-    env->startpos = env->linepos; /* start position of a token */
+    env->scanner.startnum = env->scanner.linenum; /* line of a token */
+    env->scanner.startpos = env->scanner.linepos; /* start position of a token */
     switch (ch) {
     case '(':
         ch = getch(env);
@@ -311,7 +311,7 @@ start:
             ch = getch(env);
             goto start;
         }
-        env->sym = '(';
+        env->scanner.sym = '(';
         return ch;
 
     case '#':
@@ -327,8 +327,8 @@ start:
     case '}':
     case '.':
     case ';':
-        env->sym = ch;
-        env->endpos = env->linepos;
+        env->scanner.sym = ch;
+        env->scanner.endpos = env->scanner.linepos;
         return getch(env); /* read past ch */
 
     case '\'':
@@ -336,8 +336,8 @@ start:
         if (ch == '\\')
             ch = special(env);
         env->num = ch;
-        env->sym = CHAR_;
-        env->endpos = env->linepos;
+        env->scanner.sym = CHAR_;
+        env->scanner.endpos = env->scanner.linepos;
         return getch(env); /* read past ch */
 
     case '"':
@@ -350,8 +350,8 @@ start:
         }
         vec_push(env->string, 0);
         env->str = GC_CTX_STRDUP(env, &vec_at(env->string, 0));
-        env->sym = STRING_;
-        env->endpos = env->linepos;
+        env->scanner.sym = STRING_;
+        env->scanner.endpos = env->scanner.linepos;
         return getch(env); /* read past " */
 
     default:
@@ -386,11 +386,11 @@ start:
     einde:
         vec_push(env->string, 0);
         ptr = &vec_at(env->string, 0);
-        env->endpos = env->startpos + strlen(ptr) - 1;
+        env->scanner.endpos = env->scanner.startpos + strlen(ptr) - 1;
         if (type) {
             if (type == 2) {
                 env->dbl = strtod(&vec_at(env->string, 0), &ptr);
-                env->sym = FLOAT_;
+                env->scanner.sym = FLOAT_;
             } else {
                 if (sign == '-')
                     env->num = strtoll(&vec_at(env->string, 1), &ptr, 0);
@@ -398,15 +398,15 @@ start:
                     env->num = strtoll(&vec_at(env->string, 0), &ptr, 0);
                 if (env->num == MAXINT_) {
                     env->dbl = strtod(&vec_at(env->string, 0), &ptr);
-                    env->sym = FLOAT_;
+                    env->scanner.sym = FLOAT_;
                 } else {
                     if (sign == '-')
                         env->num = -env->num;
-                    env->sym = INTEGER_;
+                    env->scanner.sym = INTEGER_;
                 }
             }
             if (*ptr) {
-                env->endpos -= strlen(ptr);
+                env->scanner.endpos -= strlen(ptr);
                 vec_push(env->pushback, ch);
                 for (i = strlen(ptr) - 1; i >= 0; i--)
                     vec_push(env->pushback, ptr[i]);
@@ -419,12 +419,12 @@ start:
             type = sizeof(keywords) / sizeof(keywords[0]);
             for (sign = 0; sign < type; sign++)
                 if (!strcmp(ptr, keywords[sign].name)) {
-                    env->sym = keywords[sign].sym;
+                    env->scanner.sym = keywords[sign].sym;
                     return ch;
                 }
         }
         env->str = GC_CTX_STRDUP(env, ptr);
-        env->sym = USR_;
+        env->scanner.sym = USR_;
     }
     return ch;
 }
@@ -432,7 +432,7 @@ start:
 static void dumptok(pEnv env, int y, int x, int pos)
 {
     joy_printf(env, "(%d,%d:%d) ", y, x, pos);
-    switch (env->sym) {
+    switch (env->scanner.sym) {
     case USR_:
         joy_printf(env, "%s", env->str);
         break;
@@ -507,7 +507,7 @@ static void push_sym(pEnv env)
 {
     Token node;
 
-    switch (node.op = env->sym) {
+    switch (node.op = env->scanner.sym) {
     case CHAR_:
     case INTEGER_:
         node.u.num = env->num;
@@ -520,9 +520,9 @@ static void push_sym(pEnv env)
         node.u.str = env->str;
         break;
     }
-    node.y = env->startnum;
-    node.x = env->startpos;
-    node.pos = env->endpos;
+    node.y = env->scanner.startnum;
+    node.x = env->scanner.startpos;
+    node.pos = env->scanner.endpos;
     vec_push(env->tokens, node);
 }
 
@@ -545,7 +545,7 @@ int getsym(pEnv env, int ch)
     if (vec_size(env->tokens)) {
     begin:
         node = vec_pop(env->tokens);
-        switch (env->sym = node.op) {
+        switch (env->scanner.sym = node.op) {
         case CHAR_:
         case INTEGER_:
             env->num = node.u.num;
@@ -570,18 +570,18 @@ int getsym(pEnv env, int ch)
      * There is a token available, do some extra processing, in case the token
      * is MODULE or HIDE: MODULE .. END or HIDE .. END.
      */
-    if (env->sym == MODULE_ || env->sym == HIDE) {
+    if (env->scanner.sym == MODULE_ || env->scanner.sym == HIDE) {
         /*
          * Copy the global variables of modl.c into local variables.
          */
-        node.op = env->sym;
+        node.op = env->scanner.sym;
         savemod(&hide, &modl, &hcnt);
         do {
-            switch (env->sym) {
+            switch (env->scanner.sym) {
             case MODULE_:
                 push_sym(env);
                 ch = my_getsym(env, ch);
-                if (env->sym == USR_) {
+                if (env->scanner.sym == USR_) {
                     initmod(env, env->str);
                     module++;
                 } else
@@ -616,7 +616,7 @@ int getsym(pEnv env, int ch)
                     goto einde;
                 break;
             }
-            node.op = env->sym; /* previous symbol */
+            node.op = env->scanner.sym; /* previous symbol */
             push_sym(env);
             ch = my_getsym(env, ch);
         } while (1);
@@ -635,7 +635,7 @@ int getsym(pEnv env, int ch)
     if (vec_size(env->tokens))
         goto begin;
     if (env->printing)
-        dumptok(env, env->startnum, env->startpos, env->endpos); /* tokens read directly */
+        dumptok(env, env->scanner.startnum, env->scanner.startpos, env->scanner.endpos); /* tokens read directly */
     return ch;
 }
 #ifdef ALLOW_SYSTEM_CALLS

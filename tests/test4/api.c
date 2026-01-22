@@ -88,8 +88,10 @@ TEST(eval_simple)
     JoyContext* ctx = joy_create(NULL);
     ASSERT(ctx != NULL);
 
+    /* Test: 2 3 + . should push 2, push 3, add them (5), then print/pop (empty stack) */
     JoyResult r = joy_eval_string(ctx, "2 3 + .");
     ASSERT_EQ(r, JOY_OK);
+    /* After "2 3 + ." the stack should have 1 element (5) since . is a terminator, not executed */
     ASSERT_EQ(joy_stack_depth(ctx), 1);
 
     joy_destroy(ctx);

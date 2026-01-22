@@ -355,13 +355,13 @@ static void linenoise_repl(pEnv env)
         int ch = getch(env);
         ch = getsym(env, ch);
 
-        while (env->sym != '.') {
-            if (env->sym == LIBRA || env->sym == HIDE || env->sym == MODULE_
-                || env->sym == CONST_) {
+        while (env->scanner.sym != '.') {
+            if (env->scanner.sym == LIBRA || env->scanner.sym == HIDE || env->scanner.sym == MODULE_
+                || env->scanner.sym == CONST_) {
 #ifdef NOBDW
                 inimem1(env, 1);
 #endif
-                unsigned char flag = (env->sym == MODULE_);
+                unsigned char flag = (env->scanner.sym == MODULE_);
                 if (flag)
                     hide_inner_modules(env, 1);
                 ch = compound_def(env, ch);
@@ -370,7 +370,7 @@ static void linenoise_repl(pEnv env)
 #ifdef NOBDW
                 inimem2(env);
 #endif
-                if (env->sym == '.')
+                if (env->scanner.sym == '.')
                     break;
                 ch = getsym(env, ch);
             } else {
@@ -384,7 +384,7 @@ static void linenoise_repl(pEnv env)
                     exeterm(env, env->prog);
                 }
                 print(env);
-                if (env->sym == '.')
+                if (env->scanner.sym == '.')
                     break;
                 ch = getsym(env, ch);
             }
@@ -413,7 +413,7 @@ static void my_main(int argc, char** argv)
 #endif
 
     memset(&env, 0, sizeof(env));
-    env.ilevel = -1; /* scanner: no include files yet */
+    env.scanner.ilevel = -1; /* scanner: no include files yet */
     /*
      * Start the clock.
      */
@@ -440,11 +440,11 @@ static void my_main(int argc, char** argv)
      * command line. When set on the command line, they can not be overruled
      * in the source code.
      */
-    env.autoput = INIAUTOPUT;
-    env.echoflag = INIECHOFLAG;
-    env.undeferror = INIUNDEFERROR;
-    env.tracegc = INITRACEGC;
-    env.overwrite = INIWARNING;
+    env.config.autoput = INIAUTOPUT;
+    env.config.echoflag = INIECHOFLAG;
+    env.config.undeferror = INIUNDEFERROR;
+    env.config.tracegc = INITRACEGC;
+    env.config.overwrite = INIWARNING;
     /*
      * First look for options. They start with -.
      */
@@ -454,9 +454,9 @@ static void my_main(int argc, char** argv)
                 switch (argv[i][j]) {
                 case 'a':
                     ptr = &argv[i][j + 1];
-                    env.autoput = strtol(ptr, &tmp, 0);
+                    env.config.autoput = strtol(ptr, &tmp, 0);
                     j += tmp - ptr;
-                    env.autoput_set = 1; /* disable usrlib.joy */
+                    env.config.autoput_set = 1; /* disable usrlib.joy */
                     break;
 #ifdef BYTECODE
                 case 'b':
@@ -469,11 +469,11 @@ static void my_main(int argc, char** argv)
                     break; /* compile for joy1 */
 #endif
                 case 'd':
-                    env.debugging = 1;
+                    env.config.debugging = 1;
                     break;
                 case 'e':
                     ptr = &argv[i][j + 1];
-                    env.echoflag = strtol(ptr, &tmp, 0);
+                    env.config.echoflag = strtol(ptr, &tmp, 0);
                     j += tmp - ptr;
                     break;
 #ifdef BYTECODE
@@ -484,7 +484,7 @@ static void my_main(int argc, char** argv)
 #endif
                 case 'g':
                     ptr = &argv[i][j + 1];
-                    env.tracegc = strtol(ptr, &tmp, 0);
+                    env.config.tracegc = strtol(ptr, &tmp, 0);
                     j += tmp - ptr;
                     break;
                 case 'h':
@@ -531,19 +531,19 @@ static void my_main(int argc, char** argv)
                     psdump = 1;
                     break;
                 case 't':
-                    env.debugging = 2;
+                    env.config.debugging = 2;
                     break;
                 case 'u':
                     ptr = &argv[i][j + 1];
-                    env.undeferror = strtol(ptr, &tmp, 0);
+                    env.config.undeferror = strtol(ptr, &tmp, 0);
                     j += tmp - ptr;
-                    env.undeferror_set = 1; /* disable usrlib.joy */
+                    env.config.undeferror_set = 1; /* disable usrlib.joy */
                     break;
                 case 'v':
                     verbose = 1;
                     break;
                 case 'w':
-                    env.overwrite = 0;
+                    env.config.overwrite = 0;
                     break;
                 case 'x':
                     pstats = 1;
@@ -631,8 +631,8 @@ start:
      * initialize standard output.
      */
     if (raw && env.filename) { /* raw requires a filename */
-        env.autoput = 0;       /* disable autoput in usrlib.joy */
-        env.autoput_set = 1;   /* prevent enabling autoput */
+        env.config.autoput = 0;       /* disable autoput in usrlib.joy */
+        env.config.autoput_set = 1;   /* prevent enabling autoput */
         set_push_int_env(&env);
         SetRaw(); /* keep output buffered */
         set_push_int_env(0);
@@ -760,14 +760,14 @@ static void stats(pEnv env)
                env->gc_clock * 1000.0 / CLOCKS_PER_SEC, perc);
     }
 #endif
-    printf("%.0f nodes used\n", env->nodes);
+    printf("%.0f nodes used\n", env->stats.nodes);
 #ifdef NOBDW
-    printf("%.0f user nodes available\n", env->avail);
-    printf("%.0f main garbage collections\n", env->collect);
+    printf("%.0f user nodes available\n", env->stats.avail);
+    printf("%.0f main garbage collections\n", env->stats.collect);
 #endif
     printf("%.0f garbage collections\n", (double)GC_get_gc_no());
-    printf("%.0f calls to joy interpreter\n", env->calls);
-    printf("%.0f operations executed\n", env->opers);
+    printf("%.0f calls to joy interpreter\n", env->stats.calls);
+    printf("%.0f operations executed\n", env->stats.opers);
 }
 
 /*

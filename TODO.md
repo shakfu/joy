@@ -30,6 +30,55 @@ See `doc/parallel.md` for user guide and examples.
 
 ## TODO (Prioritized)
 
+### Priority 0: Architecture & Code Quality
+
+*Address before adding new features. See `doc/architecture.md` for details.*
+
+#### Builtin Organization
+
+- [ ] **Group related builtins** - Reduce 229 files to ~15 grouped files
+  - `arithmetic.c` - plus, minus, times, divide, mod, abs, neg
+  - `comparison.c` - equal, less, greater, compare
+  - `stack.c` - dup, swap, pop, rot, roll
+  - `list.c` - cons, first, rest, concat, size, at
+  - `control.c` - if, ifte, branch, cond, case
+  - `combinators.c` - map, fold, filter, times, while
+  - `recursion.c` - linrec, binrec, genrec, primrec, tailrec
+  - `io.c` - put, get, file operations
+  - `math.c` - sin, cos, sqrt, exp, log
+  - Migration: grouped files include individual files initially
+
+#### Env Struct Refactoring
+
+- [ ] **Extract EnvConfig** - Group configuration flags
+  - `autoput`, `echoflag`, `debugging`, `tracegc`, etc.
+  - Low risk, improves readability
+
+- [ ] **Extract EnvError** - Group error handling state
+  - `error_jmp`, `error_message`, `error_line`, `error_column`
+  - Enables better error handling patterns
+
+- [ ] **Extract EnvScanner** - Group scanner/lexer state
+  - `srcfile`, `linenum`, `linepos`, `linebuf`, `infile[]`
+  - Prerequisite for adding new syntax features
+
+#### Code Quality
+
+- [ ] **Add inline node accessors** - Replace some macros
+  - `node_type()`, `node_value()`, `node_next()`
+  - Keep macros as fallback for performance-critical paths
+  - Better debugging, IDE support, type safety
+
+- [ ] **Document macro contracts** - Add documentation
+  - Required preconditions (e.g., `env` in scope)
+  - Side effects and modifications
+  - Examples
+
+- [ ] **Standardize naming conventions** - Incremental
+  - Functions: `module_action` pattern (e.g., `scan_symbol`)
+  - Remove `my_` prefix from functions
+  - Consistent case: snake_case for functions
+
 ### Priority 1: High Value / Low-Medium Effort
 
 #### Numeric Computing
@@ -179,6 +228,7 @@ All of these now work correctly:
 | `doc/parallel_fixes.md` | Technical documentation of parallel execution fixes |
 | `doc/parallel_performance.md` | Performance benchmarks and usage guidelines |
 | `doc/vector.md` | Vector/matrix operations design document |
+| `doc/architecture.md` | Architecture review and improvement plan |
 | `include/parallel.h` | Parallel infrastructure (`copy_node_to_parent`) |
 | `src/utils.c` | GC and memory management (`copy` function) |
 | `src/interp.c` | Interpreter (`copy_body_from_parent`) |

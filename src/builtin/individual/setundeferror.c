@@ -15,8 +15,8 @@ void setundeferror_(pEnv env)
 {
     ONEPARAM("setundeferror");
     NUMERICTYPE("setundeferror");
-    if (!env->undeferror_set)
-        env->undeferror = nodevalue(env->stck).num;
+    if (!env->config.undeferror_set)
+        env->config.undeferror = nodevalue(env->stck).num;
     POP(env->stck);
 }
 #endif

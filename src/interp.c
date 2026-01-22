@@ -189,7 +189,7 @@ void exeterm(pEnv env, Index n)
 #endif
 
 start:
-    env->calls++;
+    env->stats.calls++;
     if (!n)
         return; /* skip empty program */
 #ifdef NOBDW
@@ -199,7 +199,7 @@ start:
     while (n) {
 #endif
 #ifdef TRACEGC
-        if (env->tracegc > 5) {
+        if (env->config.tracegc > 5) {
             printf("exeterm1: ");
             printnode(env, n);
         }
@@ -210,10 +210,10 @@ start:
 #else
         p = n;
 #endif
-        env->opers++;
-        if (env->debugging) {
+        env->stats.opers++;
+        if (env->config.debugging) {
             writestack(env, env->stck);
-            if (env->debugging == 2) {
+            if (env->config.debugging == 2) {
                 printf(" : ");
                 writeterm(env, p, stdout);
             }
@@ -233,7 +233,7 @@ start:
             index = nodevalue(p).ent;
             ent = vec_at(env->symtab, index);
             if (!ent.u.body) {
-                if (env->undeferror)
+                if (env->config.undeferror)
                     execerror(env, "definition", ent.name);
 #ifdef NOBDW
                 continue; /* skip empty body */
@@ -356,7 +356,7 @@ start:
             execerror(env, "valid factor", "exeterm");
         }
 #ifdef TRACEGC
-        if (env->tracegc > 5) {
+        if (env->config.tracegc > 5) {
             printf("exeterm2: ");
             printnode(env, p);
         }

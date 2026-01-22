@@ -44,12 +44,12 @@ void repl(pEnv env)
     ch = getch(env);
     while (1) {
         ch = getsym(env, ch);
-        if (env->sym == LIBRA || env->sym == HIDE || env->sym == MODULE_
-            || env->sym == CONST_) {
+        if (env->scanner.sym == LIBRA || env->scanner.sym == HIDE || env->scanner.sym == MODULE_
+            || env->scanner.sym == CONST_) {
 #ifdef NOBDW
             inimem1(env, 1); /* also resets the stack to initial */
 #endif
-            if ((flag = env->sym == MODULE_) != 0)
+            if ((flag = env->scanner.sym == MODULE_) != 0)
                 hide_inner_modules(env, 1);
             ch = compound_def(env, ch);
             if (flag)

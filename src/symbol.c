@@ -38,7 +38,7 @@ static int enterglobal(pEnv env, char* name)
     memset(&ent, 0, sizeof(ent)); /* make sure that all fields are 0 */
     ent.name = strdup(name);      /* copy to permanent memory */
     ent.is_user = 1;
-    ent.flags = env->inlining ? IMMEDIATE : OK;
+    ent.flags = env->config.inlining ? IMMEDIATE : OK;
     ent.u.body = 0;             /* may be assigned in definition */
     addsymbol(env, ent, index); /* add symbol entry to hash table */
     vec_push(env->symtab, ent);
@@ -98,17 +98,17 @@ static int definition(pEnv env, int ch)
     Entry ent;
     char* name;
 
-    if (env->sym == LIBRA || env->sym == PRIVATE || env->sym == HIDE
-        || env->sym == MODULE_ || env->sym == CONST_) {
+    if (env->scanner.sym == LIBRA || env->scanner.sym == PRIVATE || env->scanner.sym == HIDE
+        || env->scanner.sym == MODULE_ || env->scanner.sym == CONST_) {
         ch = compound_def(env, ch);
-        if (env->sym == '.')
+        if (env->scanner.sym == '.')
             ch = getsym(env, ch);
         else
             error(env, "END or period '.' expected in compound definition");
         return ch;
     }
 
-    if (env->sym != USR_)
+    if (env->scanner.sym != USR_)
         /*   NOW ALLOW EMPTY DEFINITION:
               { error(env, "atom expected at start of definition");
             abortexecution_(env, ABORT_RETRY); }
@@ -119,7 +119,7 @@ static int definition(pEnv env, int ch)
     name = GC_CTX_STRDUP(env, env->str);
 
     ch = getsym(env, ch);
-    if (env->sym == EQDEF)
+    if (env->scanner.sym == EQDEF)
         ch = getsym(env, ch);
     else
         error(env, "== expected in definition");
@@ -127,7 +127,7 @@ static int definition(pEnv env, int ch)
 
     index = enteratom(env, name);
     ent = vec_at(env->symtab, index);
-    if (!ent.is_user && env->overwrite) {
+    if (!ent.is_user && env->config.overwrite) {
         fflush(stdout);
         stderr_printf("warning: overwriting inbuilt '%s'\n", ent.name);
     }
@@ -144,13 +144,13 @@ static int definition(pEnv env, int ch)
  */
 static int defsequence(pEnv env, int ch)
 {
-    if (env->sym == CONST_)
-        env->inlining = 1;
+    if (env->scanner.sym == CONST_)
+        env->config.inlining = 1;
     do {
         ch = getsym(env, ch);
         ch = definition(env, ch);
-    } while (env->sym == ';');
-    env->inlining = 0;
+    } while (env->scanner.sym == ';');
+    env->config.inlining = 0;
     return ch;
 }
 
@@ -159,10 +159,10 @@ static int defsequence(pEnv env, int ch)
  */
 int compound_def(pEnv env, int ch)
 {
-    switch (env->sym) {
+    switch (env->scanner.sym) {
     case MODULE_:
         ch = getsym(env, ch);
-        if (env->sym != USR_)
+        if (env->scanner.sym != USR_)
             abortexecution_(env, ABORT_RETRY);
         initmod(env, env->str); /* initmod adds name to the module */
         ch = getsym(env, ch);

@@ -24,7 +24,10 @@ endif()
 set(JOY_GENERATED_DIR "${CMAKE_BINARY_DIR}/generated")
 file(MAKE_DIRECTORY "${JOY_GENERATED_DIR}")
 
-file(GLOB JOY_PRIMITIVE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/builtin/*.c" "${CMAKE_SOURCE_DIR}/src/builtin/*.h")
+file(GLOB JOY_PRIMITIVE_SOURCES CONFIGURE_DEPENDS
+  "${CMAKE_SOURCE_DIR}/src/builtin/*.c"
+  "${CMAKE_SOURCE_DIR}/src/builtin/*.h"
+  "${CMAKE_SOURCE_DIR}/src/builtin/individual/*.c")
 
 add_custom_command(
   OUTPUT "${JOY_GENERATED_DIR}/builtin.c" "${JOY_GENERATED_DIR}/builtin.h"
@@ -80,7 +83,7 @@ set(JOY_PUBLIC_INCLUDES "${CMAKE_SOURCE_DIR}/include")
 foreach(target joycore_static joycore_shared)
   target_include_directories(${target}
     PUBLIC "${JOY_PUBLIC_INCLUDES}"
-    PRIVATE "${JOY_GENERATED_DIR}" "${CMAKE_SOURCE_DIR}")
+    PRIVATE "${JOY_GENERATED_DIR}" "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/src/builtin")
   target_compile_features(${target} PUBLIC c_std_11)
 endforeach()
 

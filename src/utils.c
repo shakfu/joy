@@ -90,7 +90,7 @@ void *check_malloc(size_t leng)
 void inimem1(pEnv env, int status)
 {
 #ifdef TRACEGC
-    env->tracegc = 4;                /* set to reasonable, max=6 */
+    env->config.tracegc = 4;                /* set to reasonable, max=6 */
 #endif
     if (!env->mem_low) {
         env->memoryindex = env->mem_low = 1;
@@ -118,11 +118,11 @@ void inimem2(pEnv env)
 
     env->mem_low = env->memoryindex; /* enlarge definition space */
     new_avail = env->memorymax - env->mem_low;
-    if (env->avail > new_avail || !env->avail)
-        env->avail = new_avail;
+    if (env->stats.avail > new_avail || !env->stats.avail)
+        env->stats.avail = new_avail;
     env->flibrary_busy = 0; /* enable garbage collection */
 #ifdef TRACEGC
-    if (env->tracegc > 1) {
+    if (env->config.tracegc > 1) {
         printf("mem_low = %u\n", env->mem_low);
         printf("memoryindex = %u\n", env->memoryindex);
         printf("top of mem = %zu\n", env->memorymax);
@@ -162,7 +162,7 @@ static Index copy_one(pEnv env, Index n)
 
 #ifdef TRACEGC
     nodesinspected++;
-    if (env->tracegc > 4)
+    if (env->config.tracegc > 4)
         printf("copy .. (%d)\n", n);
 #endif
     /*
@@ -306,12 +306,12 @@ static void gc1(pEnv env, Index *l, Index *r)
 {
     start_gc_clock = clock(); /* statistics */
 #ifdef TRACEGC
-    if (env->tracegc > 1)
+    if (env->config.tracegc > 1)
         printf("begin garbage collection\n");
     nodesinspected = nodescopied = 0;
 #define COP1(X, NAME)                                                         \
     if (X) {                                                                  \
-        if (env->tracegc > 2) {                                               \
+        if (env->config.tracegc > 2) {                                               \
             printf("\nold %s = ", NAME);                                      \
             writeterm(env, X, stdout);                                        \
             putchar('\n');                                                    \
@@ -346,7 +346,7 @@ static void gc1(pEnv env, Index *l, Index *r)
 #define COP2(X, NAME)                                                         \
     if (X) {                                                                  \
         X = copy(env, X);                                                     \
-        if (env->tracegc > 2) {                                               \
+        if (env->config.tracegc > 2) {                                               \
             printf("\nnew %s = ", NAME);                                      \
             writeterm(env, X, stdout);                                        \
             putchar('\n');                                                    \
@@ -397,12 +397,12 @@ static void gc2(pEnv env)
     }
     this_gc_clock = clock() - start_gc_clock; /* statistics */
     env->gc_clock += this_gc_clock;
-    env->collect++;
+    env->stats.collect++;
 #ifdef TRACEGC
-    if (env->tracegc > 0)
+    if (env->config.tracegc > 0)
         printf("gc - %d nodes inspected, %d nodes copied, clock: %ld\n",
                nodesinspected, nodescopied, this_gc_clock);
-    if (env->tracegc > 1)
+    if (env->config.tracegc > 1)
         printf("end garbage collection\n");
 #endif
 }
@@ -493,7 +493,7 @@ Index newnode(pEnv env, Operator o, Types u, Index r)
     }
     p = env->memoryindex;    /* new index of new node(s) */
     env->memoryindex += num; /* space for new node(s) */
-    env->nodes += num;       /* statistics */
+    env->stats.nodes += num;       /* statistics */
                         /*
                          * Fill newly created node(s) with data from parameters. Some special
                          * handling                     is needed in case of strings.

@@ -15,7 +15,7 @@ void setecho_(pEnv env)
 {
     ONEPARAM("setecho");
     NUMERICTYPE("setecho");
-    env->echoflag = nodevalue(env->stck).num;
+    env->config.echoflag = nodevalue(env->stck).num;
     POP(env->stck);
 }
 #endif

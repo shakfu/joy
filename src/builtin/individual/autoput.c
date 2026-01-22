@@ -10,7 +10,7 @@
 Q0  OK  1090  autoput  :  ->  I
 [SETTINGS] Pushes current value of flag for automatic output, I = 0..2.
 */
-PUSH(autoput_, INTEGER_NEWNODE, env->autoput)
+PUSH(autoput_, INTEGER_NEWNODE, env->config.autoput)
 
 
 #endif

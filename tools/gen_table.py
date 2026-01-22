@@ -1,4 +1,15 @@
 #!/usr/bin/env python3
+"""
+Generate table.c from primitive documentation comments.
+
+Scans src/builtin/individual/*.c for doc comments of the form:
+    /**
+    Q0  OK  1380  +\0plus  :  M I  ->  N
+    Description here.
+    */
+
+Generates table entries for the optable.
+"""
 import argparse
 import pathlib
 import re
@@ -14,7 +25,8 @@ def escape(value: str) -> str:
 
 def main():
     args = parse_args()
-    prim_dir = args.source_dir / "src" / "builtin"
+    # Scan individual/ subdirectory for doc comments
+    prim_dir = args.source_dir / "src" / "builtin" / "individual"
     entries = []
     comment_re = re.compile(r"/\*\*(.*?)\*/", re.S)
     for c_path in sorted(prim_dir.glob("*.c")):
