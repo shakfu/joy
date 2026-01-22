@@ -26,8 +26,7 @@ file(MAKE_DIRECTORY "${JOY_GENERATED_DIR}")
 
 file(GLOB JOY_PRIMITIVE_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/src/builtin/*.c"
-  "${CMAKE_SOURCE_DIR}/src/builtin/*.h"
-  "${CMAKE_SOURCE_DIR}/src/builtin/individual/*.c")
+  "${CMAKE_SOURCE_DIR}/src/builtin/*.h")
 
 add_custom_command(
   OUTPUT "${JOY_GENERATED_DIR}/builtin.c" "${JOY_GENERATED_DIR}/builtin.h"

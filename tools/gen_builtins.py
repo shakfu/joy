@@ -6,13 +6,13 @@ The builtin directory structure:
   src/builtin/
     *.c           - Grouped builtin files (arithmetic.c, stack.c, etc.)
     *.h           - Shared macro headers
-    individual/   - Individual builtin implementations (one per file)
 
-builtin.c includes the grouped .c files which in turn include individual files.
-builtin.h declares all individual builtin functions for the optable.
+builtin.c includes the grouped .c files.
+builtin.h declares all builtin functions extracted from the grouped files.
 """
 import argparse
 import pathlib
+import re
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,16 +24,40 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def extract_function_names(source_file: pathlib.Path) -> list[str]:
+    """Extract builtin function names from a consolidated source file.
+
+    Looks for:
+    - void xxx_(pEnv env) - direct function definitions
+    - MACRO(xxx_, ...) - macro invocations where first arg is function name
+    """
+    content = source_file.read_text()
+    names = set()
+
+    # Pattern 1: void xxx_(pEnv env) function definitions
+    for match in re.finditer(r'\bvoid\s+(\w+_)\s*\(\s*pEnv\s+env\s*\)', content):
+        names.add(match.group(1))
+
+    # Pattern 2: MACRO(xxx_, ...) - uppercase macro with function name as first arg
+    # Matches things like PLUSMINUS(plus_, ...), UFLOAT(ceil_, ...), etc.
+    for match in re.finditer(r'\b[A-Z][A-Z0-9_]+\s*\(\s*(\w+_)\s*,', content):
+        names.add(match.group(1))
+
+    return sorted(names)
+
+
 def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> None:
     prim_dir = source_dir / "src" / "builtin"
-    individual_dir = prim_dir / "individual"
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Get grouped .c files (top-level only, not individual/)
+    # Get grouped .c files (top-level only)
     grouped_sources = sorted(f for f in prim_dir.glob("*.c") if f.is_file())
 
-    # Get individual .c files for function declarations
-    individual_sources = sorted(individual_dir.glob("*.c"))
+    # Extract all function names from grouped files
+    all_functions = set()
+    for src in grouped_sources:
+        functions = extract_function_names(src)
+        all_functions.update(functions)
 
     # Generate builtin.c - includes grouped files
     builtin_c = output_dir / "builtin.c"
@@ -44,7 +68,7 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
             rel = src.resolve().relative_to(source_dir.resolve())
             bc_file.write(f'#include "{rel.as_posix()}"\n')
 
-    # Generate builtin.h - declares all individual functions
+    # Generate builtin.h - declares all functions
     builtin_h = output_dir / "builtin.h"
     with builtin_h.open("w") as bh_file:
         bh_file.write("#ifndef JOY_BUILTIN_GENERATED_H\n")
@@ -52,8 +76,8 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
         bh_file.write("/* Generated file - do not edit */\n")
         bh_file.write("/* Declares all builtin functions */\n\n")
         bh_file.write('#include "globals.h"\n\n')
-        for src in individual_sources:
-            bh_file.write(f"void {src.stem}_(pEnv env);\n")
+        for func_name in sorted(all_functions):
+            bh_file.write(f"void {func_name}(pEnv env);\n")
         bh_file.write("\n#endif /* JOY_BUILTIN_GENERATED_H */\n")
 
 
