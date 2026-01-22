@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### [1.38]
+
 ### Added
 
 - `doc/parallel.md` - User guide and design document for parallel execution (updated with 7 practical examples)
@@ -95,7 +97,7 @@ Core changes from [Wodan58/Joy](https://github.com/Wodan58/Joy) Patch Tuesday V 
 - GC improvements for parameter preservation during collection
 - Configurable system call control
 
-## [1.37] - 2026-01-20
+## [1.37]
 
 ### Added
 
