@@ -1,0 +1,110 @@
+(*
+    module  : match.joy
+    version : 1.0
+    date    : 01/22/26
+
+    Tests for the match combinator.
+    match performs pattern matching on the top of stack.
+
+    Syntax: X [pattern] [action] match -> result | false
+*)
+
+(* Test 1: Literal integer match - success *)
+5 [5] [true] match true equal.
+
+(* Test 2: Literal integer match - failure *)
+5 [6] [true] match false equal.
+
+(* Test 3: Wildcard matches anything *)
+5 [_] [42] match 42 equal.
+
+(* Test 4: Wildcard with string *)
+"hello" [_] [99] match 99 equal.
+
+(* Test 5: Variable binding - square the value *)
+5 [n] [n n *] match 25 equal.
+
+(* Test 6: Variable binding with different value *)
+7 [y] [y 2 +] match 9 equal.
+
+(* Test 7: Empty list pattern - success *)
+[] [[]] [true] match true equal.
+
+(* Test 8: Empty list pattern - failure *)
+[1] [[]] [true] match false equal.
+
+(* Test 9: Cons pattern - extract head *)
+[1 2 3] [[h : t]] [h] match 1 equal.
+
+(* Test 10: Cons pattern - extract tail *)
+[1 2 3] [[h : t]] [t] match [2 3] equal.
+
+(* Test 11: Cons pattern - use both head and tail *)
+[10 20 30] [[hd : tl]] [hd tl] match
+stack [[20 30] 10] equal.
+[] unstack.
+
+(* Test 12: Cons pattern on single element list *)
+[42] [[h : t]] [h t] match
+stack [[] 42] equal.
+[] unstack.
+
+(* Test 13: Cons pattern failure on empty list *)
+[] [[h : t]] [h] match false equal.
+
+(* Test 14: Exact list pattern - 3 elements *)
+[1 2 3] [[a b c]] [a b + c +] match 6 equal.
+
+(* Test 15: Exact list pattern - 2 elements *)
+[10 20] [[p q]] [p q *] match 200 equal.
+
+(* Test 16: Exact list pattern - length mismatch (too few) *)
+[1 2] [[a b c]] [0] match false equal.
+
+(* Test 17: Exact list pattern - length mismatch (too many) *)
+[1 2 3 4] [[a b c]] [0] match false equal.
+
+(* Test 18: String literal match *)
+"hello" ["hello"] [true] match true equal.
+
+(* Test 19: String literal mismatch *)
+"hello" ["world"] [true] match false equal.
+
+(* Test 20: Boolean literal match *)
+true [true] [1] match 1 equal.
+
+(* Test 21: Boolean literal mismatch *)
+true [false] [1] match false equal.
+
+(* Test 22: Nested list with exact pattern *)
+[[1 2] [3 4]] [[p q]] [p first q first +] match 4 equal.
+
+(* Test 23: Variable shadowing - binding restored after match *)
+[] unstack.
+DEFINE test_var == 100.
+5 [test_var] [test_var test_var +] match pop
+test_var 100 equal.
+
+(* Test 24: Multiple matches in sequence *)
+[] unstack.
+3 [n] [n 1 +] match
+[m] [m 2 *] match
+8 equal.
+
+(* Test 25: Character literal match *)
+65 [65] [true] match true equal.
+
+(* Test 26: Character literal mismatch *)
+65 [66] [true] match false equal.
+
+(* Test 27: Empty pattern matches anything and executes action *)
+42 [] [99] match 99 equal.
+
+(* Test 28: Float literal match *)
+3.14 [3.14] [true] match true equal.
+
+(* Test 29: Cons pattern with wildcard tail *)
+[1 2 3 4 5] [[h : _]] [h] match 1 equal.
+
+(* Test 30: Cons pattern with wildcard head *)
+[1 2 3] [[_ : t]] [t] match [2 3] equal.

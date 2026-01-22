@@ -1,0 +1,130 @@
+(*
+    module  : cases.joy
+    version : 1.0
+    date    : 01/22/26
+
+    Tests for the cases combinator.
+    cases performs multi-pattern dispatch.
+
+    Syntax: X [[pat1] [act1]] [[pat2] [act2]] ... cases -> result
+*)
+
+(* Test 1: Simple literal cases *)
+5 [[[5] [true]] [[_] [false]]] cases true equal.
+
+(* Test 2: Second case matches *)
+7 [[[5] [true]] [[_] [false]]] cases false equal.
+
+(* Test 3: Factorial with pattern matching *)
+[] unstack.
+DEFINE fact ==
+    [[[0] [1]]
+     [[n] [n 1 - fact n *]]] cases.
+5 fact 120 equal.
+
+(* Test 4: Factorial of 0 *)
+0 fact 1 equal.
+
+(* Test 5: Factorial of 1 *)
+1 fact 1 equal.
+
+(* Test 6: Safe head with default *)
+[] unstack.
+DEFINE safehead ==
+    [[[[]] [0]]
+     [[[h : _]] [h]]] cases.
+[] safehead 0 equal.
+
+(* Test 7: Safe head on non-empty list *)
+[5 6 7] safehead 5 equal.
+
+(* Test 8: Safe head on single element *)
+[42] safehead 42 equal.
+
+(* Test 9: List length with pattern matching *)
+[] unstack.
+DEFINE len ==
+    [[[[]] [0]]
+     [[[_ : xs]] [xs len 1 +]]] cases.
+[1 2 3 4] len 4 equal.
+
+(* Test 10: Length of empty list *)
+[] len 0 equal.
+
+(* Test 11: Length of single element *)
+[99] len 1 equal.
+
+(* Test 12: Sum list with pattern matching *)
+[] unstack.
+DEFINE sumlist ==
+    [[[[]] [0]]
+     [[[h : t]] [t sumlist h +]]] cases.
+[1 2 3 4 5] sumlist 15 equal.
+
+(* Test 13: Sum of empty list *)
+[] sumlist 0 equal.
+
+(* Test 14: Sign function *)
+[] unstack.
+DEFINE mysign ==
+    [[[0] [0]]
+     [[n] [n 0 < [-1] [1] branch]]] cases.
+-5 mysign -1 equal.
+0 mysign 0 equal.
+5 mysign 1 equal.
+
+(* Test 15: Last element of list using exact pattern for single element *)
+[] unstack.
+DEFINE lastelem ==
+    [[[[v]] [v]]
+     [[[_ : vs]] [vs lastelem]]] cases.
+[1 2 3 4 5] lastelem 5 equal.
+
+(* Test 16: Last of single element *)
+[42] lastelem 42 equal.
+
+(* Test 17: Boolean dispatch *)
+[] unstack.
+true [[[true] [1]] [[false] [0]]] cases 1 equal.
+false [[[true] [1]] [[false] [0]]] cases 0 equal.
+
+(* Test 18: First element of list of lists *)
+[] unstack.
+DEFINE firstpair ==
+    [[[[]] [[]]]
+     [[[v : _]] [v]]] cases.
+[[1 2] [3 4] [5 6]] firstpair [1 2] equal.
+
+(* Test 19: First pair of empty *)
+[] firstpair [] equal.
+
+(* Test 20: Variable bindings are restored after cases *)
+[] unstack.
+DEFINE myvar == 999.
+5 [[[n] [n n +]]] cases pop
+myvar 999 equal.
+
+(* Test 21: Cases with empty pattern as catch-all *)
+[] unstack.
+42 [[[0] [100]] [[] [200]]] cases 200 equal.
+
+(* Test 22: Map with cases - double each element *)
+[] unstack.
+DEFINE double_list ==
+    [[[[]] [[]]]
+     [[[h : t]] [t double_list h 2 * swons]]] cases.
+[1 2 3] double_list [2 4 6] equal.
+
+(* Test 23: Test that first matching pattern wins *)
+[] unstack.
+5 [[[5] [100]]
+   [[_] [200]]
+   [[5] [300]]] cases 100 equal.
+
+(* Test 24: Wildcard matches anything *)
+[] unstack.
+"hello" [[[_] [42]]] cases 42 equal.
+
+(* Test 25: Nested list destructuring *)
+[] unstack.
+[[1 2] [3 4]] [[[[a b]] [a first b first +]]] cases 4 equal.

@@ -195,7 +195,7 @@ See `doc/vector_impl.md` for implementation details.
 
   See `tests/test2/let.joy` for more examples.
 
-- [ ] **Pattern matching** - Match and destructure values
+- [x] **Pattern matching** - Match and destructure values
 
   **Combinators:**
   - `cases` - Multi-pattern dispatch: `value [[pat1] [act1]] [[pat2] [act2]] ... cases`
@@ -206,33 +206,40 @@ See `doc/vector_impl.md` for implementation details.
   |---------|---------|-------|
   | `0`, `"hi"`, `true` | Literal value | nothing |
   | `_` | Anything (wildcard) | nothing |
-  | `x` | Anything | `x` = matched value |
-  | `[x : xs]` | Non-empty list | `x` = head, `xs` = tail |
+  | `n` | Anything | `n` = matched value |
+  | `[h : t]` | Non-empty list | `h` = head, `t` = tail |
   | `[a b c]` | Exactly 3-element list | `a`, `b`, `c` = elements |
   | `[]` | Empty list | nothing |
 
-  Note: `:` follows Haskell convention and disambiguates `[x : xs]` (1+ elements)
-  from `[x xs]` (exactly 2 elements).
+  Note: `:` follows Haskell convention and disambiguates `[h : t]` (1+ elements)
+  from `[h t]` (exactly 2 elements). Variable names must be user symbols
+  (not builtins like `x` or `i`).
 
   **Examples:**
   ```joy
+  (* Variable binding *)
+  5 [n] [n n *] match .                    (* -> 25 *)
+
   (* Destructure list *)
-  [1 2 3] [[x : xs]] [x xs] match .       (* -> 1 [2 3] *)
+  [1 2 3] [[h : t]] [h t] match .          (* -> 1 [2 3] *)
 
   (* Factorial with pattern matching *)
-  fact == [[0] [pop 1]]
-          [[_] [dup 1 - fact *]] cases.
+  DEFINE fact ==
+      [[[0] [1]]
+       [[n] [n 1 - fact n *]]] cases.
   5 fact .                                 (* -> 120 *)
 
   (* Safe head with default *)
-  safehead == [[[]      ] [pop 0]]
-              [[[x : _ ]] [x    ]] cases.
+  DEFINE safehead ==
+      [[[[]] [0]]
+       [[[h : _]] [h]]] cases.
   [] safehead .                            (* -> 0 *)
   [5 6] safehead .                         (* -> 5 *)
 
   (* List length *)
-  len == [[[]       ] [pop 0          ]]
-         [[[_ : xs ]] [pop xs len 1 +]] cases.
+  DEFINE len ==
+      [[[[]] [0]]
+       [[[_ : vs]] [vs len 1 +]]] cases.
   [1 2 3 4] len .                          (* -> 4 *)
   ```
 
@@ -240,6 +247,8 @@ See `doc/vector_impl.md` for implementation details.
   - `ifte` - Tests conditions, doesn't destructure
   - `opcase` - Dispatches on type, doesn't bind parts
   - `cases`/`match` - Destructures AND binds in one step
+
+  See `tests/test2/match.joy` and `tests/test2/cases.joy` for more examples.
 
 - [ ] **Lazy sequences** - Infinite/deferred lists
   - `1 [1 +] iterate` -> lazy `[1 2 3 4 ...]`
@@ -377,7 +386,10 @@ All of these now work correctly:
 | `src/builtin/parallel.c` | Parallel combinators (pmap, pfork) |
 | `src/builtin/vector.c` | Vector and matrix operations |
 | `src/builtin/*.c` | Grouped builtin implementations (19 files) |
+| `src/builtin/pattern.c` | Pattern matching combinators (match, cases) |
 | `tests/test2/vector.joy` | Vector operations test suite |
+| `tests/test2/match.joy` | Pattern matching test suite (match) |
+| `tests/test2/cases.joy` | Pattern matching test suite (cases) |
 | `tests/test2/matrix.joy` | Matrix operations test suite |
 | `tests/parallel_benchmark.sh` | Wall-time benchmark script |
 | `tests/parallel_benchmark.joy` | CPU-time benchmark (Joy) |

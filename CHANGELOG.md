@@ -35,6 +35,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Limitation: Names must be user symbols, not builtins (`i` and `x` are reserved; other letters work)
   - Tests: `tests/test2/let.joy` (12 test cases)
 
+- **Pattern matching (`match` and `cases` combinators)** - Match and destructure values
+  - `match`: `value [pattern] [action] match -> result | false`
+  - `cases`: `value [[pat1] [act1]] [[pat2] [act2]] ... cases -> result`
+  - Patterns support: literals, wildcards (`_`), variables, empty list (`[]`), cons patterns (`[h : t]`), exact list patterns (`[a b c]`)
+  - Variables are bound during action execution and restored afterward
+  - Example: `5 [n] [n n *] match` -> `25`
+  - Example: `[1 2 3] [[h : t]] [h t] match` -> `1 [2 3]`
+  - Example: `DEFINE fact == [[[0] [1]] [[n] [n 1 - fact n *]]] cases.`
+  - Tests: `tests/test2/match.joy` (30 test cases), `tests/test2/cases.joy` (28 test cases)
+
 ### Fixed
 
 - **GC invalidates local Index variables during list construction** - Critical bug fix
