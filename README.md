@@ -153,7 +153,9 @@ All operations include error handling for type mismatches and dimension errors.
 
 ### Performance
 
-Vector and matrix operations use SIMD vectorization via `#pragma omp simd` directives, enabling automatic use of SSE/AVX instructions on modern CPUs. This is enabled by default with the `-fopenmp-simd` compiler flag and works independently of the full parallel execution feature (`-DJOY_PARALLEL`).
+Vector and matrix operations use SIMD vectorization via `#pragma omp simd` directives, enabling automatic use of SSE/AVX instructions on modern CPUs. This is enabled by default with the `-fopenmp-simd` compiler flag.
+
+For larger matrices (32x32 and above), optional BLAS support provides additional performance gains via highly-optimized vendor libraries (Apple Accelerate, OpenBLAS, Intel MKL).
 
 See [doc/vector_impl.md](doc/vector_impl.md) for implementation details.
 
@@ -164,6 +166,18 @@ See [doc/vector_impl.md](doc/vector_impl.md) for implementation details.
 ```bash
 mkdir build && cd build
 cmake ..
+cmake --build .
+```
+
+### Build with BLAS Support
+
+For optimized matrix operations on larger matrices:
+- **macOS**: Uses Apple Accelerate (built-in, no extra install needed)
+- **Linux**: `apt install libopenblas-dev` or similar
+
+```bash
+mkdir build && cd build
+cmake -DJOY_BLAS=ON ..
 cmake --build .
 ```
 

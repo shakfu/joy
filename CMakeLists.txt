@@ -148,6 +148,43 @@ endif()
 # - macOS: brew install libomp
 # - Linux: Usually built into GCC/Clang
 option(JOY_PARALLEL "Enable parallel combinators using OpenMP" OFF)
+# Optional: Enable BLAS for optimized linear algebra
+# Uses system BLAS: Apple Accelerate (macOS), OpenBLAS, Intel MKL, or reference BLAS
+option(JOY_BLAS "Enable BLAS for optimized matrix/vector operations" OFF)
+if(JOY_BLAS)
+  if(APPLE)
+    # macOS: Use Accelerate framework (includes vecLib/BLAS)
+    find_library(ACCELERATE_FRAMEWORK Accelerate)
+    if(ACCELERATE_FRAMEWORK)
+      foreach(target joycore_static joycore_shared)
+        target_compile_definitions(${target} PUBLIC JOY_BLAS ACCELERATE_NEW_LAPACK)
+        target_link_libraries(${target} PUBLIC ${ACCELERATE_FRAMEWORK})
+      endforeach()
+      message(STATUS "BLAS enabled via Apple Accelerate framework")
+    else()
+      message(WARNING "Accelerate framework not found - BLAS disabled")
+    endif()
+  else()
+    # Linux/other: Use FindBLAS to detect available BLAS
+    # Tries: Intel MKL, OpenBLAS, ATLAS, reference BLAS
+    set(BLA_VENDOR OpenBLAS)  # Prefer OpenBLAS
+    find_package(BLAS)
+    if(NOT BLAS_FOUND)
+      unset(BLA_VENDOR)
+      find_package(BLAS)  # Try any BLAS
+    endif()
+    if(BLAS_FOUND)
+      foreach(target joycore_static joycore_shared)
+        target_compile_definitions(${target} PUBLIC JOY_BLAS)
+        target_link_libraries(${target} PUBLIC ${BLAS_LIBRARIES})
+      endforeach()
+      message(STATUS "BLAS enabled: ${BLAS_LIBRARIES}")
+    else()
+      message(WARNING "BLAS not found - install OpenBLAS: apt install libopenblas-dev")
+    endif()
+  endif()
+endif()
+
 if(JOY_PARALLEL)
   foreach(target joycore_static joycore_shared)
     target_compile_definitions(${target} PUBLIC JOY_PARALLEL)

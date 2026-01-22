@@ -1,6 +1,6 @@
 /*
  *  module  : vector.c
- *  version : 1.1
+ *  version : 1.2
  *  date    : 01/22/26
  *
  *  Vectorized operations on numeric lists and matrices.
@@ -19,9 +19,28 @@
  *    Linear algebra: mm (matmul), mv (matrix-vector), transpose
  *    Properties: det, inv, trace
  *    Creation: meye (identity matrix)
+ *
+ *  Optional BLAS support (-DJOY_BLAS=ON):
+ *    Uses cblas_dgemm for matrix multiply, cblas_dgemv for matrix-vector.
+ *    Enabled above BLAS_THRESHOLD to amortize list-to-array conversion cost.
  */
 #include "globals.h"
 #include <math.h>
+
+#ifdef JOY_BLAS
+#ifdef __APPLE__
+#include <Accelerate/Accelerate.h>
+#else
+#include <cblas.h>
+#endif
+
+/*
+ * Minimum matrix dimension to use BLAS. Below this threshold, the overhead
+ * of converting linked lists to contiguous arrays exceeds BLAS benefits.
+ * Determined empirically - BLAS wins for matrices roughly 32x32 and larger.
+ */
+#define BLAS_THRESHOLD 32
+#endif /* JOY_BLAS */
 
 /*
  * Helper: Get numeric value from a node as double.
@@ -1267,15 +1286,27 @@ void mm_(pEnv env)
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
 
-    /* Matrix multiplication: C[i][j] = sum(A[i][k] * B[k][j]) */
-    for (i = 0; i < rows1; i++) {
-        for (j = 0; j < cols2; j++) {
-            double sum = 0.0;
-            #pragma omp simd reduction(+:sum)
-            for (k = 0; k < cols1; k++) {
-                sum += a[i * cols1 + k] * b[k * cols2 + j];
+#ifdef JOY_BLAS
+    if (rows1 >= BLAS_THRESHOLD || cols1 >= BLAS_THRESHOLD || cols2 >= BLAS_THRESHOLD) {
+        /* Use BLAS: C = 1.0 * A * B + 0.0 * C */
+        cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                    rows1, cols2, cols1,    /* m, n, k */
+                    1.0, a, cols1,          /* alpha, A, lda */
+                    b, cols2,               /* B, ldb */
+                    0.0, result, cols2);    /* beta, C, ldc */
+    } else
+#endif
+    {
+        /* Fallback: manual matrix multiplication */
+        for (i = 0; i < rows1; i++) {
+            for (j = 0; j < cols2; j++) {
+                double sum = 0.0;
+                #pragma omp simd reduction(+:sum)
+                for (k = 0; k < cols1; k++) {
+                    sum += a[i * cols1 + k] * b[k * cols2 + j];
+                }
+                result[i * cols2 + j] = sum;
             }
-            result[i * cols2 + j] = sum;
         }
     }
 

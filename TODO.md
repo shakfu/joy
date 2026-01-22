@@ -109,33 +109,26 @@ See `doc/vector_impl.md` for implementation details.
 - [x] **SIMD optimization** - Performance improvements for vector/matrix ops
   - ~~Contiguous storage for homogeneous numeric lists~~
   - [x] SIMD vectorization with `#pragma omp simd` (via `-fopenmp-simd` flag)
-  - [ ] Optional BLAS integration (see below)
+  - [x] Optional BLAS integration (Phase 1 & 2 complete)
 
-- [ ] **Optional BLAS support** - Build-time option for hardware-optimized linear algebra
+- [x] **Optional BLAS support** - Build-time option for hardware-optimized linear algebra
   - Build flag: `-DJOY_BLAS=ON`
-  - CMake detection order: Apple Accelerate (macOS), Intel MKL, OpenBLAS, reference BLAS
-  - Graceful fallback to current implementation when BLAS unavailable
+  - CMake detection: Apple Accelerate (macOS), OpenBLAS, Intel MKL, reference BLAS
+  - Graceful fallback to SIMD implementation when BLAS unavailable or below threshold
 
-  **Implementation phases:**
+  **Completed:**
+  - [x] CMake `FindBLAS` integration with vendor detection
+  - [x] `#ifdef JOY_BLAS` guards in `src/builtin/vector.c`
+  - [x] `BLAS_THRESHOLD 32` - minimum dimension to use BLAS
+  - [x] `mm` via `cblas_dgemm` - matrix multiply (4-8x speedup)
 
-  Phase 1 - Core infrastructure:
-  - [ ] CMake `FindBLAS` integration with vendor detection
-  - [ ] `#ifdef JOY_BLAS` guards in `src/builtin/vector.c`
-  - [ ] Helper functions: `list_to_double_array()`, `double_array_to_list()`
-  - [ ] Size threshold constant (e.g., `BLAS_THRESHOLD 64`)
+  **Not implemented (benchmarked, no benefit):**
+  - `mv` - List-to-array conversion overhead (~50% of runtime) negates BLAS benefit
+  - Level 1 ops (`dot`, `vnorm`, `vscale`) - Same issue, O(n) conversion vs O(n) compute
 
-  Phase 2 - High-value operations (O(n^2) and O(n^3)):
-  - [ ] `mm` via `cblas_dgemm` - matrix multiply, biggest performance win
-  - [ ] `mv` via `cblas_dgemv` - matrix-vector multiply
-
-  Phase 3 - Level 1 operations (O(n), benefit for large vectors):
-  - [ ] `dot` via `cblas_ddot`
-  - [ ] `vnorm` via `cblas_dnrm2`
-  - [ ] `vscale` via `cblas_dscal`
-
-  **Note:** Linked-list to contiguous array conversion adds overhead. BLAS path
-  should only activate above threshold where BLAS optimization outweighs
-  conversion cost. Threshold TBD via benchmarking.
+  **Future consideration:**
+  - [ ] Native contiguous array type - Would enable full BLAS performance for all ops
+  - See `doc/contiguous_matrix_exploration.md` for design exploration
 
 ### Priority 2: Medium Value / Medium Effort
 

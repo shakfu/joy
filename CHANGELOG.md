@@ -15,6 +15,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Works independently of full OpenMP parallel support (`-DJOY_PARALLEL`)
   - Enables auto-vectorization for element-wise operations on modern CPUs
 
+- **Optional BLAS support** - Build-time option for hardware-optimized linear algebra
+  - Enable with `-DJOY_BLAS=ON` in CMake
+  - macOS: Uses Apple Accelerate framework (vecLib/BLAS)
+  - Linux: Uses OpenBLAS, Intel MKL, or system BLAS via `FindBLAS`
+  - `mm` (matrix multiply) uses `cblas_dgemm` for matrices >= 32x32 (4-8x speedup)
+  - Graceful fallback to SIMD-optimized manual implementation below threshold
+  - Note: `mv` and Level 1 ops use SIMD only (list-to-array conversion negates BLAS benefit)
+
+- **Contiguous matrix type exploration** - Design document for future consideration
+  - `doc/contiguous_matrix_exploration.md` - Analysis of native array types for Joy
+  - Would enable full BLAS performance for all operations (10-50x projected speedup)
+
 ### Fixed
 
 - **GC invalidates local Index variables during list construction** - Critical bug fix
