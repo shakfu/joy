@@ -3,7 +3,7 @@
 #   version : 1.37
 #   date    : 02/18/25
 #
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.28)
 project(Joy VERSION 1.0 LANGUAGES C)
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 

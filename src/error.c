@@ -22,6 +22,7 @@ void fatal(char *str)
 void abortexecution_(pEnv env, int num)
 {
     fflush(stdin);
+    env->finclude_busy = 0; /* Reset finclude state on abort */
     longjmp(env->error_jmp, num);
 }
 
