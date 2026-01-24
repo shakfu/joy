@@ -54,11 +54,11 @@ again:
         if (!env->scanner.ilevel)
             abortexecution_(env, ABORT_QUIT);
         fclose(env->scanner.srcfile);
-        if (env->finclude_busy)
-            longjmp(env->finclude, 1); /* back to finclude */
         env->scanner.srcfile = env->scanner.infile[--env->scanner.ilevel].fp;
         env->scanner.linenum = env->scanner.infile[env->scanner.ilevel].line;
         env->scanner.srcfilename = env->scanner.infile[env->scanner.ilevel].name;
+        if (env->finclude_busy)
+            longjmp(env->finclude, 1); /* back to finclude */
         goto again;
     }
     if (!env->scanner.linepos && ch == SHELLESCAPE) {
@@ -116,7 +116,8 @@ void ungetch(pEnv env, int ch)
     if (ch == '\n')
         env->scanner.linenum--; /* about to unread newline */
     ungetc(ch, env->scanner.srcfile);
-    env->scanner.linepos--; /* read too far, push back */
+    if (env->scanner.linepos > 0)
+        env->scanner.linepos--; /* read too far, push back */
 }
 
 /*
