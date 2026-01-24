@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### [1.44]
+
+### Added
+
+- **Persistent SQLite-backed sessions** - Store and restore symbol definitions across Joy sessions
+  - Enable with `-DJOY_SESSION=ON` in CMake (requires SQLite3, default: OFF)
+  - Automatic persistence: DEFINE operations write-through to database
+  - Snapshot/restore: Save and restore session state to named checkpoints
+  - Session management: List, merge, diff, and selectively copy between sessions
+  - SQL queries: Execute raw SQL on session data for advanced introspection
+  - Operators:
+    - `session` - Open/create persistent session: `"myproj" session.`
+    - `session-close` - Close current session
+    - `sessions` - List available sessions (*.joy.db files)
+    - `snapshot` - Save current state: `"v1" snapshot.`
+    - `restore` - Restore to snapshot: `"v1" restore.`
+    - `snapshots` - List available snapshots
+    - `session-merge` - Merge another session into current
+    - `session-diff` - Compare sessions (returns dict with added/modified/removed)
+    - `session-take` - Copy specific symbol from another session
+    - `sql` - Execute SQL query: `"SELECT * FROM symbols" [] sql.`
+  - Uses SQLite WAL mode for better concurrency
+  - Generator scripts detect `[SESSION]` marker for conditional compilation
+
+---
+
 ### [1.43]
 
 ### Added

@@ -414,6 +414,90 @@ $"Price: $100".              (* -> "Price: $100" *)
 
 Expressions in `${...}` are evaluated and converted to strings using `unquoted`. Supports integers, floats, strings, booleans, and user-defined symbols.
 
+## Persistent Sessions
+
+Store and restore symbol definitions across Joy sessions using SQLite:
+
+```joy
+(* Open or create a persistent session *)
+"myproject" session.
+(* -> session: opened 'myproject' *)
+
+(* Define symbols - automatically persisted *)
+DEFINE square == dup *.
+DEFINE cube == dup dup * *.
+
+(* Quit and restart Joy - definitions survive *)
+"myproject" session.
+5 square.    (* -> 25 - definition was persisted *)
+```
+
+### Snapshots
+
+Save and restore session state to named checkpoints:
+
+```joy
+"myproject" session.
+DEFINE x == 1.
+"v1" snapshot.        (* Save current state *)
+
+DEFINE x == 999.      (* Change x *)
+x.                    (* -> 999 *)
+
+"v1" restore.         (* Restore to v1 *)
+x.                    (* -> 1 - restored! *)
+
+snapshots.            (* -> ["v1"] - list snapshots *)
+```
+
+### Session Management
+
+```joy
+(* List available sessions *)
+sessions.             (* -> ["myproject" "other"] *)
+
+(* Compare sessions *)
+"other" session-diff.
+(* -> {added: [...], modified: [...], removed: [...]} *)
+
+(* Merge another session into current *)
+"library" session-merge.
+(* -> true if no conflicts, false with conflict list *)
+
+(* Copy specific symbol from another session *)
+"library" "useful-func" session-take.
+```
+
+### SQL Queries
+
+Execute SQL directly on session data:
+
+```joy
+(* Query all symbols *)
+"SELECT name, body FROM symbols ORDER BY name" [] sql.
+(* -> [{name: "cube", body: "dup dup * *"}, ...] *)
+
+(* Query with parameters *)
+"SELECT * FROM symbols WHERE name LIKE ?" ["%square%"] sql.
+```
+
+### Session Operators
+
+| Operator | Signature | Description |
+|----------|-----------|-------------|
+| `session` | `"name" ->` | Open/create persistent session |
+| `session-close` | `->` | Close current session |
+| `sessions` | `-> [names]` | List available sessions |
+| `snapshot` | `"name" ->` | Save current state |
+| `restore` | `"name" ->` | Restore to snapshot |
+| `snapshots` | `-> [names]` | List snapshots in session |
+| `session-merge` | `"source" -> B` | Merge source into current |
+| `session-diff` | `"other" -> D` | Compare sessions (dict) |
+| `session-take` | `"source" "symbol" ->` | Copy symbol from source |
+| `sql` | `"query" [params] -> [results]` | Execute SQL on session |
+
+**Note:** Requires building with `-DJOY_SESSION=ON` (requires SQLite3).
+
 ### String Conversion Operators
 
 | Operator | Signature | Description |
@@ -460,6 +544,18 @@ Requires OpenMP:
 ```bash
 mkdir build && cd build
 cmake -DJOY_PARALLEL=ON ..
+cmake --build .
+```
+
+### Build with Persistent Sessions
+
+Requires SQLite3:
+- **macOS**: Built-in (no extra install needed)
+- **Linux**: `apt install libsqlite3-dev`
+
+```bash
+mkdir build && cd build
+cmake -DJOY_SESSION=ON ..
 cmake --build .
 ```
 
@@ -527,6 +623,7 @@ Or manually:
 ./joy tests/test2/json.joy       # JSON tests
 ./joy tests/test2/strinterp.joy  # String interpolation tests
 ./joy tests/test2/vector_native.joy  # Native vector/matrix tests
+# Session tests require -DJOY_SESSION=ON build
 ```
 
 ## Architecture
@@ -556,6 +653,7 @@ See [doc/parallel.md](doc/parallel.md) for detailed design documentation.
 | [doc/parallel_fixes.md](doc/parallel_fixes.md) | Technical documentation of parallel fixes |
 | [doc/vector.md](doc/vector.md) | Vector operations design document |
 | [doc/vector_impl.md](doc/vector_impl.md) | Vector operations implementation guide |
+| [doc/persistent_session_design.md](doc/persistent_session_design.md) | Persistent sessions design document |
 | [CHANGELOG.md](CHANGELOG.md) | Version history and changes |
 | [Legacy Docs](https://wodan58.github.io) | Original Joy documentation |
 | [User Manual](https://wodan58.github.io/j09imp.html) | Joy language reference |
