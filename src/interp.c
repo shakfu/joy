@@ -65,6 +65,32 @@ static Index copy_single_body_node(pEnv env, Index node)
         /* Recursively copy list contents (bounded by nesting depth) */
         u.lis = copy_body_from_parent(env, pmem[node].u.lis);
         break;
+#ifdef JOY_NATIVE_TYPES
+    case VECTOR_:
+        /* Deep-copy VectorData */
+        if (pmem[node].u.vec) {
+            VectorData* old_vec = pmem[node].u.vec;
+            size_t size = sizeof(VectorData) + old_vec->len * sizeof(double);
+            VectorData* new_vec = GC_CTX_MALLOC_ATOMIC(env, size);
+            memcpy(new_vec, old_vec, size);
+            u.vec = new_vec;
+        } else {
+            u.vec = NULL;
+        }
+        break;
+    case MATRIX_:
+        /* Deep-copy MatrixData */
+        if (pmem[node].u.mat) {
+            MatrixData* old_mat = pmem[node].u.mat;
+            size_t size = sizeof(MatrixData) + old_mat->rows * old_mat->cols * sizeof(double);
+            MatrixData* new_mat = GC_CTX_MALLOC_ATOMIC(env, size);
+            memcpy(new_mat, old_mat, size);
+            u.mat = new_mat;
+        } else {
+            u.mat = NULL;
+        }
+        break;
+#endif /* JOY_NATIVE_TYPES */
     case USR_:
         /* Symbol references stay as-is */
         u = pmem[node].u;
@@ -350,6 +376,10 @@ start:
         case LIST_:
         case FLOAT_:
         case FILE_:
+#ifdef JOY_NATIVE_TYPES
+        case VECTOR_:
+        case MATRIX_:
+#endif
             GNULLARY(p);
             break;
         default:

@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### [1.42]
+
+### Added
+
+- **Native contiguous vector and matrix types** - Eliminate linked-list conversion overhead for BLAS operations
+  - New types: `VECTOR_` (contiguous double array) and `MATRIX_` (row-major contiguous storage)
+  - Literal syntax: `v[1 2 3]` for vectors, `m[[1 2][3 4]]` for matrices
+  - Type predicates: `vector?`, `matrix?`
+  - Conversion operators:
+    - `>vec` - Convert numeric list to native vector: `[1 2 3] >vec -> v[1.0 2.0 3.0]`
+    - `>mat` - Convert list of lists to native matrix: `[[1 2][3 4]] >mat -> m[[1.0 2.0][3.0 4.0]]`
+    - `>list` - Convert native type back to list: `v[1 2 3] >list -> [1.0 2.0 3.0]`
+  - Native BLAS operations (no conversion overhead):
+    - `ndot` - Native dot product: `v[1 2 3] v[4 5 6] ndot -> 32.0`
+    - `nmv` - Native matrix-vector multiply: `m[[1 0][0 1]] v[3 4] nmv -> v[3.0 4.0]`
+    - `nmm` - Native matrix multiply: `m[[1 2][3 4]] m[[1 0][0 1]] nmm -> m[[1.0 2.0][3.0 4.0]]`
+  - Native creation functions:
+    - `nvzeros`, `nvones` - Create native vectors: `3 nvzeros -> v[0.0 0.0 0.0]`
+    - `nmzeros`, `nmones` - Create native matrices: `2 2 nmzeros -> m[[0.0 0.0][0.0 0.0]]`
+    - `nmeye` - Create native identity matrix: `3 nmeye -> m[[1.0 0.0 0.0][0.0 1.0 0.0][0.0 0.0 1.0]]`
+  - Performance: Native dot product is ~3x faster than list-based (eliminates O(n) list traversal)
+  - Tests: `tests/test2/vector_native.joy` (28 test cases)
+
+### Changed
+
+- Repurposed `LIST_PRIME_` (type index 13) as `VECTOR_` to fit within NOBDW 4-bit opcode limit
+- Added `MATRIX_` at type index 15
+- Updated `casting` builtin to reject `VECTOR_` and `MATRIX_` types (require special allocation)
+
+---
+
 ### [1.41]
 
 ### Added

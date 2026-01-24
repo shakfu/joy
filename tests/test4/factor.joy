@@ -59,5 +59,6 @@ stderr.
 # dump is not empty
 2 [3 [4 abort] dip] dip...
 
-# a factor cannot begin with this symbol
-"hello" 13 casting [] cons.
+# Type 13 is now VECTOR_, test casting to it produces an error
+# (VECTOR_ and MATRIX_ require special allocation)
+"hello" 13 casting.

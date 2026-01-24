@@ -22,6 +22,13 @@ void casting_(pEnv env)
 
     TWOPARAMS("casting");
     node.op = nodevalue(env->stck).num;
+#ifdef JOY_NATIVE_TYPES
+    /* VECTOR_ and MATRIX_ require special allocation, cannot be cast to */
+    if (node.op == VECTOR_ || node.op == MATRIX_) {
+        execerror(env, "non-native type for casting", "casting");
+        return;
+    }
+#endif
     POP(env->stck);
     if (node.op == STRING_ || node.op == BIGNUM_)
         node.u.str = strdup((char*)&nodevalue(env->stck));

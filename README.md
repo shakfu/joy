@@ -149,6 +149,74 @@ Joy supports vectorized operations on numeric lists and matrices (lists of lists
 3 meye.                          (* -> 3x3 identity matrix *)
 ```
 
+### Native Contiguous Types
+
+For performance-critical code, Joy provides native contiguous storage types that eliminate linked-list-to-array conversion overhead when using BLAS:
+
+```joy
+(* Native vector literal syntax *)
+v[1 2 3 4 5].                    (* -> v[1.0 2.0 3.0 4.0 5.0] *)
+
+(* Native matrix literal syntax (row-major) *)
+m[[1 2] [3 4]].                  (* -> m[[1.0 2.0][3.0 4.0]] *)
+
+(* Type predicates *)
+v[1 2 3] vector?.                (* -> true *)
+m[[1 0] [0 1]] matrix?.          (* -> true *)
+[1 2 3] vector?.                 (* -> false - regular list *)
+```
+
+#### Conversion Operators
+
+```joy
+(* List to native *)
+[1 2 3] >vec.                    (* -> v[1.0 2.0 3.0] *)
+[[1 2] [3 4]] >mat.              (* -> m[[1.0 2.0][3.0 4.0]] *)
+
+(* Native to list *)
+v[1 2 3] >list.                  (* -> [1.0 2.0 3.0] *)
+m[[1 2] [3 4]] >list.            (* -> [[1.0 2.0] [3.0 4.0]] *)
+```
+
+#### Native Creation Functions
+
+```joy
+(* Native vectors *)
+5 nvzeros.                       (* -> v[0.0 0.0 0.0 0.0 0.0] *)
+3 nvones.                        (* -> v[1.0 1.0 1.0] *)
+
+(* Native matrices *)
+2 3 nmzeros.                     (* -> 2x3 zero matrix *)
+2 2 nmones.                      (* -> 2x2 ones matrix *)
+3 nmeye.                         (* -> 3x3 identity matrix *)
+```
+
+#### Native BLAS Operations
+
+These operations work directly on native types without conversion:
+
+```joy
+(* Dot product - uses cblas_ddot *)
+v[1 2 3] v[4 5 6] ndot.          (* -> 32.0 *)
+
+(* Matrix-vector multiply - uses cblas_dgemv *)
+m[[1 0] [0 1]] v[3 4] nmv.       (* -> v[3.0 4.0] *)
+
+(* Matrix multiply - uses cblas_dgemm *)
+m[[1 2] [3 4]] m[[1 0] [0 1]] nmm.  (* -> m[[1.0 2.0][3.0 4.0]] *)
+```
+
+#### When to Use Native Types
+
+| Scenario | Recommendation |
+|----------|----------------|
+| Small vectors (< 10 elements) | Use lists - simpler, overhead minimal |
+| Large vectors/matrices | Use native types - eliminates conversion |
+| Repeated BLAS operations | Use native types - significant speedup |
+| Interop with Joy list ops | Use lists - more compatible |
+
+The native types store elements contiguously in memory (matrices in row-major order), enabling direct BLAS calls without intermediate array allocation.
+
 All operations include error handling for type mismatches and dimension errors.
 
 ## Local Bindings
@@ -458,6 +526,7 @@ Or manually:
 ./joy tests/test2/dict.joy       # Dictionary tests
 ./joy tests/test2/json.joy       # JSON tests
 ./joy tests/test2/strinterp.joy  # String interpolation tests
+./joy tests/test2/vector_native.joy  # Native vector/matrix tests
 ```
 
 ## Architecture

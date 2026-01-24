@@ -1,0 +1,70 @@
+(* Native vector and matrix type tests *)
+
+(* Test vector literal parsing *)
+v[1 2 3] vector? true equal.
+
+(* Test matrix literal parsing *)
+m[[1 2][3 4]] matrix? true equal.
+
+(* Test empty vector *)
+v[] vector? true equal.
+
+(* Test empty matrix *)
+m[] matrix? true equal.
+
+(* Test vector display and conversion *)
+v[1 2 3] >list [1.0 2.0 3.0] equal.
+
+(* Test matrix display and conversion *)
+m[[1 2][3 4]] >list [[1.0 2.0][3.0 4.0]] equal.
+
+(* Test list to vector conversion *)
+[1 2 3] >vec vector? true equal.
+[1 2 3] >vec >list [1.0 2.0 3.0] equal.
+
+(* Test list to matrix conversion *)
+[[1 2][3 4]] >mat matrix? true equal.
+[[1 2][3 4]] >mat >list [[1.0 2.0][3.0 4.0]] equal.
+
+(* Test native dot product *)
+v[1 2 3] v[4 5 6] ndot 32.0 equal.
+
+(* Test native vector creation *)
+3 nvzeros >list [0.0 0.0 0.0] equal.
+3 nvones >list [1.0 1.0 1.0] equal.
+
+(* Test native matrix creation *)
+2 2 nmzeros >list [[0.0 0.0][0.0 0.0]] equal.
+2 2 nmones >list [[1.0 1.0][1.0 1.0]] equal.
+2 nmeye >list [[1.0 0.0][0.0 1.0]] equal.
+
+(* Test native matrix-vector multiply *)
+m[[1 0][0 1]] v[3 4] nmv >list [3.0 4.0] equal.
+
+(* Test native matrix multiply *)
+m[[1 2][3 4]] m[[1 0][0 1]] nmm >list [[1.0 2.0][3.0 4.0]] equal.
+
+(* Test vector with negative numbers *)
+v[-1 2 -3] >list [-1.0 2.0 -3.0] equal.
+
+(* Test vector with floats *)
+v[1.5 2.5 3.5] >list [1.5 2.5 3.5] equal.
+
+(* Test matrix with floats *)
+m[[1.5 2.5][3.5 4.5]] >list [[1.5 2.5][3.5 4.5]] equal.
+
+(* Test type predicates on non-native types *)
+[1 2 3] vector? false equal.
+[[1 2][3 4]] matrix? false equal.
+42 vector? false equal.
+42 matrix? false equal.
+
+(* Test >vec on already native vector - should pass through *)
+v[1 2 3] >vec vector? true equal.
+
+(* Test >mat on already native matrix - should pass through *)
+m[[1 2][3 4]] >mat matrix? true equal.
+
+(* Test >list on regular list - should pass through *)
+[1 2 3] >list [1 2 3] equal.
+

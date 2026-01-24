@@ -198,6 +198,30 @@ static Index copy_one(pEnv env, Index n)
      */
     if (op == LIST_)
         env->memory[temp].u.lis = copy(env, env->old_memory[n].u.lis);
+#ifdef JOY_NATIVE_TYPES
+    /*
+     * If the node contains a native vector, deep-copy the VectorData.
+     * VectorData is allocated atomically (no internal pointers), so we
+     * just need to copy the entire structure including the flexible array.
+     */
+    if (op == VECTOR_ && env->old_memory[n].u.vec) {
+        VectorData* old_vec = env->old_memory[n].u.vec;
+        size_t size = sizeof(VectorData) + old_vec->len * sizeof(double);
+        VectorData* new_vec = GC_CTX_MALLOC_ATOMIC(env, size);
+        memcpy(new_vec, old_vec, size);
+        env->memory[temp].u.vec = new_vec;
+    }
+    /*
+     * If the node contains a native matrix, deep-copy the MatrixData.
+     */
+    if (op == MATRIX_ && env->old_memory[n].u.mat) {
+        MatrixData* old_mat = env->old_memory[n].u.mat;
+        size_t size = sizeof(MatrixData) + old_mat->rows * old_mat->cols * sizeof(double);
+        MatrixData* new_mat = GC_CTX_MALLOC_ATOMIC(env, size);
+        memcpy(new_mat, old_mat, size);
+        env->memory[temp].u.mat = new_mat;
+    }
+#endif
     /*
      * The original location is set to COPIED_, such that it will not be copied
      * again.

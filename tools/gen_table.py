@@ -72,6 +72,10 @@ def main():
                 order = int(index)
             except ValueError:
                 continue
+            # Check for [NATIVE] marker in description - requires JOY_NATIVE_TYPES
+            needs_native_guard = "[NATIVE]" in desc
+            if needs_native_guard:
+                desc = desc.replace("[NATIVE]", "").strip()
             entries.append({
                 "index": order,
                 "index_str": index,
@@ -81,18 +85,31 @@ def main():
                 "proc": extract_proc_name(name),
                 "signature": signature,
                 "desc": desc,
+                "native_only": needs_native_guard,
             })
 
     entries.sort(key=lambda item: item["index"])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w") as outfile:
+        in_native_block = False
         for entry in entries:
+            # Handle JOY_NATIVE_TYPES guards
+            if entry.get("native_only") and not in_native_block:
+                outfile.write("#ifdef JOY_NATIVE_TYPES\n")
+                in_native_block = True
+            elif not entry.get("native_only") and in_native_block:
+                outfile.write("#endif /* JOY_NATIVE_TYPES */\n")
+                in_native_block = False
+
             line = (
                 f"/* {entry['index_str']:>4} */ {{ {entry['qcode']}, {entry['flags']}, "
                 f"\"{escape(entry['name'])}\", {entry['proc']}, "
                 f"\"{escape(entry['signature'])}\", \"{escape(entry['desc'])}\" }},\n"
             )
             outfile.write(line)
+        # Close any remaining native block
+        if in_native_block:
+            outfile.write("#endif /* JOY_NATIVE_TYPES */\n")
 
 if __name__ == "__main__":
     main()

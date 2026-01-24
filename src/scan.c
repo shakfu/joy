@@ -652,6 +652,22 @@ start:
                     return ch;
                 }
         }
+#ifdef JOY_NATIVE_TYPES
+        /* Check for vector literal: v[ */
+        if (strcmp(ptr, "v") == 0 && ch == '[') {
+            env->scanner.sym = VBRACKET;
+            return getch(env);  /* consume [ */
+        }
+        /* Check for matrix literal: m[[ */
+        if (strcmp(ptr, "m") == 0 && ch == '[') {
+            int next = getch(env);
+            if (next == '[') {
+                env->scanner.sym = MBRACKET;
+                return getch(env);  /* consume second [ */
+            }
+            ungetch(env, next);  /* not m[[, push back */
+        }
+#endif
         env->str = GC_CTX_STRDUP(env, ptr);
         env->scanner.sym = USR_;
     }

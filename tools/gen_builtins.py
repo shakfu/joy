@@ -24,15 +24,31 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def extract_function_names(source_file: pathlib.Path) -> list[str]:
+def extract_function_names(source_file: pathlib.Path) -> tuple[list[str], set[str]]:
     """Extract builtin function names from a consolidated source file.
 
     Looks for:
     - void xxx_(pEnv env) - direct function definitions
     - MACRO(xxx_, ...) - macro invocations where first arg is function name
+
+    Also identifies functions marked with [NATIVE] in their docstrings.
+
+    Returns:
+        (list of all function names, set of native-only function names)
     """
     content = source_file.read_text()
     names = set()
+    native_names = set()
+
+    # First, find all functions that have [NATIVE] in their preceding docstring
+    # Pattern: /** ... [NATIVE] ... */ followed by void xxx_(pEnv env)
+    doc_pattern = re.compile(
+        r'/\*\*([^*]|\*(?!/))*\[NATIVE\]([^*]|\*(?!/))*\*/\s*void\s+(\w+_)\s*\(\s*pEnv\s+env\s*\)',
+        re.DOTALL
+    )
+    for match in doc_pattern.finditer(content):
+        func_name = match.group(3)
+        native_names.add(func_name)
 
     # Pattern 1: void xxx_(pEnv env) function definitions
     for match in re.finditer(r'\bvoid\s+(\w+_)\s*\(\s*pEnv\s+env\s*\)', content):
@@ -43,7 +59,7 @@ def extract_function_names(source_file: pathlib.Path) -> list[str]:
     for match in re.finditer(r'\b[A-Z][A-Z0-9_]+\s*\(\s*(\w+_)\s*,', content):
         names.add(match.group(1))
 
-    return sorted(names)
+    return sorted(names), native_names
 
 
 def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> None:
@@ -55,9 +71,11 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
 
     # Extract all function names from grouped files
     all_functions = set()
+    all_native_functions = set()
     for src in grouped_sources:
-        functions = extract_function_names(src)
+        functions, native_functions = extract_function_names(src)
         all_functions.update(functions)
+        all_native_functions.update(native_functions)
 
     # Generate builtin.c - includes grouped files
     builtin_c = output_dir / "builtin.c"
@@ -69,6 +87,10 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
             bc_file.write(f'#include "{rel.as_posix()}"\n')
 
     # Generate builtin.h - declares all functions
+    # Separate regular and native-only functions
+    regular_functions = sorted(all_functions - all_native_functions)
+    native_functions = sorted(all_native_functions)
+
     builtin_h = output_dir / "builtin.h"
     with builtin_h.open("w") as bh_file:
         bh_file.write("#ifndef JOY_BUILTIN_GENERATED_H\n")
@@ -76,8 +98,15 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
         bh_file.write("/* Generated file - do not edit */\n")
         bh_file.write("/* Declares all builtin functions */\n\n")
         bh_file.write('#include "globals.h"\n\n')
-        for func_name in sorted(all_functions):
+        # Regular functions
+        for func_name in regular_functions:
             bh_file.write(f"void {func_name}(pEnv env);\n")
+        # Native-only functions
+        if native_functions:
+            bh_file.write("\n#ifdef JOY_NATIVE_TYPES\n")
+            for func_name in native_functions:
+                bh_file.write(f"void {func_name}(pEnv env);\n")
+            bh_file.write("#endif /* JOY_NATIVE_TYPES */\n")
         bh_file.write("\n#endif /* JOY_BUILTIN_GENERATED_H */\n")
 
 

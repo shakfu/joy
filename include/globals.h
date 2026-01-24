@@ -167,8 +167,9 @@ enum {
     FILE_,
     BIGNUM_,
 
-    LIST_PRIME_,
+    VECTOR_,   /* was LIST_PRIME_ - native contiguous vector */
     DICT_,
+    MATRIX_,   /* native contiguous matrix */
 
     LIBRA,
     EQDEF,
@@ -178,6 +179,10 @@ enum {
     PRIVATE,
     PUBLIC,
     CONST_
+#ifdef JOY_NATIVE_TYPES
+    ,VBRACKET,  /* v[ vector literal */
+    MBRACKET   /* m[[ matrix literal */
+#endif
 };
 
 typedef enum {
@@ -204,16 +209,34 @@ typedef unsigned Index;
 typedef struct Node* Index;
 #endif
 
+/*
+ * Native contiguous vector/matrix storage for BLAS operations.
+ * These are allocated via GC_malloc_atomic (no pointers inside).
+ * The data[] array is a flexible array member for contiguous storage.
+ */
+typedef struct VectorData {
+    int len;          /* number of elements */
+    double data[];    /* flexible array member */
+} VectorData;
+
+typedef struct MatrixData {
+    int rows;         /* number of rows */
+    int cols;         /* number of columns */
+    double data[];    /* row-major storage, flexible array member */
+} MatrixData;
+
 typedef union {
-    int64_t num;  /* USR, BOOLEAN, CHAR, INTEGER */
-    proc_t proc;  /* ANON_FUNCT */
-    uint64_t set; /* SET */
-    char* str;    /* STRING */
-    Index lis;    /* LIST */
-    double dbl;   /* FLOAT */
-    FILE* fil;    /* FILE */
-    int ent;      /* SYMBOL */
-    void* dict;   /* DICT */
+    int64_t num;      /* USR, BOOLEAN, CHAR, INTEGER */
+    proc_t proc;      /* ANON_FUNCT */
+    uint64_t set;     /* SET */
+    char* str;        /* STRING */
+    Index lis;        /* LIST */
+    double dbl;       /* FLOAT */
+    FILE* fil;        /* FILE */
+    int ent;          /* SYMBOL */
+    void* dict;       /* DICT */
+    VectorData* vec;  /* VECTOR_ */
+    MatrixData* mat;  /* MATRIX_ */
 } Types;
 
 #ifdef NOBDW

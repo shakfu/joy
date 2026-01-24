@@ -185,6 +185,16 @@ if(JOY_BLAS)
   endif()
 endif()
 
+# Optional: Enable native contiguous vector/matrix types
+# Provides v[...] and m[[...]] literals with direct BLAS support
+option(JOY_NATIVE_TYPES "Enable native vector/matrix types" ON)
+if(JOY_NATIVE_TYPES)
+  foreach(target joycore_static joycore_shared)
+    target_compile_definitions(${target} PUBLIC JOY_NATIVE_TYPES)
+  endforeach()
+  message(STATUS "Native vector/matrix types enabled")
+endif()
+
 if(JOY_PARALLEL)
   foreach(target joycore_static joycore_shared)
     target_compile_definitions(${target} PUBLIC JOY_PARALLEL)

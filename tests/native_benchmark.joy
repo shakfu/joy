@@ -1,0 +1,55 @@
+(* Benchmark: Native vs List Operations *)
+
+"=== DOT PRODUCT (50000 iterations, 10 elements) ===" putchars '\n putch.
+
+clock
+50000 [[1 2 3 4 5 6 7 8 9 10] [1 2 3 4 5 6 7 8 9 10] dot pop] times
+clock swap -
+"List:   " putchars . " ticks" putchars '\n putch.
+
+clock
+50000 [v[1 2 3 4 5 6 7 8 9 10] v[1 2 3 4 5 6 7 8 9 10] ndot pop] times
+clock swap -
+"Native: " putchars . " ticks" putchars '\n putch.
+
+'\n putch.
+"=== MATRIX MULTIPLY (500 iterations, 10x10 identity) ===" putchars '\n putch.
+
+clock
+500 [10 meye 10 meye mm pop] times
+clock swap -
+"List:   " putchars . " ticks" putchars '\n putch.
+
+clock
+500 [10 nmeye 10 nmeye nmm pop] times
+clock swap -
+"Native: " putchars . " ticks" putchars '\n putch.
+
+'\n putch.
+"=== MATRIX-VECTOR (500 iterations, 10x10 * 10) ===" putchars '\n putch.
+
+clock
+500 [10 meye 1 10 vrange mv pop] times
+clock swap -
+"List:   " putchars . " ticks" putchars '\n putch.
+
+clock
+500 [10 nmeye v[1 2 3 4 5 6 7 8 9 10] nmv pop] times
+clock swap -
+"Native: " putchars . " ticks" putchars '\n putch.
+
+'\n putch.
+"=== VECTOR CREATION (10000 iterations, 100 elements) ===" putchars '\n putch.
+
+clock
+10000 [100 vzeros pop] times
+clock swap -
+"List:   " putchars . " ticks" putchars '\n putch.
+
+clock
+10000 [100 nvzeros pop] times
+clock swap -
+"Native: " putchars . " ticks" putchars '\n putch.
+
+'\n putch.
+"Benchmark complete." putchars '\n putch.

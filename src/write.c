@@ -149,6 +149,54 @@ void writefactor(pEnv env, Index n, FILE* fp)
         break;
     }
 
+#ifdef JOY_NATIVE_TYPES
+    case VECTOR_: {
+        VectorData* v = nodevalue(n).vec;
+        joy_fputs(env, "v[", fp);
+        if (v) {
+            for (i = 0; i < v->len; i++) {
+                if (i > 0)
+                    joy_putc(env, ' ', fp);
+                snprintf(buf, BUFFERMAX, "%g", v->data[i]);
+                /* Ensure decimal point for whole numbers */
+                ptr = strchr(buf, '.');
+                if (!ptr && !strchr(buf, 'e')) {
+                    if (isdigit(buf[strlen(buf) - 1]))
+                        strcat(buf, ".0");
+                }
+                joy_fputs(env, buf, fp);
+            }
+        }
+        joy_putc(env, ']', fp);
+        break;
+    }
+
+    case MATRIX_: {
+        MatrixData* m = nodevalue(n).mat;
+        int r, c;
+        joy_fputs(env, "m[", fp);
+        if (m) {
+            for (r = 0; r < m->rows; r++) {
+                joy_putc(env, '[', fp);
+                for (c = 0; c < m->cols; c++) {
+                    if (c > 0)
+                        joy_putc(env, ' ', fp);
+                    snprintf(buf, BUFFERMAX, "%g", m->data[r * m->cols + c]);
+                    ptr = strchr(buf, '.');
+                    if (!ptr && !strchr(buf, 'e')) {
+                        if (isdigit(buf[strlen(buf) - 1]))
+                            strcat(buf, ".0");
+                    }
+                    joy_fputs(env, buf, fp);
+                }
+                joy_putc(env, ']', fp);
+            }
+        }
+        joy_putc(env, ']', fp);
+        break;
+    }
+#endif /* JOY_NATIVE_TYPES */
+
     default:
         error(env, "a factor cannot begin with this symbol");
         break;

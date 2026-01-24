@@ -1687,3 +1687,452 @@ void meye_(pEnv env)
 
     free(result);
 }
+
+#ifdef JOY_NATIVE_TYPES
+/* ========== Native Vector/Matrix Type Support ========== */
+
+/**
+Q0  OK  3720  vector?\0vector_p  :  X  ->  B
+[NATIVE] B is true if X is a native vector, false otherwise.
+*/
+void vector_p_(pEnv env)
+{
+    ONEPARAM("vector?");
+    UNARY(BOOLEAN_NEWNODE, nodetype(env->stck) == VECTOR_);
+}
+
+/**
+Q0  OK  3730  matrix?\0matrix_p  :  X  ->  B
+[NATIVE] B is true if X is a native matrix, false otherwise.
+*/
+void matrix_p_(pEnv env)
+{
+    ONEPARAM("matrix?");
+    UNARY(BOOLEAN_NEWNODE, nodetype(env->stck) == MATRIX_);
+}
+
+/**
+Q0  OK  3740  >vec\0tovec  :  L  ->  V
+[NATIVE] Converts numeric list L to a native contiguous vector V.
+*/
+void tovec_(pEnv env)
+{
+    Index list;
+    int len, i;
+    VectorData* vec;
+    int ok;
+    Index node;
+
+    ONEPARAM(">vec");
+
+    /* If already a VECTOR_, just return it */
+    if (nodetype(env->stck) == VECTOR_) {
+        return;
+    }
+
+    LIST(">vec");
+    list = nodevalue(env->stck).lis;
+    len = check_numeric_list(env, list, ">vec");
+    if (len < 0) return;
+
+    /* Allocate VectorData with flexible array */
+    vec = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData) + len * sizeof(double));
+    vec->len = len;
+
+    /* Extract values */
+    for (i = 0, node = list; node && i < len; node = nextnode1(node), i++) {
+        vec->data[i] = get_numeric(env, node, &ok);
+    }
+
+    UNARY(VECTOR_NEWNODE, vec);
+}
+
+/**
+Q0  OK  3750  >mat\0tomat  :  M  ->  MATRIX
+[NATIVE] Converts matrix M (list of numeric lists) to a native contiguous matrix.
+*/
+void tomat_(pEnv env)
+{
+    Index mat;
+    int rows, cols, r, c;
+    MatrixData* result;
+    Index row_node, cell_node;
+    int ok;
+
+    ONEPARAM(">mat");
+
+    /* If already a MATRIX_, just return it */
+    if (nodetype(env->stck) == MATRIX_) {
+        return;
+    }
+
+    LIST(">mat");
+    mat = nodevalue(env->stck).lis;
+
+    if (check_matrix(env, mat, &rows, &cols, ">mat") < 0) return;
+
+    /* Allocate MatrixData with flexible array */
+    result = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + rows * cols * sizeof(double));
+    result->rows = rows;
+    result->cols = cols;
+
+    /* Extract values row by row */
+    r = 0;
+    for (row_node = mat; row_node && r < rows; row_node = nextnode1(row_node), r++) {
+        Index row = nodevalue(row_node).lis;
+        c = 0;
+        for (cell_node = row; cell_node && c < cols; cell_node = nextnode1(cell_node), c++) {
+            result->data[r * cols + c] = get_numeric(env, cell_node, &ok);
+        }
+    }
+
+    UNARY(MATRIX_NEWNODE, result);
+}
+
+/**
+Q0  OK  3760  >list\0tolist  :  X  ->  L
+[NATIVE] Converts native vector or matrix X back to a linked list.
+*/
+void tolist_(pEnv env)
+{
+    ONEPARAM(">list");
+
+    if (nodetype(env->stck) == VECTOR_) {
+        VectorData* vec = nodevalue(env->stck).vec;
+        if (!vec || vec->len == 0) {
+            UNARY(LIST_NEWNODE, 0);
+            return;
+        }
+        UNARY(LIST_NEWNODE, build_float_list(env, vec->data, vec->len));
+        return;
+    }
+
+    if (nodetype(env->stck) == MATRIX_) {
+        MatrixData* mat = nodevalue(env->stck).mat;
+        if (!mat || mat->rows == 0 || mat->cols == 0) {
+            UNARY(LIST_NEWNODE, 0);
+            return;
+        }
+        UNARY(LIST_NEWNODE, build_matrix(env, mat->data, mat->rows, mat->cols));
+        return;
+    }
+
+    /* Already a list, return as-is */
+    if (nodetype(env->stck) == LIST_) {
+        return;
+    }
+
+    execerror(env, "vector, matrix, or list", ">list");
+}
+
+/* ========== Native BLAS operations ========== */
+
+/**
+Q0  OK  3770  ndot  :  V1 V2  ->  N
+[NATIVE] Dot product of two native vectors. Uses BLAS cblas_ddot when available.
+*/
+void ndot_(pEnv env)
+{
+    VectorData *v1, *v2;
+    double result = 0.0;
+    int i;
+
+    TWOPARAMS("ndot");
+
+    if (nodetype(env->stck) != VECTOR_ || nodetype(nextnode1(env->stck)) != VECTOR_) {
+        execerror(env, "two native vectors", "ndot");
+        return;
+    }
+
+    v2 = nodevalue(env->stck).vec;
+    v1 = nodevalue(nextnode1(env->stck)).vec;
+
+    if (!v1 || !v2 || v1->len != v2->len) {
+        execerror(env, "vectors of equal length", "ndot");
+        return;
+    }
+
+    if (v1->len == 0) {
+        BINARY(FLOAT_NEWNODE, 0.0);
+        return;
+    }
+
+#ifdef JOY_BLAS
+    result = cblas_ddot(v1->len, v1->data, 1, v2->data, 1);
+#else
+    #pragma omp simd reduction(+:result)
+    for (i = 0; i < v1->len; i++) {
+        result += v1->data[i] * v2->data[i];
+    }
+#endif
+
+    BINARY(FLOAT_NEWNODE, result);
+}
+
+/**
+Q0  OK  3780  nmv  :  M V  ->  V2
+[NATIVE] Native matrix-vector multiply. Uses BLAS cblas_dgemv when available.
+M must be a native matrix, V must be a native vector.
+*/
+void nmv_(pEnv env)
+{
+    MatrixData* mat;
+    VectorData* vec;
+    VectorData* result;
+    int i, k;
+
+    TWOPARAMS("nmv");
+
+    if (nodetype(env->stck) != VECTOR_) {
+        execerror(env, "native vector as first parameter", "nmv");
+        return;
+    }
+    if (nodetype(nextnode1(env->stck)) != MATRIX_) {
+        execerror(env, "native matrix as second parameter", "nmv");
+        return;
+    }
+
+    vec = nodevalue(env->stck).vec;
+    mat = nodevalue(nextnode1(env->stck)).mat;
+
+    if (!mat || !vec || mat->cols != vec->len) {
+        execerror(env, "matrix columns equal to vector length", "nmv");
+        return;
+    }
+
+    if (mat->rows == 0) {
+        result = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData));
+        result->len = 0;
+        BINARY(VECTOR_NEWNODE, result);
+        return;
+    }
+
+    result = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData) + mat->rows * sizeof(double));
+    result->len = mat->rows;
+
+#ifdef JOY_BLAS
+    cblas_dgemv(CblasRowMajor, CblasNoTrans,
+                mat->rows, mat->cols,
+                1.0, mat->data, mat->cols,
+                vec->data, 1,
+                0.0, result->data, 1);
+#else
+    for (i = 0; i < mat->rows; i++) {
+        double sum = 0.0;
+        #pragma omp simd reduction(+:sum)
+        for (k = 0; k < mat->cols; k++) {
+            sum += mat->data[i * mat->cols + k] * vec->data[k];
+        }
+        result->data[i] = sum;
+    }
+#endif
+
+    BINARY(VECTOR_NEWNODE, result);
+}
+
+/**
+Q0  OK  3790  nmm  :  M1 M2  ->  M3
+[NATIVE] Native matrix-matrix multiply. Uses BLAS cblas_dgemm when available.
+Both M1 and M2 must be native matrices.
+*/
+void nmm_(pEnv env)
+{
+    MatrixData *m1, *m2, *result;
+    int i, j, k;
+
+    TWOPARAMS("nmm");
+
+    if (nodetype(env->stck) != MATRIX_ || nodetype(nextnode1(env->stck)) != MATRIX_) {
+        execerror(env, "two native matrices", "nmm");
+        return;
+    }
+
+    m2 = nodevalue(env->stck).mat;
+    m1 = nodevalue(nextnode1(env->stck)).mat;
+
+    if (!m1 || !m2 || m1->cols != m2->rows) {
+        execerror(env, "compatible matrix dimensions", "nmm");
+        return;
+    }
+
+    if (m1->rows == 0 || m2->cols == 0) {
+        result = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData));
+        result->rows = m1->rows;
+        result->cols = m2->cols;
+        BINARY(MATRIX_NEWNODE, result);
+        return;
+    }
+
+    result = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + m1->rows * m2->cols * sizeof(double));
+    result->rows = m1->rows;
+    result->cols = m2->cols;
+
+#ifdef JOY_BLAS
+    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+                m1->rows, m2->cols, m1->cols,
+                1.0, m1->data, m1->cols,
+                m2->data, m2->cols,
+                0.0, result->data, m2->cols);
+#else
+    /* Initialize result to zero */
+    for (i = 0; i < m1->rows * m2->cols; i++) {
+        result->data[i] = 0.0;
+    }
+    /* Manual matrix multiplication */
+    for (i = 0; i < m1->rows; i++) {
+        for (j = 0; j < m2->cols; j++) {
+            double sum = 0.0;
+            #pragma omp simd reduction(+:sum)
+            for (k = 0; k < m1->cols; k++) {
+                sum += m1->data[i * m1->cols + k] * m2->data[k * m2->cols + j];
+            }
+            result->data[i * m2->cols + j] = sum;
+        }
+    }
+#endif
+
+    BINARY(MATRIX_NEWNODE, result);
+}
+
+/* ========== Native creation functions ========== */
+
+/**
+Q0  OK  3800  nvzeros  :  N  ->  V
+[NATIVE] V is a native vector of N zeros.
+*/
+void nvzeros_(pEnv env)
+{
+    int64_t n;
+    VectorData* vec;
+    int i;
+
+    ONEPARAM("nvzeros");
+    POSITIVEINDEX(env->stck, "nvzeros");
+
+    n = nodevalue(env->stck).num;
+
+    vec = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData) + n * sizeof(double));
+    vec->len = (int)n;
+
+    for (i = 0; i < n; i++) {
+        vec->data[i] = 0.0;
+    }
+
+    UNARY(VECTOR_NEWNODE, vec);
+}
+
+/**
+Q0  OK  3810  nvones  :  N  ->  V
+[NATIVE] V is a native vector of N ones.
+*/
+void nvones_(pEnv env)
+{
+    int64_t n;
+    VectorData* vec;
+    int i;
+
+    ONEPARAM("nvones");
+    POSITIVEINDEX(env->stck, "nvones");
+
+    n = nodevalue(env->stck).num;
+
+    vec = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData) + n * sizeof(double));
+    vec->len = (int)n;
+
+    for (i = 0; i < n; i++) {
+        vec->data[i] = 1.0;
+    }
+
+    UNARY(VECTOR_NEWNODE, vec);
+}
+
+/**
+Q0  OK  3820  nmzeros  :  R C  ->  M
+[NATIVE] M is a native R x C matrix of zeros.
+*/
+void nmzeros_(pEnv env)
+{
+    int64_t r, c;
+    int size, i;
+    MatrixData* mat;
+
+    TWOPARAMS("nmzeros");
+    POSITIVEINDEX(env->stck, "nmzeros");
+    POSITIVEINDEX(nextnode1(env->stck), "nmzeros");
+
+    c = nodevalue(env->stck).num;
+    r = nodevalue(nextnode1(env->stck)).num;
+
+    size = (int)(r * c);
+    mat = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + size * sizeof(double));
+    mat->rows = (int)r;
+    mat->cols = (int)c;
+
+    for (i = 0; i < size; i++) {
+        mat->data[i] = 0.0;
+    }
+
+    BINARY(MATRIX_NEWNODE, mat);
+}
+
+/**
+Q0  OK  3830  nmones  :  R C  ->  M
+[NATIVE] M is a native R x C matrix of ones.
+*/
+void nmones_(pEnv env)
+{
+    int64_t r, c;
+    int size, i;
+    MatrixData* mat;
+
+    TWOPARAMS("nmones");
+    POSITIVEINDEX(env->stck, "nmones");
+    POSITIVEINDEX(nextnode1(env->stck), "nmones");
+
+    c = nodevalue(env->stck).num;
+    r = nodevalue(nextnode1(env->stck)).num;
+
+    size = (int)(r * c);
+    mat = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + size * sizeof(double));
+    mat->rows = (int)r;
+    mat->cols = (int)c;
+
+    for (i = 0; i < size; i++) {
+        mat->data[i] = 1.0;
+    }
+
+    BINARY(MATRIX_NEWNODE, mat);
+}
+
+/**
+Q0  OK  3840  nmeye  :  N  ->  M
+[NATIVE] M is a native N x N identity matrix.
+*/
+void nmeye_(pEnv env)
+{
+    int64_t n;
+    int size, i;
+    MatrixData* mat;
+
+    ONEPARAM("nmeye");
+    POSITIVEINDEX(env->stck, "nmeye");
+
+    n = nodevalue(env->stck).num;
+
+    size = (int)(n * n);
+    mat = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + size * sizeof(double));
+    mat->rows = (int)n;
+    mat->cols = (int)n;
+
+    /* Initialize to zeros then set diagonal */
+    for (i = 0; i < size; i++) {
+        mat->data[i] = 0.0;
+    }
+    for (i = 0; i < n; i++) {
+        mat->data[i * n + i] = 1.0;
+    }
+
+    UNARY(MATRIX_NEWNODE, mat);
+}
+
+#endif /* JOY_NATIVE_TYPES */

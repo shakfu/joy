@@ -71,6 +71,12 @@
     (env->bucket.str = u, newnode(env, BIGNUM_, env->bucket, r))
 #define DICT_NEWNODE(u, r)                                                    \
     (env->bucket.dict = u, newnode(env, DICT_, env->bucket, r))
+#ifdef JOY_NATIVE_TYPES
+#define VECTOR_NEWNODE(u, r)                                                  \
+    (env->bucket.vec = u, newnode(env, VECTOR_, env->bucket, r))
+#define MATRIX_NEWNODE(u, r)                                                  \
+    (env->bucket.mat = u, newnode(env, MATRIX_, env->bucket, r))
+#endif
 
 /*
  * NULLARY/UNARY/BINARY - Push result onto stack, consuming 0/1/2 items
