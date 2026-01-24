@@ -250,6 +250,26 @@ See `doc/vector_impl.md` for implementation details.
 
   See `tests/test2/match.joy` and `tests/test2/cases.joy` for more examples.
 
+- [ ] **Persistent sessions: Full deserialization** - Fix complex value persistence
+  - Currently only integers/floats deserialize; lists/quotations/dicts stored as strings
+  - Options: separate parser context, lazy deserialization, or binary serialization
+  - **Priority: High** - core functionality limitation
+  - See `doc/persistent_session_impl.md`
+
+- [ ] **Persistent sessions: Lazy loading** - Load symbols on demand
+  - Add `heap` table for chunked storage of large structures
+  - Modify symbol lookup: check cache, then SQLite on miss
+  - LRU cache eviction when over limit
+  - **Priority: Medium** - affects scalability for large sessions
+
+- [ ] **Persistent sessions: Utilities** - Additional session operators
+  - `session-keep` - Keep current version during merge conflicts
+  - `session-info` - Show stats (size, symbol count, etc.)
+  - `session-gc` - Remove unreferenced heap chunks
+  - `session-export` - Dump session as Joy source file
+  - `session-clone` - Duplicate a session
+  - **Priority: Low** - nice to have
+
 - [ ] **Lazy sequences** - Infinite/deferred lists
   - `1 [1 +] iterate` -> lazy `[1 2 3 4 ...]`
   - `lazy-seq 10 take` -> `[1 2 3 4 5 6 7 8 9 10]`
@@ -338,13 +358,15 @@ See `doc/vector_impl.md` for implementation details.
   - Track side effects in types
   - Enable effect handlers
 
-- [ ] **Persistent sessions** - SQLite-backed transparent persistence
-  - `"name" session.` opens persistent session where all DEFINEs survive
-  - Snapshots: `"name" snapshot.` / `"name" restore.`
-  - Session merging: `"other" session-merge.` with conflict detection
-  - Lazy loading for large structures
-  - SQL queries on session data
-  - See `doc/persistent_session_design.md`
+- [x] **Persistent sessions** - SQLite-backed transparent persistence (PARTIAL)
+  - [x] `"name" session.` opens persistent session where all DEFINEs survive
+  - [x] Snapshots: `"name" snapshot.` / `"name" restore.`
+  - [x] Session merging: `"other" session-merge.` with conflict detection
+  - [x] SQL queries on session data
+  - [ ] Full deserialization (currently only integers/floats; complex values stored as strings)
+  - [ ] Lazy loading for large structures
+  - [ ] `session-keep` operator for conflict resolution
+  - See `doc/persistent_session_design.md` and `doc/persistent_session_impl.md`
 
 ---
 
@@ -395,6 +417,9 @@ All of these now work correctly:
 | `src/builtin/vector.c` | Vector and matrix operations |
 | `src/builtin/*.c` | Grouped builtin implementations (19 files) |
 | `src/builtin/pattern.c` | Pattern matching combinators (match, cases) |
+| `src/builtin/session.c` | Persistent session operators |
+| `doc/persistent_session_design.md` | Persistent sessions design document |
+| `doc/persistent_session_impl.md` | Persistent sessions implementation notes |
 | `tests/test2/vector.joy` | Vector operations test suite |
 | `tests/test2/match.joy` | Pattern matching test suite (match) |
 | `tests/test2/cases.joy` | Pattern matching test suite (cases) |
