@@ -76,6 +76,10 @@ def main():
             needs_native_guard = "[NATIVE]" in desc
             if needs_native_guard:
                 desc = desc.replace("[NATIVE]", "").strip()
+            # Check for [SESSION] marker in description - requires JOY_SESSION
+            needs_session_guard = "[SESSION]" in desc
+            if needs_session_guard:
+                desc = desc.replace("[SESSION]", "").strip()
             entries.append({
                 "index": order,
                 "index_str": index,
@@ -86,20 +90,36 @@ def main():
                 "signature": signature,
                 "desc": desc,
                 "native_only": needs_native_guard,
+                "session_only": needs_session_guard,
             })
 
     entries.sort(key=lambda item: item["index"])
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("w") as outfile:
         in_native_block = False
+        in_session_block = False
         for entry in entries:
             # Handle JOY_NATIVE_TYPES guards
             if entry.get("native_only") and not in_native_block:
+                if in_session_block:
+                    outfile.write("#endif /* JOY_SESSION */\n")
+                    in_session_block = False
                 outfile.write("#ifdef JOY_NATIVE_TYPES\n")
                 in_native_block = True
             elif not entry.get("native_only") and in_native_block:
                 outfile.write("#endif /* JOY_NATIVE_TYPES */\n")
                 in_native_block = False
+
+            # Handle JOY_SESSION guards
+            if entry.get("session_only") and not in_session_block:
+                if in_native_block:
+                    outfile.write("#endif /* JOY_NATIVE_TYPES */\n")
+                    in_native_block = False
+                outfile.write("#ifdef JOY_SESSION\n")
+                in_session_block = True
+            elif not entry.get("session_only") and in_session_block:
+                outfile.write("#endif /* JOY_SESSION */\n")
+                in_session_block = False
 
             line = (
                 f"/* {entry['index_str']:>4} */ {{ {entry['qcode']}, {entry['flags']}, "
@@ -107,9 +127,11 @@ def main():
                 f"\"{escape(entry['signature'])}\", \"{escape(entry['desc'])}\" }},\n"
             )
             outfile.write(line)
-        # Close any remaining native block
+        # Close any remaining blocks
         if in_native_block:
             outfile.write("#endif /* JOY_NATIVE_TYPES */\n")
+        if in_session_block:
+            outfile.write("#endif /* JOY_SESSION */\n")
 
 if __name__ == "__main__":
     main()

@@ -24,21 +24,22 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def extract_function_names(source_file: pathlib.Path) -> tuple[list[str], set[str]]:
+def extract_function_names(source_file: pathlib.Path) -> tuple[list[str], set[str], set[str]]:
     """Extract builtin function names from a consolidated source file.
 
     Looks for:
     - void xxx_(pEnv env) - direct function definitions
     - MACRO(xxx_, ...) - macro invocations where first arg is function name
 
-    Also identifies functions marked with [NATIVE] in their docstrings.
+    Also identifies functions marked with [NATIVE] or [SESSION] in their docstrings.
 
     Returns:
-        (list of all function names, set of native-only function names)
+        (list of all function names, set of native-only function names, set of session-only function names)
     """
     content = source_file.read_text()
     names = set()
     native_names = set()
+    session_names = set()
 
     # First, find all functions that have [NATIVE] in their preceding docstring
     # Pattern: /** ... [NATIVE] ... */ followed by void xxx_(pEnv env)
@@ -50,6 +51,15 @@ def extract_function_names(source_file: pathlib.Path) -> tuple[list[str], set[st
         func_name = match.group(3)
         native_names.add(func_name)
 
+    # Find all functions that have [SESSION] in their preceding docstring
+    session_pattern = re.compile(
+        r'/\*\*([^*]|\*(?!/))*\[SESSION\]([^*]|\*(?!/))*\*/\s*void\s+(\w+_)\s*\(\s*pEnv\s+env\s*\)',
+        re.DOTALL
+    )
+    for match in session_pattern.finditer(content):
+        func_name = match.group(3)
+        session_names.add(func_name)
+
     # Pattern 1: void xxx_(pEnv env) function definitions
     for match in re.finditer(r'\bvoid\s+(\w+_)\s*\(\s*pEnv\s+env\s*\)', content):
         names.add(match.group(1))
@@ -59,7 +69,7 @@ def extract_function_names(source_file: pathlib.Path) -> tuple[list[str], set[st
     for match in re.finditer(r'\b[A-Z][A-Z0-9_]+\s*\(\s*(\w+_)\s*,', content):
         names.add(match.group(1))
 
-    return sorted(names), native_names
+    return sorted(names), native_names, session_names
 
 
 def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> None:
@@ -72,10 +82,12 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
     # Extract all function names from grouped files
     all_functions = set()
     all_native_functions = set()
+    all_session_functions = set()
     for src in grouped_sources:
-        functions, native_functions = extract_function_names(src)
+        functions, native_functions, session_functions = extract_function_names(src)
         all_functions.update(functions)
         all_native_functions.update(native_functions)
+        all_session_functions.update(session_functions)
 
     # Generate builtin.c - includes grouped files
     builtin_c = output_dir / "builtin.c"
@@ -87,9 +99,10 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
             bc_file.write(f'#include "{rel.as_posix()}"\n')
 
     # Generate builtin.h - declares all functions
-    # Separate regular and native-only functions
-    regular_functions = sorted(all_functions - all_native_functions)
+    # Separate regular, native-only, and session-only functions
+    regular_functions = sorted(all_functions - all_native_functions - all_session_functions)
     native_functions = sorted(all_native_functions)
+    session_functions = sorted(all_session_functions)
 
     builtin_h = output_dir / "builtin.h"
     with builtin_h.open("w") as bh_file:
@@ -107,6 +120,12 @@ def emit_builtin_sources(source_dir: pathlib.Path, output_dir: pathlib.Path) -> 
             for func_name in native_functions:
                 bh_file.write(f"void {func_name}(pEnv env);\n")
             bh_file.write("#endif /* JOY_NATIVE_TYPES */\n")
+        # Session-only functions
+        if session_functions:
+            bh_file.write("\n#ifdef JOY_SESSION\n")
+            for func_name in session_functions:
+                bh_file.write(f"void {func_name}(pEnv env);\n")
+            bh_file.write("#endif /* JOY_SESSION */\n")
         bh_file.write("\n#endif /* JOY_BUILTIN_GENERATED_H */\n")
 
 

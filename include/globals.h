@@ -78,6 +78,11 @@
 #include "gc.h"
 #endif
 #include "kvec.h"
+
+#ifdef JOY_SESSION
+#include <sqlite3.h>
+#include <dirent.h>
+#endif
 #ifdef USE_KHASHL
 #include "khashl.h"
 #else
@@ -286,6 +291,34 @@ KHASH_MAP_INIT_STR(Dict, unsigned)
 KHASH_MAP_INIT_STR(Dict, struct Node*)
 #endif
 
+#ifdef JOY_SESSION
+/* Cache type: string keys, Index values (for session symbol cache) */
+#ifdef NOBDW
+KHASH_MAP_INIT_STR(Cache, unsigned)
+#else
+KHASH_MAP_INIT_STR(Cache, struct Node*)
+#endif
+
+typedef struct Session {
+    sqlite3* db;
+    char* name;
+    char* path;
+    int persistent;              /* 0 = transient, 1 = persistent */
+    int autosave;                /* auto-checkpoint on changes */
+
+    /* Hot cache for frequently accessed values */
+    khash_t(Cache)* cache;
+    size_t cache_size;
+    size_t cache_limit;          /* LRU eviction threshold */
+
+    /* Prepared statements */
+    sqlite3_stmt* insert_symbol;
+    sqlite3_stmt* select_symbol;
+    sqlite3_stmt* delete_symbol;
+    sqlite3_stmt* list_symbols;
+} Session;
+#endif
+
 /*
  * Env subsystem types (Phase 1.2 architecture improvements)
  *
@@ -407,6 +440,9 @@ typedef struct Env {
         void  (*on_error)(void* user_data, int code, const char* msg,
                           const char* filename, int line, int column);
     } io;
+#ifdef JOY_SESSION
+    Session* session;  /* persistent session state */
+#endif
 } Env;
 
 /*
@@ -611,6 +647,10 @@ void joy_puts(pEnv env, const char* s);
 void joy_printf(pEnv env, const char* fmt, ...);
 void joy_flush(pEnv env);
 void joy_report_error(pEnv env, int code, const char* msg);
+#ifdef JOY_SESSION
+/* session.c - persistent session operations */
+void session_persist_symbol(pEnv env, const char* name, Index body);
+#endif
 
 /*
  * Context-aware GC allocation macros (Phase 3)

@@ -134,6 +134,12 @@ static int definition(pEnv env, int ch)
     ent.is_user = 1;
     ent.u.body = nodevalue(env->stck).lis;
     vec_at(env->symtab, index) = ent;
+#ifdef JOY_SESSION
+    /* Write-through to persistent session if active */
+    if (env->session && env->session->persistent) {
+        session_persist_symbol(env, name, ent.u.body);
+    }
+#endif
     env->stck = nextnode1(env->stck);
     return ch;
 }

@@ -127,7 +127,7 @@ See `doc/vector_impl.md` for implementation details.
   - Level 1 ops (`dot`, `vnorm`, `vscale`) - Same issue, O(n) conversion vs O(n) compute
 
   **Future consideration:**
-  - [ ] Native contiguous array type - Would enable full BLAS performance for all ops
+  - [x] Native contiguous array type - Would enable full BLAS performance for all ops
   - See `doc/contiguous_matrix_exploration.md` for design exploration
 
 ### Priority 2: Medium Value / Medium Effort
