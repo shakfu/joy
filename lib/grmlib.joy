@@ -215,9 +215,9 @@ END; (* HIDE, parser *)
 
 (* other stuff to go here *)
 
-    GRMLIB == "grmlib.joy - grammar (generating/parsing) library\n".
+    GRMLIB == "grmlib.joy - grammar (generating/parsing) library\n"
 
-							 (* end LIBRA *)
+END.							 (* end LIBRA *)
 "grmlib  is loaded\n" putchars.
 
 (* END  grmlib.joy *)

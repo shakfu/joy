@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### [1.43]
+
+### Added
+
+- **`JOY_NATIVE_TYPES` compile option** - Make native vector/matrix types optional (default: ON)
+  - Enable with `-DJOY_NATIVE_TYPES=ON` (default), disable with `-DJOY_NATIVE_TYPES=OFF`
+  - When disabled: `v[...]` and `m[[...]]` syntax not recognized, native type builtins excluded
+  - Guarded components: scanner literals, parser cases, GC handling, display, BLAS operations
+  - Pattern follows existing `JOY_BLAS` and `JOY_PARALLEL` options
+  - Docstring marker `[NATIVE]` for code generators to emit `#ifdef` guards
+
+### Fixed
+
+- **Scanner: `$ foo` parsed as single token** - The `$` operator followed by whitespace was incorrectly combined with the following identifier (e.g., `$ arith` became `"$ arith"` instead of two tokens `$` and `arith`). This broke the grammar library's recursive descent operator. Fixed by checking for whitespace after `$` and returning it as a standalone symbol.
+
+- **grmlib.joy: Missing `END` statement** - The `LIBRA` block starting at line 8 was never closed. Line 220 had only a comment `(* end LIBRA *)` but no actual `END`. This caused all definitions inside LIBRA (`unops`, `binops`, `gen-put`, etc.) to never be committed to the symbol table, breaking the grammar library's expression generators.
+
+---
+
 ### [1.42]
 
 ### Added

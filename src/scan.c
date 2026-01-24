@@ -579,7 +579,15 @@ start:
             /* String interpolation: $"Hello ${expr}!" */
             return parse_interpolated_string(env);
         }
-        /* Not interpolation, treat $ as start of identifier */
+        /* Not interpolation - check if $ is standalone or part of identifier */
+        if (ch <= ' ' || strchr(exclude, ch)) {
+            /* $ followed by whitespace or delimiter - standalone symbol */
+            ungetch(env, ch);
+            env->str = GC_CTX_STRDUP(env, "$");
+            env->scanner.sym = USR_;
+            return getch(env);
+        }
+        /* $ followed by identifier char - treat as start of identifier */
         vec_push(env->string, '$');
         goto identifier;
 
