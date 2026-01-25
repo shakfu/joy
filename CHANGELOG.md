@@ -30,6 +30,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - Uses SQLite WAL mode for better concurrency
   - Generator scripts detect `[SESSION]` marker for conditional compilation
 
+### Fixed
+
+- **Dictionaries unusable with `let` combinator** - The `DICT_` type was missing from the `exec_term` switch statement in `src/interp.c`, causing "valid factor needed for exec_term" errors when dictionaries were bound to names via `let`. Now dictionaries work correctly with local bindings:
+  ```joy
+  [["name" "Bob"] ["score" 100]] >dict [d] [d "name" dget] let.
+  (* -> "Bob" *)
+  ```
+
 ---
 
 ### [1.43]

@@ -242,6 +242,11 @@ The `let` combinator binds stack values to names within a quotation, making comp
 (* Using let in definitions *)
 DEFINE pyth == [a b] [a a * b b * + sqrt] let.
 3 4 pyth.    (* -> 5.0 *)
+
+(* Binding a dictionary for multiple lookups *)
+[["name" "Alice"] ["score" 95]] >dict [d] [
+    d "name" dget d "score" dget
+] let.    (* -> "Alice" 95 *)
 ```
 
 **Note:** Names must be user symbols, not builtins (`i` and `x` are reserved; other letters work fine).

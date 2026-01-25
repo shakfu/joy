@@ -376,6 +376,7 @@ start:
         case LIST_:
         case FLOAT_:
         case FILE_:
+        case DICT_:
 #ifdef JOY_NATIVE_TYPES
         case VECTOR_:
         case MATRIX_:
