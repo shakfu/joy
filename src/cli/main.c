@@ -6,9 +6,13 @@
  */
 
 #ifdef USE_LINENOISE
-#include "linenoise.h"
+#include "linenoise/linenoise.h"
+#include "linenoise/syntax/joy.h"
 #include <ctype.h>   /* for isspace() */
 #include <unistd.h>  /* for isatty() */
+
+/* Global linenoise context */
+static linenoise_context_t *ln_ctx = NULL;
 #endif
 
 /*
@@ -250,7 +254,7 @@ static void unknown_opt(char* exe, int ch)
  * completion_callback - provides tab completion for Joy words.
  * Searches the symbol table for words matching the current prefix.
  */
-static void completion_callback(const char *buf, linenoiseCompletions *lc)
+static void completion_callback(const char *buf, linenoise_completions_t *lc)
 {
     size_t len = strlen(buf);
     const char *word_start;
@@ -282,7 +286,7 @@ static void completion_callback(const char *buf, linenoiseCompletions *lc)
             if (completion) {
                 memcpy(completion, buf, before_len);
                 memcpy(completion + before_len, ent.name, name_len + 1);
-                linenoiseAddCompletion(lc, completion);
+                linenoise_add_completion(lc, completion);
                 free(completion);
             }
         }
@@ -291,7 +295,7 @@ static void completion_callback(const char *buf, linenoiseCompletions *lc)
 
 /*
  * linenoise_repl - interactive REPL using linenoise for line editing.
- * Provides command history and line editing capabilities.
+ * Provides command history, line editing, and syntax highlighting.
  */
 static void linenoise_repl(pEnv env)
 {
@@ -299,36 +303,48 @@ static void linenoise_repl(pEnv env)
     int err;
     size_t len;
 
+    /* Create linenoise context */
+    ln_ctx = linenoise_context_create();
+    if (ln_ctx == NULL) {
+        fprintf(stderr, "Failed to create linenoise context\n");
+        return;
+    }
+
     /* Set up history */
-    linenoiseHistorySetMaxLen(100);
+    linenoise_history_set_max_len(ln_ctx, 100);
 
     /* Set up multiline mode for easier editing of complex expressions */
-    linenoiseSetMultiLine(1);
+    linenoise_set_multiline(ln_ctx, 1);
 
     /* Try to load history file */
-    linenoiseHistoryLoad(".joy_history");
+    linenoise_history_load(ln_ctx, ".joy_history");
 
     /* Set up tab completion using symbol table */
-    linenoiseSetCompletionCallback(completion_callback);
+    linenoise_set_completion_callback(ln_ctx, completion_callback);
 
-    while ((line = linenoise("joy> ")) != NULL) {
+    /* Initialize and set up syntax highlighting */
+    if (joy_highlight_init() == 0) {
+        linenoise_set_highlight_callback(ln_ctx, joy_highlight_callback);
+    }
+
+    while ((line = linenoise_read(ln_ctx, "joy> ")) != NULL) {
         /* Skip empty lines */
         if (line[0] == '\0') {
-            linenoiseFree(line);
+            linenoise_free(line);
             continue;
         }
 
         /* Add to history */
-        linenoiseHistoryAdd(line);
+        linenoise_history_add(ln_ctx, line);
 
         /* Set up error recovery */
         err = setjmp(env->error_jmp);
         if (err == ABORT_QUIT) {
-            linenoiseFree(line);
+            linenoise_free(line);
             break;
         }
         if (err == ABORT_RETRY) {
-            linenoiseFree(line);
+            linenoise_free(line);
             continue;
         }
 
@@ -348,7 +364,7 @@ static void linenoise_repl(pEnv env)
             vec_push(env->pushback, line[i - 1]);
         }
 
-        linenoiseFree(line);
+        linenoise_free(line);
         line = NULL;  /* Prevent double-free if longjmp occurs */
 
         /* Process the input */
@@ -392,7 +408,12 @@ static void linenoise_repl(pEnv env)
     }
 
     /* Save history on exit */
-    linenoiseHistorySave(".joy_history");
+    linenoise_history_save(ln_ctx, ".joy_history");
+
+    /* Clean up */
+    joy_highlight_free();
+    linenoise_context_destroy(ln_ctx);
+    ln_ctx = NULL;
 }
 #endif /* USE_LINENOISE */
 

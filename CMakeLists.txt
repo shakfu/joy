@@ -117,11 +117,51 @@ else()
   endforeach()
 endif()
 
-# Linenoise library for REPL line editing
-add_library(linenoise STATIC ext/linenoise.c)
-target_include_directories(linenoise PUBLIC ext)
+# Tree-sitter library (core parser runtime)
+add_library(tree-sitter STATIC
+  ext/tree-sitter/src/lib.c
+)
+target_include_directories(tree-sitter PUBLIC
+  ext/tree-sitter/include
+  ext/tree-sitter/src
+)
 if(NOT MSVC)
-  target_compile_options(linenoise PRIVATE -Wno-unused-result)
+  target_compile_options(tree-sitter PRIVATE -Wno-unused-parameter -Wno-unused-but-set-variable)
+endif()
+
+# Tree-sitter-joy grammar
+add_library(tree-sitter-joy STATIC
+  ext/tree-sitter-joy/parser.c
+  ext/tree-sitter-joy/scanner.c
+)
+target_include_directories(tree-sitter-joy PUBLIC
+  ext/tree-sitter/include
+  ext/tree-sitter-joy
+)
+target_link_libraries(tree-sitter-joy PUBLIC tree-sitter)
+if(NOT MSVC)
+  target_compile_options(tree-sitter-joy PRIVATE -Wno-unused-parameter)
+endif()
+
+# Linenoise library for REPL line editing with syntax highlighting
+add_library(linenoise STATIC
+  ext/linenoise/linenoise.c
+  ext/linenoise/internal/utf8.c
+  ext/linenoise/internal/history.c
+  ext/linenoise/internal/completion.c
+  ext/linenoise/internal/keyparser.c
+  ext/linenoise/internal/render.c
+  ext/linenoise/internal/terminal_posix.c
+  ext/linenoise/syntax/theme.c
+  ext/linenoise/syntax/joy.c
+)
+target_include_directories(linenoise PUBLIC
+  ext/linenoise
+  ext/tree-sitter/include
+)
+target_link_libraries(linenoise PUBLIC tree-sitter-joy)
+if(NOT MSVC)
+  target_compile_options(linenoise PRIVATE -Wno-unused-result -Wno-unused-parameter)
 endif()
 
 add_executable(joy src/cli/main.c)
