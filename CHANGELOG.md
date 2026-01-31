@@ -38,6 +38,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   (* -> "Bob" *)
   ```
 
+- **Session deserialization only worked for integers/floats** - Complex values (lists, quotations, dicts, sets, strings, characters) were stored correctly but returned as strings when reopening a session. The Joy parser couldn't be used during session load because it corrupted the main scanner state.
+  - **Solution:** Save/restore scanner state and use `fmemopen()` to create an isolated FILE* from the serialized string
+  - **All value types now persist correctly:**
+    - Lists (including nested): `[1 2 3]`, `[[1 2] [3 4]]`
+    - Quotations (executable after restore): `[dup *]`
+    - Strings, characters: `"hello"`, `'A`
+    - Sets: `{1 2 3}`
+    - Dictionaries: `{"key": value}`
+    - Booleans: `true`, `false`
+  - Tests: `tests/test_session_persist.sh`, `tests/test_session_snapshot.sh`
+
 ---
 
 ### [1.43]

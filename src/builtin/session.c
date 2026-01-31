@@ -98,9 +98,9 @@ static char* serialize_value(pEnv env, Index body)
     return buf;
 }
 
-/* Helper: deserialize a string to a Joy value
- * For now, handles simple cases without full parser to avoid scanner corruption.
- * Complex values are stored as strings and parsed lazily.
+/* Helper: deserialize a string to a Joy value using the full parser.
+ * Uses fmemopen to create a FILE* from the string and saves/restores
+ * scanner state to avoid corrupting the main input stream.
  */
 static Index deserialize_value(pEnv env, const char* str)
 {
@@ -114,29 +114,98 @@ static Index deserialize_value(pEnv env, const char* str)
     if (!*str)
         return 0;
 
-    /* Try to parse as simple integer */
+    /* Quick path for simple integers - avoid parser overhead */
     char* end;
     int64_t num = strtoll(str, &end, 10);
-    /* Skip trailing whitespace */
     while (*end == ' ' || *end == '\t' || *end == '\n')
         end++;
     if (*end == '\0') {
-        /* It's a simple integer */
         return INTEGER_NEWNODE(num, 0);
     }
 
-    /* Try to parse as simple float */
+    /* Quick path for simple floats */
     double dbl = strtod(str, &end);
     while (*end == ' ' || *end == '\t' || *end == '\n')
         end++;
     if (*end == '\0') {
-        /* It's a simple float */
         return FLOAT_NEWNODE(dbl, 0);
     }
 
-    /* For now, store as string and parse lazily later */
-    /* This avoids scanner corruption during load */
-    return STRING_NEWNODE(GC_strdup(str), 0);
+    /* Complex value: use full parser with isolated scanner state */
+
+    /* Save scanner state - we need to save struct values, not pointers */
+    EnvScanner saved_scanner = env->scanner;
+    Index saved_stck = env->stck;
+    Index saved_dump = env->dump;
+
+    /* Save pushback and tokens state (the actual pointer values) */
+    void* saved_pushback = env->pushback;
+    void* saved_tokens = env->tokens;
+
+    /* Initialize fresh vectors for parsing - use NULL for lazy init by vec_push */
+    env->pushback = NULL;
+    env->tokens = NULL;
+    env->stck = 0;
+    env->dump = 0;
+
+    /* Wrap the body in brackets to parse as a quotation */
+    size_t wrapped_len = strlen(str) + 4;  /* "[" + str + "]" + "\n" + null */
+    char* wrapped = GC_malloc_atomic(wrapped_len);
+    snprintf(wrapped, wrapped_len, "[%s]\n", str);
+
+    /* Create FILE* from string using fmemopen */
+    FILE* memfp = fmemopen(wrapped, strlen(wrapped), "r");
+    if (!memfp) {
+        /* Restore state and fall back to string */
+        env->pushback = saved_pushback;
+        env->tokens = saved_tokens;
+        env->scanner = saved_scanner;
+        env->stck = saved_stck;
+        env->dump = saved_dump;
+        return STRING_NEWNODE(GC_strdup(str), 0);
+    }
+
+    /* Initialize scanner with memory file */
+    memset(&env->scanner, 0, sizeof(EnvScanner));
+    env->scanner.srcfile = memfp;
+    env->scanner.srcfilename = "<session>";
+    env->scanner.linenum = 1;
+    env->scanner.linepos = 0;
+    env->scanner.ilevel = 0;
+    env->scanner.infile[0].fp = memfp;
+    env->scanner.infile[0].line = 1;
+    strncpy(env->scanner.infile[0].name, "<session>", FILENAMEMAX);
+
+    /* Parse the term */
+    Index result = 0;
+    int ch = getsym(env, ' ');  /* Get first symbol (should be '[') */
+
+    if (env->scanner.sym == '[') {
+        ch = getsym(env, ch);  /* Move past '[' */
+        ch = readterm(env, ch);  /* Parse the contents */
+
+        if (env->scanner.sym == ']' && env->stck) {
+            /* Successfully parsed - extract the list contents */
+            result = nodevalue(env->stck).lis;
+        }
+    }
+    (void)ch;  /* Suppress unused warning */
+
+    fclose(memfp);
+
+    /* Restore scanner state - GC will clean up temporary vectors */
+    env->pushback = saved_pushback;
+    env->tokens = saved_tokens;
+    env->scanner = saved_scanner;
+    env->stck = saved_stck;
+    env->dump = saved_dump;
+
+    /* If parsing failed, fall back to storing as string */
+    if (!result) {
+        return STRING_NEWNODE(GC_strdup(str), 0);
+    }
+
+    return result;
 }
 
 /* Helper: reverse a list */

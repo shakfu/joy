@@ -77,16 +77,29 @@ CREATE INDEX idx_snapshots_name ON snapshots(name);
 
 **Design:** Use `readterm()` to deserialize stored Joy expressions, supporting all value types.
 
-**Status:** Simplified deserializer handles only:
-- Integers (parsed with `strtoll`)
-- Floats (parsed with `strtod`)
-- Complex values stored as strings (not parsed)
+**Status:** IMPLEMENTED (January 2026)
 
-**Reason:** Using the Joy parser (`readterm`) during session load corrupted the scanner state because the main input stream was still being parsed. The scanner has shared state (line buffer, current symbol, file pointer) that gets overwritten.
+The solution saves and restores scanner state, using `fmemopen()` to create an isolated
+FILE* from the serialized string. All value types now deserialize correctly:
+- Integers (quick path via `strtoll`)
+- Floats (quick path via `strtod`)
+- Lists, nested lists
+- Quotations (executable)
+- Strings
+- Characters
+- Sets
+- Booleans
+- Dictionaries
 
-**Impact:** Complex values (lists, quotations, dicts) are stored but not properly restored. They come back as strings.
+**Implementation:** See `deserialize_value()` in `src/builtin/session.c`. The function:
+1. Saves current scanner state (EnvScanner, stck, dump, pushback, tokens)
+2. Creates a FILE* from the serialized string via `fmemopen()`
+3. Wraps the body in brackets `[...]` to parse as a quotation
+4. Uses the standard parser (`getsym`, `readterm`) to parse
+5. Extracts the result from the stack
+6. Restores all scanner state
 
-**Priority:** High - core functionality limitation.
+**Tests:** See `tests/test_session_persist.sh` and `tests/test_session_snapshot.sh`.
 
 ## Architecture Differences
 
@@ -133,15 +146,11 @@ Symbol Access:
 
 In order of priority:
 
-### Priority 1: Fix Complex Value Deserialization
+### ~~Priority 1: Fix Complex Value Deserialization~~ DONE
 
-The current limitation where lists/quotations/dicts aren't properly restored is the most significant gap. Options:
+Implemented January 2026. Used option 1 (separate parser context) with isolated scanner state.
 
-1. **Separate parser context** - Create isolated scanner state for deserialization
-2. **Lazy deserialization** - Store serialized form, parse on first use
-3. **Binary serialization** - Avoid parser entirely with custom format
-
-### Priority 2: Implement Lazy Loading
+### Priority 1: Implement Lazy Loading
 
 For large sessions, eager loading is inefficient. Implement:
 
@@ -193,7 +202,7 @@ EOF
 
 ## Known Limitations
 
-1. **Simple values only** - Only integers and floats persist correctly; complex values stored as strings
+1. ~~**Simple values only**~~ FIXED - All value types now persist correctly (lists, quotations, dicts, sets, strings, chars, etc.)
 2. **Eager loading** - All symbols loaded at session open
 3. **No chunking** - Large values not split for efficient storage
 4. **POSIX only** - Uses `open_memstream`/`fmemopen` (needs Windows alternatives)

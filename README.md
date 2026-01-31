@@ -421,7 +421,7 @@ Expressions in `${...}` are evaluated and converted to strings using `unquoted`.
 
 ## Persistent Sessions
 
-Store and restore symbol definitions across Joy sessions using SQLite:
+Store and restore symbol definitions across Joy sessions using SQLite. All value types are fully supported: integers, floats, lists (including nested), quotations, strings, characters, sets, dictionaries, and booleans.
 
 ```joy
 (* Open or create a persistent session *)
@@ -430,11 +430,14 @@ Store and restore symbol definitions across Joy sessions using SQLite:
 
 (* Define symbols - automatically persisted *)
 DEFINE square == dup *.
-DEFINE cube == dup dup * *.
+DEFINE data == [1 2 3 4 5].
+DEFINE lookup == [["name" "Alice"] ["score" 95]] >dict.
 
 (* Quit and restart Joy - definitions survive *)
 "myproject" session.
-5 square.    (* -> 25 - definition was persisted *)
+5 square.           (* -> 25 - definition was persisted *)
+data [dup *] map.   (* -> [1 4 9 16 25] - lists work too *)
+lookup "name" dget. (* -> "Alice" - dicts persist correctly *)
 ```
 
 ### Snapshots
@@ -501,7 +504,9 @@ Execute SQL directly on session data:
 | `session-take` | `"source" "symbol" ->` | Copy symbol from source |
 | `sql` | `"query" [params] -> [results]` | Execute SQL on session |
 
-**Note:** Requires building with `-DJOY_SESSION=ON` (requires SQLite3).
+**Notes:**
+- Requires building with `-DJOY_SESSION=ON` (requires SQLite3)
+- All value types persist correctly: lists, quotations, dicts, sets, strings, chars, booleans
 
 ### String Conversion Operators
 
