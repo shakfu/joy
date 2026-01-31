@@ -8,6 +8,7 @@ Summary of completed work:
 - **Vector/Matrix ops** - Full suite with SIMD and optional BLAS support
 - **Language features** - `let` bindings, pattern matching (`match`/`cases`), dictionaries, JSON, string interpolation
 - **Persistent sessions** - Full persistence with snapshots, merging, and complete deserialization of all value types
+- **Regular expressions** - POSIX ERE with Perl shortcuts (`\d`, `\w`, `\s`, etc.): `regex-match`, `regex-find`, `regex-find-all`, `regex-split`, `regex-sub`, `regex-sub-all`, `regex-groups`
 
 See `doc/` for detailed documentation on each feature.
 
@@ -22,11 +23,6 @@ See `doc/` for detailed documentation on each feature.
   - `lazy-seq 10 take` -> `[1 2 3 4 5 6 7 8 9 10]`
   - Generators: `[yield-value] generator`
   - Important functional programming primitive
-
-- [ ] **Regular expressions** - Pattern matching on strings
-  - `"hello world" "w.*d" regex-match` -> `true`
-  - `"hello world" "(\w+)" regex-find-all` -> `["hello" "world"]`
-  - Common need for text processing
 
 - [ ] **Stepper/debugger** - Interactive debugging
   - Step through execution one operation at a time

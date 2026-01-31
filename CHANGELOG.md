@@ -10,6 +10,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Regular expression operations** - Pattern matching on strings using POSIX Extended Regular Expressions
+  - `regex-match` - Test if pattern matches: `"hello" "h.*" regex-match` -> `true`
+  - `regex-find` - Find first match: `"hello world" "[a-z]+" regex-find` -> `"hello"`
+  - `regex-find-all` - Find all matches: `"a1b2" "[0-9]" regex-find-all` -> `["1" "2"]`
+  - `regex-split` - Split by pattern: `"a,b,c" "," regex-split` -> `["a" "b" "c"]`
+  - `regex-sub` - Replace first match: `"aaa" "a" "b" regex-sub` -> `"baa"`
+  - `regex-sub-all` - Replace all matches: `"aaa" "a" "b" regex-sub-all` -> `"bbb"`
+  - `regex-groups` - Extract capture groups: `"2026-01-31" "([0-9]+)-([0-9]+)-([0-9]+)" regex-groups` -> `["2026-01-31" "2026" "01" "31"]`
+  - Perl-style shortcuts supported: `\d`, `\D`, `\w`, `\W`, `\s`, `\S` (expanded to POSIX equivalents)
+
 - **Persistent SQLite-backed sessions** - Store and restore symbol definitions across Joy sessions
   - Enable with `-DJOY_SESSION=ON` in CMake (requires SQLite3, default: OFF)
   - Automatic persistence: DEFINE operations write-through to database

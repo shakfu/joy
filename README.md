@@ -419,6 +419,66 @@ $"Price: $100".              (* -> "Price: $100" *)
 
 Expressions in `${...}` are evaluated and converted to strings using `unquoted`. Supports integers, floats, strings, booleans, and user-defined symbols.
 
+## Regular Expressions
+
+Pattern matching on strings using POSIX Extended Regular Expressions (ERE):
+
+```joy
+(* Test if pattern matches anywhere in string *)
+"hello world" "hello" regex-match.        (* -> true *)
+"hello world" "^world" regex-match.       (* -> false *)
+
+(* Find first match *)
+"hello world" "[a-z]+" regex-find.        (* -> "hello" *)
+
+(* With capture group - returns first group *)
+"name: Alice" "name: ([a-zA-Z]+)" regex-find.  (* -> "Alice" *)
+
+(* Find all matches *)
+"a1b2c3" "[0-9]" regex-find-all.          (* -> ["1" "2" "3"] *)
+
+(* Split by pattern *)
+"a,b,c" "," regex-split.                  (* -> ["a" "b" "c"] *)
+"hello   world" " +" regex-split.         (* -> ["hello" "world"] *)
+
+(* Substitute first match *)
+"hello world" "world" "Joy" regex-sub.    (* -> "hello Joy" *)
+
+(* Substitute all matches *)
+"aaa" "a" "b" regex-sub-all.              (* -> "bbb" *)
+
+(* Extract all capture groups *)
+"2026-01-31" "([0-9]+)-([0-9]+)-([0-9]+)" regex-groups.
+(* -> ["2026-01-31" "2026" "01" "31"] *)
+```
+
+### Operators
+
+| Operator | Stack Effect | Description |
+|----------|--------------|-------------|
+| `regex-match` | `str pattern -> bool` | Test if pattern matches |
+| `regex-find` | `str pattern -> str\|false` | Find first match (or first group) |
+| `regex-find-all` | `str pattern -> [str...]` | Find all matches |
+| `regex-split` | `str pattern -> [str...]` | Split string by pattern |
+| `regex-sub` | `str pattern repl -> str` | Replace first match |
+| `regex-sub-all` | `str pattern repl -> str` | Replace all matches |
+| `regex-groups` | `str pattern -> [str...]` | Extract all capture groups |
+
+### Perl-Style Shortcuts
+
+Common Perl shortcuts are supported and expanded to POSIX equivalents:
+
+| Shortcut | Expansion | Description |
+|----------|-----------|-------------|
+| `\d` | `[0-9]` | Digit |
+| `\D` | `[^0-9]` | Non-digit |
+| `\w` | `[a-zA-Z0-9_]` | Word character |
+| `\W` | `[^a-zA-Z0-9_]` | Non-word character |
+| `\s` | `[ \t\n\r\f\v]` | Whitespace |
+| `\S` | `[^ \t\n\r\f\v]` | Non-whitespace |
+
+These work both standalone and inside character classes: `[\w.%+-]` expands correctly.
+
 ## Persistent Sessions
 
 Store and restore symbol definitions across Joy sessions using SQLite. All value types are fully supported: integers, floats, lists (including nested), quotations, strings, characters, sets, dictionaries, and booleans.
@@ -632,6 +692,7 @@ Or manually:
 ./joy tests/test2/dict.joy       # Dictionary tests
 ./joy tests/test2/json.joy       # JSON tests
 ./joy tests/test2/strinterp.joy  # String interpolation tests
+./joy tests/test2/regex.joy      # Regular expression tests
 ./joy tests/test2/vector_native.joy  # Native vector/matrix tests
 # Session tests require -DJOY_SESSION=ON build
 ```

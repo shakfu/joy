@@ -1,0 +1,159 @@
+(*
+    module  : regex.joy
+    version : 1.0
+    date    : 01/31/26
+
+    Regular expression operations tests.
+*)
+
+(* ===== regex-match ===== *)
+
+(* Basic matching *)
+"hello world" "hello" regex-match.
+"hello world" "world" regex-match.
+"hello world" "xyz" regex-match not.
+"hello world" "^hello" regex-match.
+"hello world" "world$" regex-match.
+"hello world" "^world" regex-match not.
+
+(* Character classes *)
+"hello123" "[0-9]+" regex-match.
+"hello" "[0-9]+" regex-match not.
+"Hello World" "[A-Z]" regex-match.
+
+(* Quantifiers *)
+"aaa" "a+" regex-match.
+"aaa" "a*" regex-match.
+"bbb" "a*" regex-match.
+"bbb" "a+" regex-match not.
+"ab" "a?b" regex-match.
+"b" "a?b" regex-match.
+
+(* Alternation *)
+"cat" "cat|dog" regex-match.
+"dog" "cat|dog" regex-match.
+"bird" "cat|dog" regex-match not.
+
+(* Dot matches any *)
+"abc" "a.c" regex-match.
+"aXc" "a.c" regex-match.
+"ac" "a.c" regex-match not.
+
+(* ===== regex-find ===== *)
+
+(* Basic find *)
+"hello world" "world" regex-find "world" =.
+"hello world" "xyz" regex-find not.
+
+(* Find with pattern *)
+"the quick brown fox" "[a-z]+" regex-find "the" =.
+"abc123def" "[0-9]+" regex-find "123" =.
+
+(* Find with groups - returns first group *)
+"hello world" "hello ([a-zA-Z]+)" regex-find "world" =.
+"name: Alice" "name: ([a-zA-Z]+)" regex-find "Alice" =.
+
+(* ===== regex-find-all ===== *)
+
+(* Find all words *)
+"hello world" "[a-zA-Z]+" regex-find-all size 2 =.
+"hello world" "[a-zA-Z]+" regex-find-all ["hello" "world"] equal.
+
+(* Find all numbers *)
+"a1b2c3d4" "[0-9]" regex-find-all size 4 =.
+"a1b2c3d4" "[0-9]" regex-find-all ["1" "2" "3" "4"] equal.
+
+(* No matches *)
+"hello" "[0-9]+" regex-find-all size 0 =.
+"hello" "[0-9]+" regex-find-all [] =.
+
+(* ===== regex-split ===== *)
+
+(* Split by whitespace *)
+"hello world test" " " regex-split size 3 =.
+"hello world test" " " regex-split ["hello" "world" "test"] equal.
+
+(* Split by pattern *)
+"a1b2c3" "[0-9]" regex-split size 4 =.
+
+(* Split by multiple chars *)
+"a, b, c" ", " regex-split size 3 =.
+"a, b, c" ", " regex-split ["a" "b" "c"] equal.
+
+(* ===== regex-sub ===== *)
+
+(* Basic substitution *)
+"hello world" "world" "Joy" regex-sub "hello Joy" =.
+"hello world" "xyz" "Joy" regex-sub "hello world" =.
+
+(* Pattern substitution *)
+"hello123world" "[0-9]+" "-" regex-sub "hello-world" =.
+
+(* Only first match *)
+"aaa" "a" "b" regex-sub "baa" =.
+
+(* ===== regex-sub-all ===== *)
+
+(* Replace all *)
+"aaa" "a" "b" regex-sub-all "bbb" =.
+"a1b2c3" "[0-9]" "X" regex-sub-all "aXbXcX" =.
+
+(* Replace whitespace *)
+"hello   world" " +" "_" regex-sub-all "hello_world" =.
+
+(* No matches *)
+"hello" "[0-9]" "X" regex-sub-all "hello" =.
+
+(* ===== regex-groups ===== *)
+
+(* Full match only *)
+"hello world" "hello" regex-groups size 1 =.
+"hello world" "hello" regex-groups ["hello"] equal.
+
+(* With capture groups *)
+"hello world" "(hello) (world)" regex-groups size 3 =.
+"hello world" "(hello) (world)" regex-groups ["hello world" "hello" "world"] equal.
+
+(* Extract parts *)
+"2026-01-31" "([0-9]+)-([0-9]+)-([0-9]+)" regex-groups size 4 =.
+"2026-01-31" "([0-9]+)-([0-9]+)-([0-9]+)" regex-groups ["2026-01-31" "2026" "01" "31"] equal.
+
+(* No match *)
+"hello" "[0-9]+" regex-groups size 0 =.
+"hello" "[0-9]+" regex-groups [] =.
+
+(* ===== Perl-style shortcuts ===== *)
+
+(* \d and \D - digits *)
+"hello123" "\\d+" regex-match.
+"hello123" "\\d+" regex-find "123" =.
+"hello" "\\d" regex-match not.
+"abc123def" "\\D+" regex-find "abc" =.
+
+(* \w and \W - word characters *)
+"hello_world" "\\w+" regex-match.
+"hello world" "\\w+" regex-find "hello" =.
+"hello world" "\\W" regex-find " " =.
+"!!!hello" "\\W+" regex-find "!!!" =.
+
+(* \s and \S - whitespace *)
+"hello world" "\\s" regex-match.
+"hello\tworld" "\\s" regex-match.
+"hello" "\\s" regex-match not.
+"  hello" "\\S+" regex-find "hello" =.
+
+(* Combined usage *)
+"abc 123 def" "\\w+\\s\\d+" regex-find "abc 123" =.
+"phone: 555-1234" "\\d+-\\d+" regex-find "555-1234" =.
+
+(* ===== Practical examples ===== *)
+
+(* Validate email-like pattern - using \w *)
+"user@example.com" "^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$" regex-match.
+"not-an-email" "^[\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,}$" regex-match not.
+
+(* Extract numbers from text - using \d *)
+"I have 42 apples and 7 oranges" "\\d+" regex-find-all ["42" "7"] equal.
+
+(* Normalize whitespace - using \s *)
+"hello    world" "\\s+" " " regex-sub-all "hello world" =.
