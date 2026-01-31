@@ -157,3 +157,9 @@ Tests whether X is a user-defined symbol.
 */
 TYPE(user_, "user", ==, USR_)
 
+/**
+Q0  OK  4050  lazy  :  X  ->  B
+Tests whether X is a lazy sequence.
+*/
+TYPE(lazy_, "lazy", ==, LAZY_)
+

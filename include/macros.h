@@ -78,6 +78,9 @@
     (env->bucket.mat = u, newnode(env, MATRIX_, env->bucket, r))
 #endif
 
+#define LAZY_NEWNODE(u, r)                                                    \
+    (env->bucket.lzy = u, newnode(env, LAZY_, env->bucket, r))
+
 /*
  * NULLARY/UNARY/BINARY - Push result onto stack, consuming 0/1/2 items
  *

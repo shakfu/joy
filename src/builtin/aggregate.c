@@ -9,6 +9,11 @@
  */
 #include "globals.h"
 
+/* Forward declarations for lazy sequence helpers (defined in lazy.c) */
+LazyData* lazy_rest_helper(pEnv env, LazyData* lzy);
+Index lazy_first_helper(pEnv env, LazyData* lzy);
+int lazy_null_helper(pEnv env, LazyData* lzy);
+
 /* Include shared helper headers */
 
 /* List operations */
@@ -150,6 +155,16 @@ void drop_(pEnv env)
             list = nextnode1(list);
         UNARY(LIST_NEWNODE, list);
         break;
+    case LAZY_: {
+        LazyData* lzy = nodevalue(env->stck).lzy;
+        LazyData* new_lzy = lzy;
+        /* Advance the lazy sequence n times */
+        while (n-- > 0 && !lazy_null_helper(env, new_lzy)) {
+            new_lzy = lazy_rest_helper(env, new_lzy);
+        }
+        UNARY(LAZY_NEWNODE, new_lzy);
+        break;
+    }
     default:
         BADAGGREGATE("drop");
     }
@@ -195,6 +210,17 @@ void first_(pEnv env)
             i++;
         UNARY(INTEGER_NEWNODE, i);
         break;
+    case LAZY_: {
+        LazyData* lzy = nodevalue(env->stck).lzy;
+        Index first_node;
+        if (lazy_null_helper(env, lzy)) {
+            execerror(env, "non-empty lazy sequence", "first");
+            return;
+        }
+        first_node = lazy_first_helper(env, lzy);
+        GUNARY(first_node);
+        break;
+    }
     default:
         BADAGGREGATE("first");
     }
@@ -240,6 +266,9 @@ void null_(pEnv env)
     case FILE_:
         UNARY(BOOLEAN_NEWNODE, (!nodevalue(env->stck).fil));
         break;
+    case LAZY_:
+        UNARY(BOOLEAN_NEWNODE, lazy_null_helper(env, nodevalue(env->stck).lzy));
+        break;
     default:
         UNARY(BOOLEAN_NEWNODE, 0); /* false */
         break;
@@ -284,6 +313,17 @@ void rest_(pEnv env)
         CHECKEMPTYLIST(nodevalue(env->stck).lis, "rest");
         UNARY(LIST_NEWNODE, nextnode1(nodevalue(env->stck).lis));
         break;
+    case LAZY_: {
+        LazyData* lzy = nodevalue(env->stck).lzy;
+        LazyData* new_lzy;
+        if (lazy_null_helper(env, lzy)) {
+            execerror(env, "non-empty lazy sequence", "rest");
+            return;
+        }
+        new_lzy = lazy_rest_helper(env, lzy);
+        UNARY(LAZY_NEWNODE, new_lzy);
+        break;
+    }
     default:
         BADAGGREGATE("rest");
     }
@@ -515,6 +555,41 @@ void take_(pEnv env)
         POP(env->dump2);
         POP(env->dump3);
         break;
+    case LAZY_: {
+        /* Materialize first n elements of lazy sequence into a list */
+        LazyData* lzy = nodevalue(env->stck).lzy;
+        Index result;
+
+        env->dump1 = LIST_NEWNODE(0, env->dump1);  /* head */
+        env->dump2 = LIST_NEWNODE(0, env->dump2);  /* tail */
+        env->dump3 = LIST_NEWNODE(lzy->state, env->dump3);  /* current state */
+
+        for (i = 0; i < n && !lazy_null_helper(env, lzy); i++) {
+            /* Get current value */
+            temp = newnode2(env, lazy_first_helper(env, lzy), 0);
+
+            /* Append to result list */
+            if (!DMP1) {
+                DMP1 = temp;
+                DMP2 = temp;
+            } else {
+                nextnode1(DMP2) = temp;
+                DMP2 = temp;
+            }
+
+            /* Advance lazy sequence */
+            lzy = lazy_rest_helper(env, lzy);
+            DMP3 = lzy->state;
+        }
+
+        result = DMP1;
+        POP(env->dump3);
+        POP(env->dump2);
+        POP(env->dump1);
+
+        UNARY(LIST_NEWNODE, result);
+        break;
+    }
     default:
         BADAGGREGATE("take");
     }

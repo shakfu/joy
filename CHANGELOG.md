@@ -10,6 +10,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Lazy sequences** - Potentially infinite sequences with thunk-based evaluation
+  - New `LAZY_` type with four kinds: iterate, repeat, cycle, range
+  - Constructors:
+    - `iterate` - Generate sequence by repeated application: `0 [1 +] iterate` -> 0, 1, 2, 3, ...
+    - `replicate` - Infinite repetition of value: `42 replicate` -> 42, 42, 42, ...
+    - `cycle` - Infinite cycling through list: `[1 2 3] cycle` -> 1, 2, 3, 1, 2, 3, ...
+    - `lazy-range` - Numeric range: `1 10 lazy-range` or `1 lazy-range` (infinite)
+  - Operations:
+    - `take` - Materialize first N elements: `0 [1 +] iterate 5 take` -> `[0 1 2 3 4]`
+    - `force` - Same as take, explicit materialization
+    - `first` - Get current value: `0 [1 +] iterate first` -> `0`
+    - `rest` - Advance sequence: `0 [1 +] iterate rest first` -> `1`
+    - `drop` - Skip N elements: `0 [1 +] iterate 100 drop first` -> `100`
+    - `null` - Check if finite sequence exhausted
+  - Type predicate: `lazy` - Test if value is lazy sequence
+  - Safety: No accidental infinite materialization; `force`/`take` require explicit count
+  - Prints as `<lazy:iterate>`, `<lazy:repeat>`, `<lazy:cycle>`, `<lazy:range>`
+  - Examples:
+    ```joy
+    (* Powers of 2 *)
+    1 [2 *] iterate 8 take.  (* -> [1 2 4 8 16 32 64 128] *)
+
+    (* Fibonacci sequence *)
+    [0 1] [[dup rest first] [first] cleave +] iterate
+          [first] map 10 take.  (* -> [0 1 1 2 3 5 8 13 21 34] *)
+    ```
+
 - **Regular expression operations** - Pattern matching on strings using POSIX Extended Regular Expressions
   - `regex-match` - Test if pattern matches: `"hello" "h.*" regex-match` -> `true`
   - `regex-find` - Find first match: `"hello world" "[a-z]+" regex-find` -> `"hello"`

@@ -1,0 +1,61 @@
+(* Test suite for lazy sequences *)
+(* Each test uses equal for list comparison *)
+
+(* Basic iterate test *)
+0 [1 +] iterate 5 take [0 1 2 3 4] equal.
+
+(* Iterate with multiplication *)
+1 [2 *] iterate 5 take [1 2 4 8 16] equal.
+
+(* Replicate test *)
+42 replicate 3 take [42 42 42] equal.
+
+(* Cycle test *)
+[1 2 3] cycle 7 take [1 2 3 1 2 3 1] equal.
+
+(* Lazy range finite *)
+1 10 lazy-range 10 take [1 2 3 4 5 6 7 8 9 10] equal.
+
+(* Lazy range infinite *)
+1 lazy-range 5 take [1 2 3 4 5] equal.
+
+(* first on lazy sequence *)
+0 [1 +] iterate first 0 =.
+
+(* rest then first on lazy sequence *)
+0 [1 +] iterate rest first 1 =.
+
+(* drop on lazy sequence *)
+0 [1 +] iterate 100 drop first 100 =.
+
+(* force is equivalent to take *)
+1 10 lazy-range 10 force [1 2 3 4 5 6 7 8 9 10] equal.
+
+(* lazy type predicate - true *)
+0 [1 +] iterate lazy.
+
+(* lazy type predicate - false for list *)
+[1 2 3] lazy not.
+
+(* null on infinite lazy - false *)
+0 [1 +] iterate null not.
+
+(* null on finite exhausted lazy - true *)
+1 1 lazy-range 2 drop null.
+
+(* Powers of 2 *)
+1 [2 *] iterate 8 take [1 2 4 8 16 32 64 128] equal.
+
+(* Empty take from lazy *)
+0 [1 +] iterate 0 take [] equal.
+
+(* take from replicate *)
+"hello" replicate 2 take ["hello" "hello"] equal.
+
+(* cycle single element *)
+[42] cycle 5 take [42 42 42 42 42] equal.
+
+(* Negative range (lazy-range only goes up) *)
+-5 0 lazy-range 6 take [-5 -4 -3 -2 -1 0] equal.
+
+.

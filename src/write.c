@@ -197,6 +197,20 @@ void writefactor(pEnv env, Index n, FILE* fp)
     }
 #endif /* JOY_NATIVE_TYPES */
 
+    case LAZY_: {
+        LazyData* lzy = nodevalue(n).lzy;
+        const char* kind_str;
+        switch (lzy->kind) {
+        case LAZY_ITERATE: kind_str = "iterate"; break;
+        case LAZY_REPEAT:  kind_str = "repeat";  break;
+        case LAZY_CYCLE:   kind_str = "cycle";   break;
+        case LAZY_RANGE:   kind_str = "range";   break;
+        default:           kind_str = "unknown"; break;
+        }
+        joy_fprintf(env, fp, "<lazy:%s>", kind_str);
+        break;
+    }
+
     default:
         error(env, "a factor cannot begin with this symbol");
         break;

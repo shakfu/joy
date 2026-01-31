@@ -479,6 +479,103 @@ Common Perl shortcuts are supported and expanded to POSIX equivalents:
 
 These work both standalone and inside character classes: `[\w.%+-]` expands correctly.
 
+## Lazy Sequences
+
+Lazy sequences enable working with potentially infinite data structures through thunk-based evaluation. Values are computed on demand, never materializing more than requested.
+
+### Constructors
+
+```joy
+(* iterate: apply function repeatedly *)
+0 [1 +] iterate.           (* -> <lazy:iterate> representing 0, 1, 2, 3, ... *)
+
+(* replicate: infinite repetition *)
+42 replicate.              (* -> <lazy:repeat> representing 42, 42, 42, ... *)
+
+(* cycle: cycle through list elements *)
+[1 2 3] cycle.             (* -> <lazy:cycle> representing 1, 2, 3, 1, 2, 3, ... *)
+
+(* lazy-range: numeric ranges *)
+1 10 lazy-range.           (* -> <lazy:range> representing 1 to 10 *)
+1 lazy-range.              (* -> <lazy:range> representing 1, 2, 3, ... (infinite) *)
+```
+
+### Materialization
+
+```joy
+(* take: get first N elements as a list *)
+0 [1 +] iterate 5 take.    (* -> [0 1 2 3 4] *)
+42 replicate 3 take.       (* -> [42 42 42] *)
+[1 2 3] cycle 7 take.      (* -> [1 2 3 1 2 3 1] *)
+
+(* force: same as take *)
+1 10 lazy-range 10 force.  (* -> [1 2 3 4 5 6 7 8 9 10] *)
+```
+
+### Navigation
+
+```joy
+(* first: get current value *)
+0 [1 +] iterate first.     (* -> 0 *)
+
+(* rest: advance to next element *)
+0 [1 +] iterate rest first.    (* -> 1 *)
+
+(* drop: skip N elements *)
+0 [1 +] iterate 100 drop first.  (* -> 100 *)
+
+(* null: check if finite sequence is exhausted *)
+1 1 lazy-range 2 drop null.    (* -> true - range exhausted *)
+```
+
+### Type Predicate
+
+```joy
+0 [1 +] iterate lazy.      (* -> true *)
+[1 2 3] lazy.              (* -> false - regular list *)
+```
+
+### Practical Examples
+
+```joy
+(* Powers of 2 *)
+1 [2 *] iterate 8 take.
+(* -> [1 2 4 8 16 32 64 128] *)
+
+(* Fibonacci sequence *)
+DEFINE fibs == [0 1] [[dup rest first] [first] cleave +] iterate [first] map.
+fibs 10 take.
+(* -> [0 1 1 2 3 5 8 13 21 34] *)
+
+(* Natural numbers starting from N *)
+DEFINE nats == lazy-range.
+100 nats 5 take.
+(* -> [100 101 102 103 104] *)
+
+(* Repeat a string *)
+"hello" replicate 3 take.
+(* -> ["hello" "hello" "hello"] *)
+```
+
+### Lazy Sequence Operators
+
+| Operator | Stack Effect | Description |
+|----------|--------------|-------------|
+| `iterate` | `X [F] -> L` | Sequence: X, F(X), F(F(X)), ... |
+| `replicate` | `X -> L` | Infinite sequence of X |
+| `cycle` | `[list] -> L` | Cycle through list forever |
+| `lazy-range` | `N M -> L` | Range N to M |
+| `lazy-range` | `N -> L` | Infinite range from N |
+| `take` | `L N -> [list]` | Materialize first N elements |
+| `force` | `L N -> [list]` | Same as take |
+| `first` | `L -> X` | Current value |
+| `rest` | `L -> L'` | Advance to next |
+| `drop` | `L N -> L'` | Skip N elements |
+| `null` | `L -> B` | True if finite sequence exhausted |
+| `lazy` | `X -> B` | Type predicate |
+
+**Safety:** Lazy sequences require explicit counts for materialization (`take`/`force`), preventing accidental infinite loops.
+
 ## Persistent Sessions
 
 Store and restore symbol definitions across Joy sessions using SQLite. All value types are fully supported: integers, floats, lists (including nested), quotations, strings, characters, sets, dictionaries, and booleans.
@@ -693,6 +790,7 @@ Or manually:
 ./joy tests/test2/json.joy       # JSON tests
 ./joy tests/test2/strinterp.joy  # String interpolation tests
 ./joy tests/test2/regex.joy      # Regular expression tests
+./joy tests/test2/lazy.joy       # Lazy sequences tests
 ./joy tests/test2/vector_native.joy  # Native vector/matrix tests
 # Session tests require -DJOY_SESSION=ON build
 ```

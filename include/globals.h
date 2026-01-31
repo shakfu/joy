@@ -175,6 +175,7 @@ enum {
     VECTOR_,   /* was LIST_PRIME_ - native contiguous vector */
     DICT_,
     MATRIX_,   /* native contiguous matrix */
+    LAZY_,     /* lazy (potentially infinite) sequence */
 
     LIBRA,
     EQDEF,
@@ -230,6 +231,24 @@ typedef struct MatrixData {
     double data[];    /* row-major storage, flexible array member */
 } MatrixData;
 
+/*
+ * Lazy sequence data for thunk-based lazy evaluation.
+ * Supports infinite sequences with on-demand computation.
+ */
+enum {
+    LAZY_ITERATE,     /* Apply generator repeatedly: X, F(X), F(F(X)), ... */
+    LAZY_REPEAT,      /* Same value forever */
+    LAZY_CYCLE,       /* Cycle through list elements */
+    LAZY_RANGE        /* Numeric range (finite or infinite) */
+};
+
+typedef struct LazyData {
+    Index state;      /* Current value/position */
+    Index generator;  /* Quotation [step] for next value (or list for cycle) */
+    int kind;         /* LAZY_ITERATE, LAZY_REPEAT, LAZY_CYCLE, LAZY_RANGE */
+    int64_t limit;    /* For LAZY_RANGE: upper bound (-1 = infinite) */
+} LazyData;
+
 typedef union {
     int64_t num;      /* USR, BOOLEAN, CHAR, INTEGER */
     proc_t proc;      /* ANON_FUNCT */
@@ -242,11 +261,12 @@ typedef union {
     void* dict;       /* DICT */
     VectorData* vec;  /* VECTOR_ */
     MatrixData* mat;  /* MATRIX_ */
+    LazyData* lzy;    /* LAZY_ */
 } Types;
 
 #ifdef NOBDW
 typedef struct Node {
-    unsigned op : 4, len : 28; /* length of string */
+    unsigned op : 5, len : 27; /* length of string; 5 bits for op allows up to 32 types */
     Index next;
     Types u;
 } Node;

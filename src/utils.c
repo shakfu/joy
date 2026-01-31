@@ -223,6 +223,20 @@ static Index copy_one(pEnv env, Index n)
     }
 #endif
     /*
+     * If the node contains a lazy sequence, deep-copy the LazyData
+     * and recursively copy state and generator indices.
+     */
+    if (op == LAZY_ && env->old_memory[n].u.lzy) {
+        LazyData* old_lzy = env->old_memory[n].u.lzy;
+        LazyData* new_lzy = GC_CTX_MALLOC(env, sizeof(LazyData));
+        new_lzy->kind = old_lzy->kind;
+        new_lzy->limit = old_lzy->limit;
+        /* Recursively copy state and generator (they are node indices) */
+        new_lzy->state = copy(env, old_lzy->state);
+        new_lzy->generator = copy(env, old_lzy->generator);
+        env->memory[temp].u.lzy = new_lzy;
+    }
+    /*
      * The original location is set to COPIED_, such that it will not be copied
      * again.
      */
