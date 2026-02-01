@@ -10,6 +10,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Profiler** - Track per-symbol call counts and timing for performance analysis
+  - `profile` - Execute quotation with profiling, print timing report:
+    ```joy
+    DEFINE fib == [2 <] [] [1 - dup 1 - fib swap fib +] ifte.
+    [20 fib] profile.
+    (*
+    === Profile Report ===
+    Total: 6.23 ms
+
+                  Symbol      Calls    Total(ms)     Self(ms)
+    ------------------------------------------------------------
+                     fib      21891        45.66         6.23
+    *)
+    ```
+  - Manual profiling control:
+    - `profile-start` - Begin collecting profile data (clears previous)
+    - `profile-stop` - Stop collecting
+    - `profile-report` - Print formatted report
+    - `profile-reset` - Clear all data
+  - Programmatic access:
+    - `profile-data` - Returns list of `[name calls total-ns self-ns]` entries
+  - Timing precision: Uses platform-specific high-resolution clocks (nanoseconds)
+  - Self-time calculation: Distinguishes time in function vs. time in nested calls
+  - Minimal overhead: Single branch check when profiling disabled
+
 - **Interactive debugger/stepper** - Trace and step through Joy program execution
   - `debug-trace` - Execute quotation with full trace output showing stack and pending operations:
     ```joy

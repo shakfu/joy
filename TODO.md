@@ -24,7 +24,7 @@ See `doc/` for detailed documentation on each feature.
   - Generators: `[yield-value] generator`
   - Important functional programming primitive
 
-- [ ] **Stepper/debugger** - Interactive debugging
+- [x] **Stepper/debugger** - Interactive debugging
   - Step through execution one operation at a time
   - Inspect stack, dump, symbol table at each step
   - Breakpoints on symbols

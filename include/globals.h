@@ -378,6 +378,26 @@ typedef struct EnvConfig {
     vector(int)* breakpoints;     /* symbol table indices to break on */
 } EnvConfig;
 
+/* Profiler data per symbol */
+typedef struct ProfileEntry {
+    int64_t call_count;     /* number of times called */
+    int64_t total_time_ns;  /* total wall-clock time (incl. children) */
+    int64_t self_time_ns;   /* time excluding nested calls */
+} ProfileEntry;
+
+/* Profiler state */
+typedef struct EnvProfiler {
+    unsigned char enabled;          /* 0=off, 1=collecting */
+    vector(ProfileEntry)* entries;  /* indexed by symtab index */
+    /* Call stack for self-time calculation */
+    struct {
+        int sym_idx;
+        int64_t entry_time_ns;
+        int64_t child_time_ns;
+    } call_stack[DISPLAYMAX];
+    int call_depth;
+} EnvProfiler;
+
 /* EnvScanner - Scanner/lexer state */
 typedef struct EnvScanner {
     FILE* srcfile;                        /* current input file */
@@ -467,6 +487,7 @@ typedef struct Env {
 #ifdef JOY_SESSION
     Session* session;  /* persistent session state */
 #endif
+    EnvProfiler profiler;  /* profiler state */
 } Env;
 
 /*

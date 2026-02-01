@@ -35,6 +35,81 @@
 #include "builtin.h"
 #include "globals.h"
 
+/*
+ * Profiler timing helper - returns current time in nanoseconds.
+ * Uses platform-specific high-resolution clocks.
+ */
+static inline int64_t profiler_time_ns(void)
+{
+#if defined(__APPLE__)
+    return (int64_t)clock_gettime_nsec_np(CLOCK_MONOTONIC);
+#elif defined(_POSIX_TIMERS) && _POSIX_TIMERS > 0
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (int64_t)ts.tv_sec * 1000000000LL + ts.tv_nsec;
+#else
+    return (int64_t)clock() * (1000000000LL / CLOCKS_PER_SEC);
+#endif
+}
+
+/*
+ * profiler_enter - Called when entering a user-defined function.
+ * Records entry time and pushes a frame onto the call stack.
+ */
+static void profiler_enter(pEnv env, int sym_idx)
+{
+    EnvProfiler* prof = &env->profiler;
+
+    /* Ensure entries vector is large enough */
+    size_t needed = (size_t)sym_idx + 1;
+    if (!prof->entries) {
+        vec_init(prof->entries);
+    }
+    while ((size_t)vec_size(prof->entries) < needed) {
+        ProfileEntry zero = {0, 0, 0};
+        vec_push(prof->entries, zero);
+    }
+
+    /* Increment call count */
+    vec_at(prof->entries, sym_idx).call_count++;
+
+    /* Push call frame if there's room */
+    if (prof->call_depth < DISPLAYMAX) {
+        prof->call_stack[prof->call_depth].sym_idx = sym_idx;
+        prof->call_stack[prof->call_depth].entry_time_ns = profiler_time_ns();
+        prof->call_stack[prof->call_depth].child_time_ns = 0;
+        prof->call_depth++;
+    }
+}
+
+/*
+ * profiler_exit - Called when exiting a user-defined function.
+ * Calculates elapsed time and updates total/self time stats.
+ */
+static void profiler_exit(pEnv env, int sym_idx)
+{
+    EnvProfiler* prof = &env->profiler;
+    int64_t now = profiler_time_ns();
+
+    if (prof->call_depth <= 0)
+        return;
+
+    prof->call_depth--;
+    int64_t entry_time = prof->call_stack[prof->call_depth].entry_time_ns;
+    int64_t child_time = prof->call_stack[prof->call_depth].child_time_ns;
+    int64_t elapsed = now - entry_time;
+    int64_t self_time = elapsed - child_time;
+
+    /* Update this symbol's timing */
+    vec_at(prof->entries, sym_idx).total_time_ns += elapsed;
+    vec_at(prof->entries, sym_idx).self_time_ns += self_time;
+
+    /* Propagate elapsed time to parent as child_time */
+    if (prof->call_depth > 0) {
+        prof->call_stack[prof->call_depth - 1].child_time_ns += elapsed;
+    }
+}
+
 #ifdef JOY_PARALLEL
 /*
  * Copy a single node (not the next chain) from parent memory to child memory.
@@ -326,6 +401,10 @@ start:
                 break;
 #endif
             }
+            /* Profiler entry hook */
+            if (env->profiler.enabled) {
+                profiler_enter(env, index);
+            }
 #ifdef COMPILER
             if (env->compiling > 0) {
                 /*
@@ -344,6 +423,9 @@ start:
                     ent = vec_at(env->symtab, index);
                     ent.cflags &= ~IS_ACTIVE;
                     vec_at(env->symtab, index) = ent;
+                    if (env->profiler.enabled) {
+                        profiler_exit(env, index);
+                    }
                     break;
                 }
                 /*
@@ -363,6 +445,9 @@ start:
                 vec_at(env->symtab, index) = ent;
                 printstack(env);
                 fprintf(env->outfp, "%s(env);\n", ent.name);
+                if (env->profiler.enabled) {
+                    profiler_exit(env, index);
+                }
                 break;
             }
 #endif
@@ -377,10 +462,18 @@ start:
 #ifdef NOBDW
                     POP(env->conts);
 #endif
+                    /* Profiler exit hook for tail call */
+                    if (env->profiler.enabled) {
+                        profiler_exit(env, index);
+                    }
                     n = body;
                     goto start; /* tail call optimization */
                 }
                 exec_term(env, body); /* subroutine call */
+            }
+            /* Profiler exit hook for normal return */
+            if (env->profiler.enabled) {
+                profiler_exit(env, index);
             }
             break;
         case ANON_FUNCT_:
