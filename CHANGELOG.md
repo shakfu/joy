@@ -10,6 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Documentation generator** - Extract and format library documentation
+  - `tools/gen_docs.py` - Python script to generate markdown from Joy library files
+  - Extracts `(* ... *)` comments and associates them with definitions
+  - Organizes by file and section headers
+  - Supports inline comments and multi-line documentation
+  - Usage: `python tools/gen_docs.py lib/*.joy -o doc/library.md`
+
 - **Profiler** - Track per-symbol call counts and timing for performance analysis
   - `profile` - Execute quotation with profiling, print timing report:
     ```joy

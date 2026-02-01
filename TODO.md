@@ -41,7 +41,7 @@ See `doc/` for detailed documentation on each feature.
 
 ### Priority 3: Medium Value
 
-- [ ] **Profiler** - Performance analysis
+- [x] **Profiler** - Performance analysis
   - Time spent in each user-defined symbol
   - Call counts and cumulative times
   - `profile [code]` combinator
@@ -62,7 +62,7 @@ See `doc/` for detailed documentation on each feature.
 
 ### Priority 4: Nice to Have
 
-- [ ] **Doc generator** - Generate documentation
+- [x] **Doc generator** - Generate documentation
   - Extract `(* ... *)` comments from library files
   - Generate markdown/HTML documentation
   - Include stack effects and examples
