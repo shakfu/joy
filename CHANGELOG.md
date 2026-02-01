@@ -10,7 +10,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Compile-to-C enhancements** - Extended Joy-to-C compiler with loop inlining, user functions, and file output
+- **Compile-to-C enhancements** - Extended Joy-to-C compiler with constant folding, loop inlining, user functions, and file output
+  - **Constant folding**: Evaluate constant expressions at compile time
+    - Arithmetic: `2 3 +` compiles to just `5`, not push-push-add
+    - Chained operations: `2 3 + 4 *` folds to `20`
+    - Stack operations: `5 dup *` folds to `25`
+    - Comparisons: `10 3 <` folds to `false`
+    - Unary ops: `5 neg abs` folds through `-5` to `5`
+    - Float support: `3.14 2.0 *` folds to `6.28`
+    - Supported ops: `+ - * / rem div max min < <= > >= = != and or xor not neg abs succ pred sign dup`
   - **Loop inlining**: `while` and `times` loops are compiled to native C loops instead of interpreter calls
     ```joy
     [5 dup *] compile-to-c.

@@ -659,6 +659,72 @@ show-breakpoints.        (* -> [] *)
 
 See [doc/debugger.md](doc/debugger.md) for detailed documentation.
 
+## Compile to C
+
+Joy programs can be compiled to standalone C code for native execution, providing significant performance improvements over interpretation.
+
+### Basic Usage
+
+```joy
+(* Compile a quotation to C source code *)
+[5 dup *] compile-to-c.
+(* -> Returns C source code as a string *)
+
+(* Write compiled code directly to a file *)
+[10 [1 -] [dup 0 >] while pop] "/tmp/countdown.c" compile-to-file.
+```
+
+### Compiling and Running
+
+```bash
+# From Joy
+[100 [1 -] [dup 0 >] while] "/tmp/countdown.c" compile-to-file.
+
+# Compile the generated C code
+gcc -O3 -DNOBDW -I<joy>/include -I<joy>/build/generated -I<joy> \
+    /tmp/countdown.c <joy>/build/libjoycore_static.a -lm -lsqlite3 -o countdown
+
+# Run the native program
+./countdown
+```
+
+### Optimizations
+
+The compiler applies several optimizations:
+
+**Constant Folding** - Evaluates constant expressions at compile time:
+```joy
+[2 3 + 4 *] compile-to-c.
+(* Compiles to just: NULLARY(INTEGER_NEWNODE, 20LL) *)
+(* Instead of: push 2, push 3, add, push 4, multiply *)
+```
+
+**Loop Inlining** - Compiles `while` and `times` to native C loops:
+```joy
+[10 [1 -] times] compile-to-c.
+(* Generates: for (i = 0; i < 10; i++) { ... } *)
+```
+
+**User Function Support** - Compiles DEFINE'd functions:
+```joy
+DEFINE square == dup *.
+DEFINE sum-squares == 0 swap [square +] step.
+[[1 2 3 4 5] sum-squares] compile-to-c.
+(* Generates separate C functions for square and sum_squares *)
+```
+
+### Supported Operations
+
+The compiler supports most Joy builtins including:
+- Stack operations: `dup`, `pop`, `swap`, `over`, `pick`, etc.
+- Arithmetic: `+`, `-`, `*`, `/`, `rem`, `neg`, `abs`, etc.
+- Comparison: `<`, `<=`, `>`, `>=`, `=`, `!=`
+- Logic: `and`, `or`, `not`, `xor`
+- Combinators: `i`, `dip`, `map`, `fold`, `filter`, `times`, `while`, `ifte`, `branch`, etc.
+- List operations: `first`, `rest`, `cons`, `concat`, `size`, etc.
+
+See [doc/compile-to-c.md](doc/compile-to-c.md) for complete documentation.
+
 ## Profiling
 
 Track per-symbol call counts and timing for performance analysis:
@@ -1011,6 +1077,7 @@ The generator extracts `(* ... *)` comments and associates them with definitions
 | Resource | Description |
 |----------|-------------|
 | [doc/library.md](doc/library.md) | Auto-generated library reference |
+| [doc/compile-to-c.md](doc/compile-to-c.md) | Compile Joy to C user guide |
 | [doc/debugger.md](doc/debugger.md) | Debugger and stepper user guide |
 | [doc/parallel.md](doc/parallel.md) | Parallel execution user guide and examples |
 | [doc/parallel_performance.md](doc/parallel_performance.md) | Benchmark results and performance guide |

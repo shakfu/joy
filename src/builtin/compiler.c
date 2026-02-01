@@ -63,6 +63,7 @@ typedef struct {
     int quot_counter;     /* For unique quotation names */
     int loop_counter;     /* For unique loop variable names */
     int inline_ops;       /* Whether to inline simple ops */
+    int fold_constants;   /* Whether to evaluate constant expressions at compile time */
     /* User-defined function tracking */
     int user_funcs[MAX_USER_FUNCS];  /* Entry indices of collected user functions */
     int user_func_count;
@@ -74,6 +75,7 @@ static void emit_term(Compiler* c, Index n, int indent);
 static void emit_quotation_body(Compiler* c, Index list, int indent);
 static int try_emit_while(Compiler* c, Index* p, int indent);
 static int try_emit_times(Compiler* c, Index* p, int indent);
+static int try_fold_constants(Compiler* c, Index* p, int indent);
 static void collect_user_func(Compiler* c, int ent_idx);
 static void collect_user_funcs_from_body(Compiler* c, Index body);
 
@@ -668,6 +670,323 @@ static int try_emit_times(Compiler* c, Index* pp, int indent) {
     return 1;
 }
 
+/*
+ * Constant folding - evaluate constant expressions at compile time
+ *
+ * Handles patterns like:
+ *   - INTEGER INTEGER BINOP  (e.g., 2 3 + -> 5)
+ *   - INTEGER UNARYOP (e.g., 5 neg -> -5)
+ *   - INTEGER dup * (squaring, e.g., 5 dup * -> 25)
+ *   - FLOAT FLOAT BINOP
+ *   - Chained operations (e.g., 2 3 + 4 * -> 20)
+ *
+ * Returns 1 if folding occurred and *pp is updated, 0 otherwise.
+ */
+
+/* Get the name of a builtin operation from a node */
+static const char* get_op_name(Compiler* c, Index n) {
+    pEnv env = c->env;
+    if (!n) return NULL;
+
+    if (nodetype(n) == USR_) {
+        Entry ent = vec_at(env->symtab, nodevalue(n).ent);
+        return ent.name;
+    }
+
+    if (nodetype(n) == ANON_FUNCT_) {
+        void (*proc)(pEnv) = nodevalue(n).proc;
+        for (int i = 0; i < (int)vec_size(env->symtab); i++) {
+            Entry ent = vec_at(env->symtab, i);
+            if (!ent.is_user && ent.u.proc == proc) {
+                return ent.name;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+/* Check if an operation is a foldable binary operation */
+static int is_foldable_binop(const char* name) {
+    if (!name) return 0;
+    return strcmp(name, "+") == 0 || strcmp(name, "-") == 0 ||
+           strcmp(name, "*") == 0 || strcmp(name, "/") == 0 ||
+           strcmp(name, "rem") == 0 || strcmp(name, "div") == 0 ||
+           strcmp(name, "max") == 0 || strcmp(name, "min") == 0 ||
+           strcmp(name, "<") == 0 || strcmp(name, "<=") == 0 ||
+           strcmp(name, ">") == 0 || strcmp(name, ">=") == 0 ||
+           strcmp(name, "=") == 0 || strcmp(name, "!=") == 0 ||
+           strcmp(name, "and") == 0 || strcmp(name, "or") == 0 ||
+           strcmp(name, "xor") == 0;
+}
+
+/* Check if an operation is a foldable unary operation */
+static int is_foldable_unaryop(const char* name) {
+    if (!name) return 0;
+    return strcmp(name, "neg") == 0 || strcmp(name, "abs") == 0 ||
+           strcmp(name, "succ") == 0 || strcmp(name, "pred") == 0 ||
+           strcmp(name, "not") == 0 || strcmp(name, "sign") == 0;
+}
+
+/* Emit a folded constant result */
+static void emit_folded_constant(Compiler* c, int is_float, double dval, int64_t ival,
+                                  int is_bool, int indent) {
+    emit_indent(c, indent);
+    if (is_bool) {
+        cbuf_printf(&c->out, "NULLARY(BOOLEAN_NEWNODE, %d);  /* folded */\n", ival ? 1 : 0);
+    } else if (is_float) {
+        cbuf_printf(&c->out, "NULLARY(FLOAT_NEWNODE, %.17g);  /* folded */\n", dval);
+    } else {
+        cbuf_printf(&c->out, "NULLARY(INTEGER_NEWNODE, %lldLL);  /* folded */\n", (long long)ival);
+    }
+}
+
+/* Apply a binary operation to two values, return result.
+ * Returns 1 on success, 0 on failure (e.g., division by zero). */
+static int apply_binop(const char* op,
+                       int a_is_float, double a_dbl, int64_t a_int,
+                       int b_is_float, double b_dbl, int64_t b_int,
+                       int* r_is_float, double* r_dbl, int64_t* r_int,
+                       int* r_is_bool) {
+    double a = a_is_float ? a_dbl : (double)a_int;
+    double b = b_is_float ? b_dbl : (double)b_int;
+    int use_float = a_is_float || b_is_float;
+
+    *r_is_bool = 0;
+
+    if (strcmp(op, "+") == 0) {
+        if (use_float) { *r_is_float = 1; *r_dbl = a + b; }
+        else { *r_is_float = 0; *r_int = a_int + b_int; }
+    } else if (strcmp(op, "-") == 0) {
+        if (use_float) { *r_is_float = 1; *r_dbl = a - b; }
+        else { *r_is_float = 0; *r_int = a_int - b_int; }
+    } else if (strcmp(op, "*") == 0) {
+        if (use_float) { *r_is_float = 1; *r_dbl = a * b; }
+        else { *r_is_float = 0; *r_int = a_int * b_int; }
+    } else if (strcmp(op, "/") == 0) {
+        if (use_float) {
+            if (b == 0.0) return 0;  /* division by zero */
+            *r_is_float = 1; *r_dbl = a / b;
+        } else {
+            if (b_int == 0) return 0;  /* division by zero */
+            *r_is_float = 0; *r_int = a_int / b_int;
+        }
+    } else if (strcmp(op, "rem") == 0) {
+        if (use_float) return 0;  /* rem only for integers */
+        if (b_int == 0) return 0;
+        *r_is_float = 0; *r_int = a_int % b_int;
+    } else if (strcmp(op, "div") == 0) {
+        if (use_float) return 0;  /* div only for integers */
+        if (b_int == 0) return 0;
+        *r_is_float = 0; *r_int = a_int / b_int;
+    } else if (strcmp(op, "max") == 0) {
+        if (use_float) { *r_is_float = 1; *r_dbl = a > b ? a : b; }
+        else { *r_is_float = 0; *r_int = a_int > b_int ? a_int : b_int; }
+    } else if (strcmp(op, "min") == 0) {
+        if (use_float) { *r_is_float = 1; *r_dbl = a < b ? a : b; }
+        else { *r_is_float = 0; *r_int = a_int < b_int ? a_int : b_int; }
+    } else if (strcmp(op, "<") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = a < b;
+    } else if (strcmp(op, "<=") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = a <= b;
+    } else if (strcmp(op, ">") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = a > b;
+    } else if (strcmp(op, ">=") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = a >= b;
+    } else if (strcmp(op, "=") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = a == b;
+    } else if (strcmp(op, "!=") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = a != b;
+    } else if (strcmp(op, "and") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = (a_int != 0) && (b_int != 0);
+    } else if (strcmp(op, "or") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = (a_int != 0) || (b_int != 0);
+    } else if (strcmp(op, "xor") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = ((a_int != 0) != (b_int != 0));
+    } else {
+        return 0;  /* unknown op */
+    }
+    return 1;
+}
+
+/* Apply a unary operation to a value, return result. */
+static int apply_unaryop(const char* op,
+                         int a_is_float, double a_dbl, int64_t a_int,
+                         int* r_is_float, double* r_dbl, int64_t* r_int,
+                         int* r_is_bool) {
+    *r_is_bool = 0;
+
+    if (strcmp(op, "neg") == 0) {
+        if (a_is_float) { *r_is_float = 1; *r_dbl = -a_dbl; }
+        else { *r_is_float = 0; *r_int = -a_int; }
+    } else if (strcmp(op, "abs") == 0) {
+        if (a_is_float) { *r_is_float = 1; *r_dbl = a_dbl < 0 ? -a_dbl : a_dbl; }
+        else { *r_is_float = 0; *r_int = a_int < 0 ? -a_int : a_int; }
+    } else if (strcmp(op, "succ") == 0) {
+        if (a_is_float) { *r_is_float = 1; *r_dbl = a_dbl + 1; }
+        else { *r_is_float = 0; *r_int = a_int + 1; }
+    } else if (strcmp(op, "pred") == 0) {
+        if (a_is_float) { *r_is_float = 1; *r_dbl = a_dbl - 1; }
+        else { *r_is_float = 0; *r_int = a_int - 1; }
+    } else if (strcmp(op, "not") == 0) {
+        *r_is_bool = 1; *r_is_float = 0; *r_int = a_int == 0;
+    } else if (strcmp(op, "sign") == 0) {
+        if (a_is_float) {
+            *r_is_float = 0;
+            *r_int = a_dbl < 0 ? -1 : (a_dbl > 0 ? 1 : 0);
+        } else {
+            *r_is_float = 0;
+            *r_int = a_int < 0 ? -1 : (a_int > 0 ? 1 : 0);
+        }
+    } else {
+        return 0;  /* unknown op */
+    }
+    return 1;
+}
+
+/* Try to fold constant expressions at the current position.
+ * Returns 1 if folding occurred and *pp is updated, 0 otherwise.
+ *
+ * This function uses a simple virtual stack to simulate execution
+ * of constant operations, then emits the result.
+ */
+static int try_fold_constants(Compiler* c, Index* pp, int indent) {
+    pEnv env = c->env;
+    Index p = *pp;
+
+    if (!p) return 0;
+
+    /* Virtual stack for folding - stores up to 8 values */
+    #define MAX_FOLD_STACK 8
+    struct {
+        int is_float;
+        int is_bool;
+        double dbl;
+        int64_t num;
+    } vstack[MAX_FOLD_STACK];
+    int vsp = 0;  /* stack pointer */
+    int ops_folded = 0;
+
+    /* Try to accumulate constants and fold operations */
+    while (p) {
+        int typ = nodetype(p);
+
+        if (typ == INTEGER_) {
+            if (vsp >= MAX_FOLD_STACK) break;
+            vstack[vsp].is_float = 0;
+            vstack[vsp].is_bool = 0;
+            vstack[vsp].num = nodevalue(p).num;
+            vsp++;
+            p = nextnode1(p);
+            continue;
+        }
+
+        if (typ == FLOAT_) {
+            if (vsp >= MAX_FOLD_STACK) break;
+            vstack[vsp].is_float = 1;
+            vstack[vsp].is_bool = 0;
+            vstack[vsp].dbl = nodevalue(p).dbl;
+            vsp++;
+            p = nextnode1(p);
+            continue;
+        }
+
+        if (typ == BOOLEAN_) {
+            if (vsp >= MAX_FOLD_STACK) break;
+            vstack[vsp].is_float = 0;
+            vstack[vsp].is_bool = 1;
+            vstack[vsp].num = nodevalue(p).num;
+            vsp++;
+            p = nextnode1(p);
+            continue;
+        }
+
+        /* Check for foldable operations */
+        const char* opname = get_op_name(c, p);
+        if (!opname) break;
+
+        /* Check for dup followed by binary op (e.g., 5 dup * -> 25) */
+        if (strcmp(opname, "dup") == 0 && vsp >= 1) {
+            if (vsp >= MAX_FOLD_STACK) break;
+            vstack[vsp] = vstack[vsp - 1];  /* duplicate top */
+            vsp++;
+            p = nextnode1(p);
+            ops_folded++;
+            continue;
+        }
+
+        /* Binary operations */
+        if (is_foldable_binop(opname)) {
+            if (vsp < 2) break;  /* need 2 operands */
+
+            int r_is_float, r_is_bool;
+            double r_dbl;
+            int64_t r_int;
+
+            /* Stack: ... a b  ->  ... (a op b)
+             * b is on top (vsp-1), a is below (vsp-2) */
+            if (!apply_binop(opname,
+                            vstack[vsp-2].is_float, vstack[vsp-2].dbl, vstack[vsp-2].num,
+                            vstack[vsp-1].is_float, vstack[vsp-1].dbl, vstack[vsp-1].num,
+                            &r_is_float, &r_dbl, &r_int, &r_is_bool)) {
+                break;  /* operation failed (e.g., div by zero) */
+            }
+
+            vsp--;  /* pop b */
+            vstack[vsp-1].is_float = r_is_float;
+            vstack[vsp-1].is_bool = r_is_bool;
+            vstack[vsp-1].dbl = r_dbl;
+            vstack[vsp-1].num = r_int;
+            p = nextnode1(p);
+            ops_folded++;
+            continue;
+        }
+
+        /* Unary operations */
+        if (is_foldable_unaryop(opname)) {
+            if (vsp < 1) break;  /* need 1 operand */
+
+            int r_is_float, r_is_bool;
+            double r_dbl;
+            int64_t r_int;
+
+            if (!apply_unaryop(opname,
+                              vstack[vsp-1].is_float, vstack[vsp-1].dbl, vstack[vsp-1].num,
+                              &r_is_float, &r_dbl, &r_int, &r_is_bool)) {
+                break;  /* operation failed */
+            }
+
+            vstack[vsp-1].is_float = r_is_float;
+            vstack[vsp-1].is_bool = r_is_bool;
+            vstack[vsp-1].dbl = r_dbl;
+            vstack[vsp-1].num = r_int;
+            p = nextnode1(p);
+            ops_folded++;
+            continue;
+        }
+
+        /* Not a foldable operation, stop here */
+        break;
+    }
+
+    /* Only emit folded result if we actually folded something */
+    if (ops_folded == 0) return 0;
+
+    /* Emit the folded results */
+    emit_indent(c, indent);
+    cbuf_append(&c->out, "/* constant-folded expression */\n");
+
+    for (int i = 0; i < vsp; i++) {
+        emit_folded_constant(c, vstack[i].is_float, vstack[i].dbl, vstack[i].num,
+                            vstack[i].is_bool, indent);
+    }
+
+    *pp = p;
+    return 1;
+
+    #undef MAX_FOLD_STACK
+}
+
 /* Emit code for a single term */
 static void emit_term(Compiler* c, Index n, int indent) {
     pEnv env = c->env;  /* Required for node macros */
@@ -805,6 +1124,11 @@ static void emit_quotation_body(Compiler* c, Index list, int indent) {
             if (try_emit_times(c, &p, indent)) continue;
         }
 
+        /* Try constant folding */
+        if (c->fold_constants) {
+            if (try_fold_constants(c, &p, indent)) continue;
+        }
+
         /* Regular term emission */
         emit_term(c, p, indent);
         p = nextnode1(p);
@@ -906,6 +1230,7 @@ void compile_to_c_(pEnv env)
     c.quot_counter = 0;
     c.loop_counter = 0;
     c.inline_ops = 1;
+    c.fold_constants = 1;
     c.user_func_count = 0;
     c.collecting_deps = 0;
     cbuf_init(&c.out);
@@ -978,6 +1303,7 @@ void compile_to_file_(pEnv env)
     c.quot_counter = 0;
     c.loop_counter = 0;
     c.inline_ops = 1;
+    c.fold_constants = 1;
     c.user_func_count = 0;
     c.collecting_deps = 0;
     cbuf_init(&c.out);
