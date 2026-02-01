@@ -576,6 +576,89 @@ DEFINE nats == lazy-range.
 
 **Safety:** Lazy sequences require explicit counts for materialization (`take`/`force`), preventing accidental infinite loops.
 
+## Debugging and Stepping
+
+Joy provides interactive debugging facilities for tracing execution and stepping through programs.
+
+### Tracing with debug-trace
+
+Execute a quotation while displaying the stack and pending operations at each step:
+
+```joy
+[1 2 + 3 *] debug-trace.
+(*
+ : 1 2 + 3 *
+1 : 2 + 3 *
+1 2 : + 3 *
+3 : 3 *
+3 3 : *
+9
+*)
+
+(* With user-defined functions *)
+double == 2 *.
+[3 double 1 +] debug-trace.
+(*
+ : 3 double 1 +
+3 : double 1 +
+3 : 2 * 1 +
+3 2 : * 1 +
+6 : 1 +
+6 1 : +
+7
+*)
+```
+
+### Interactive Stepping with debug-step
+
+Step through execution with interactive control:
+
+```joy
+[1 2 + 3 *] debug-step.
+(* Prompts: [s]tep [c]ontinue [q]uit> *)
+```
+
+| Key | Action |
+|-----|--------|
+| `s` or Enter | Step - Execute one operation and pause |
+| `c` | Continue - Run until next breakpoint or completion |
+| `q` | Quit - Abort execution |
+
+### Breakpoints
+
+Pause execution when specific symbols are about to execute:
+
+```joy
+(* Set breakpoint *)
+double == 2 *.
+"double" breakpoint
+
+(* Run code - will pause at double *)
+[3 double 1 +] i
+(*
+ : double 1 +
+[break: double]
+[s]tep [c]ontinue [q]uit>
+*)
+
+(* Manage breakpoints *)
+show-breakpoints.        (* -> ["double"] *)
+clear-breakpoints.
+show-breakpoints.        (* -> [] *)
+```
+
+### Debugger Operators
+
+| Operator | Stack Effect | Description |
+|----------|--------------|-------------|
+| `debug-trace` | `[P] -> ...` | Execute P with full execution tracing |
+| `debug-step` | `[P] -> ...` | Execute P with interactive stepping |
+| `breakpoint` | `"name" ->` | Set breakpoint on named symbol |
+| `clear-breakpoints` | `->` | Remove all breakpoints |
+| `show-breakpoints` | `-> [names]` | List current breakpoints |
+
+See [doc/debugger.md](doc/debugger.md) for detailed documentation.
+
 ## Persistent Sessions
 
 Store and restore symbol definitions across Joy sessions using SQLite. All value types are fully supported: integers, floats, lists (including nested), quotations, strings, characters, sets, dictionaries, and booleans.
@@ -791,6 +874,7 @@ Or manually:
 ./joy tests/test2/strinterp.joy  # String interpolation tests
 ./joy tests/test2/regex.joy      # Regular expression tests
 ./joy tests/test2/lazy.joy       # Lazy sequences tests
+./joy tests/test2/debugger.joy   # Debugger/stepper tests
 ./joy tests/test2/vector_native.joy  # Native vector/matrix tests
 # Session tests require -DJOY_SESSION=ON build
 ```
@@ -817,6 +901,7 @@ See [doc/parallel.md](doc/parallel.md) for detailed design documentation.
 
 | Resource | Description |
 |----------|-------------|
+| [doc/debugger.md](doc/debugger.md) | Debugger and stepper user guide |
 | [doc/parallel.md](doc/parallel.md) | Parallel execution user guide and examples |
 | [doc/parallel_performance.md](doc/parallel_performance.md) | Benchmark results and performance guide |
 | [doc/parallel_fixes.md](doc/parallel_fixes.md) | Technical documentation of parallel fixes |

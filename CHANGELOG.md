@@ -10,6 +10,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Interactive debugger/stepper** - Trace and step through Joy program execution
+  - `debug-trace` - Execute quotation with full trace output showing stack and pending operations:
+    ```joy
+    [1 2 + 3 *] debug-trace.
+    (*
+     : 1 2 + 3 *
+    1 : 2 + 3 *
+    1 2 : + 3 *
+    3 : 3 *
+    3 3 : *
+    9
+    *)
+    ```
+  - `debug-step` - Interactive single-step execution with commands:
+    - `s` or Enter: Step to next operation
+    - `c`: Continue to next breakpoint or completion
+    - `q`: Quit execution
+  - Breakpoint management:
+    - `breakpoint` - Set breakpoint on named symbol: `"myfunction" breakpoint`
+    - `clear-breakpoints` - Remove all breakpoints
+    - `show-breakpoints` - List current breakpoints: `show-breakpoints` -> `["foo" "bar"]`
+  - Breakpoints trigger step mode when hit, displaying `[break: name]` message
+  - Documentation: [doc/debugger.md](doc/debugger.md)
+
 - **Lazy sequences** - Potentially infinite sequences with thunk-based evaluation
   - New `LAZY_` type with four kinds: iterate, repeat, cycle, range
   - Constructors:
