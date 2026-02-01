@@ -30,10 +30,6 @@ See `doc/` for detailed documentation on each feature.
   - Breakpoints on symbols
   - Essential for debugging non-trivial programs
 
-- [ ] **Bytecode compiler** - Faster execution
-  - Compile Joy to bytecode instead of interpreting AST
-  - Would significantly speed up tight loops
-
 - [ ] **LSP server** - Editor integration
   - Autocompletion, go-to-definition, hover docs
   - VSCode, Neovim, Emacs integration
