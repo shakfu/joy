@@ -659,6 +659,71 @@ show-breakpoints.        (* -> [] *)
 
 See [doc/debugger.md](doc/debugger.md) for detailed documentation.
 
+## Profiling
+
+Track per-symbol call counts and timing for performance analysis:
+
+### Quick Profiling with `profile`
+
+```joy
+(* Profile a quotation and print a timing report *)
+DEFINE fib == [2 <] [] [1 - dup 1 - fib swap fib +] ifte.
+[20 fib] profile.
+(*
+=== Profile Report ===
+Total: 6.23 ms
+
+              Symbol      Calls    Total(ms)     Self(ms)
+------------------------------------------------------------
+                 fib      21891        45.66         6.23
+6765
+*)
+```
+
+### Manual Profiling
+
+For more control, use the individual profiling operators:
+
+```joy
+profile-start.           (* Begin collecting data *)
+(* ... code to profile ... *)
+profile-stop.            (* Stop collecting *)
+profile-report.          (* Print formatted report *)
+profile-reset.           (* Clear data for next run *)
+```
+
+### Programmatic Access
+
+Get profiling data as a Joy list for custom analysis:
+
+```joy
+profile-start.
+10 fib.
+profile-stop.
+profile-data.
+(* -> [["fib" 177 45000 6200]] *)
+(* Each entry: [name calls total-ns self-ns] *)
+```
+
+### Profiler Operators
+
+| Operator | Stack Effect | Description |
+|----------|--------------|-------------|
+| `profile` | `[P] -> ...` | Execute P with profiling, print report |
+| `profile-start` | `->` | Begin collecting (clears previous data) |
+| `profile-stop` | `->` | Stop collecting |
+| `profile-report` | `->` | Print formatted timing report |
+| `profile-data` | `-> L` | Get data as `[[name calls total self] ...]` |
+| `profile-reset` | `->` | Clear all profiling data |
+
+### Understanding the Output
+
+- **Calls**: Number of times the symbol was invoked
+- **Total(ms)**: Wall-clock time including nested calls
+- **Self(ms)**: Time excluding time spent in called functions
+
+Self-time is useful for identifying where time is actually spent, while total time shows the cumulative cost of calling a function.
+
 ## Persistent Sessions
 
 Store and restore symbol definitions across Joy sessions using SQLite. All value types are fully supported: integers, floats, lists (including nested), quotations, strings, characters, sets, dictionaries, and booleans.
@@ -897,10 +962,55 @@ Each parallel task executes with:
 
 See [doc/parallel.md](doc/parallel.md) for detailed design documentation.
 
+## Development Tools
+
+### Code Formatter
+
+Auto-format Joy source files with consistent style:
+
+```bash
+# Check if files need formatting (exits 1 if changes needed)
+python tools/fmt_joy.py lib/*.joy --check
+
+# Show diff of what would change
+python tools/fmt_joy.py lib/numlib.joy --diff
+
+# Format in place
+python tools/fmt_joy.py lib/*.joy -i
+
+# Format to stdout
+python tools/fmt_joy.py lib/numlib.joy
+```
+
+Formatting rules:
+- Single space between tokens
+- No space inside `[]` or `{}`
+- 4-space indent within LIBRA/DEFINE blocks
+- Extra indent for multi-line definition continuations
+- Preserves comments and blank lines
+
+### Documentation Generator
+
+Extract documentation from Joy library files:
+
+```bash
+# Generate markdown docs for all library files
+python tools/gen_docs.py lib/*.joy -o doc/library.md
+
+# Generate docs for specific files
+python tools/gen_docs.py lib/numlib.joy lib/agglib.joy
+
+# Simple list format (not markdown)
+python tools/gen_docs.py lib/*.joy --simple
+```
+
+The generator extracts `(* ... *)` comments and associates them with definitions, organizing output by file and section headers.
+
 ## Documentation
 
 | Resource | Description |
 |----------|-------------|
+| [doc/library.md](doc/library.md) | Auto-generated library reference |
 | [doc/debugger.md](doc/debugger.md) | Debugger and stepper user guide |
 | [doc/parallel.md](doc/parallel.md) | Parallel execution user guide and examples |
 | [doc/parallel_performance.md](doc/parallel_performance.md) | Benchmark results and performance guide |
