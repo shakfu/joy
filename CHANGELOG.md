@@ -10,6 +10,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Compile-to-C enhancements** - Extended Joy-to-C compiler with loop inlining, user functions, and file output
+  - **Loop inlining**: `while` and `times` loops are compiled to native C loops instead of interpreter calls
+    ```joy
+    [5 dup *] compile-to-c.
+    (* Generates: for (int64_t _i = 0; _i < n; _i++) { ... } *)
+    ```
+  - **User-defined function support**: Functions defined with `DEFINE` are compiled as separate C functions
+    - Automatic dependency resolution: referenced user functions are included
+    - Recursive functions supported with forward declarations
+    - Mutual recursion handled correctly
+    ```joy
+    DEFINE square == dup *.
+    DEFINE sum-of-squares == [square] map 0 [+] fold.
+    [[1 2 3] sum-of-squares] compile-to-c.
+    (* Generates separate C functions for square and sum_of_squares *)
+    ```
+  - **File output**: `compile-to-file` writes compiled C directly to a file
+    - Syntax: `[quotation] "filename.c" compile-to-file`
+    - Produces complete, standalone C program ready to compile
+    ```joy
+    [10 [1 -] [dup 1 >] while pop] "/tmp/countdown.c" compile-to-file.
+    (* Creates /tmp/countdown.c with full main() and runtime setup *)
+    ```
+
 - **Code formatter** - Auto-format Joy source files
   - `tools/fmt_joy.py` - Python script to format Joy code
   - Consistent spacing: single space between tokens, no space inside `[]` or `{}`

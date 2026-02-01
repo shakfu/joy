@@ -1,0 +1,10 @@
+(* Simple test - constant folding example *)
+
+(* This should fold to just pushing 28 *)
+5 dup * 3 + .
+
+(* User-defined square *)
+DEFINE square == dup *.
+
+(* Use it *)
+7 square .

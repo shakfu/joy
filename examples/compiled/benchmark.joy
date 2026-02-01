@@ -1,0 +1,17 @@
+(* Benchmark: compute sum of squares from 1 to N *)
+
+DEFINE square == dup *.
+
+(* sum-squares: N -> 1^2 + 2^2 + ... + N^2
+   Stack: [acc n] where acc is accumulator, n is counter
+   Each iteration: add n^2 to acc, decrement n *)
+DEFINE sum-squares == 0 swap [dup 0 >] [dup square rolldown + swap pred] while pop.
+
+(* Warm up and test correctness: sum of 1..10 = 385 *)
+10 sum-squares .
+
+(* Benchmark: sum of squares 1..1000, repeated 1000 times *)
+DEFINE bench == 1000 [1000 sum-squares pop] times.
+
+bench
+"done" .

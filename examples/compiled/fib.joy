@@ -1,0 +1,7 @@
+(* Fibonacci - compiled example *)
+
+(* Recursive definition using linrec *)
+fib == [0 <=] [pop 1] [dup 1 - fib swap 2 - fib +] ifte ;
+
+(* Test: compute fib(10) *)
+10 fib .
