@@ -18,7 +18,7 @@ See `doc/` for detailed documentation on each feature.
 
 ### Priority 1: High Value / Medium Effort
 
-- [ ] **Lazy sequences** - Infinite/deferred lists
+- [x] **Lazy sequences** - Infinite/deferred lists
   - `1 [1 +] iterate` -> lazy `[1 2 3 4 ...]`
   - `lazy-seq 10 take` -> `[1 2 3 4 5 6 7 8 9 10]`
   - Generators: `[yield-value] generator`

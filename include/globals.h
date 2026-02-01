@@ -372,6 +372,10 @@ typedef struct EnvConfig {
     unsigned char debugging;      /* debugging mode enabled */
     unsigned char overwrite;      /* warn on symbol redefinition */
     unsigned char inlining;       /* inline expansion enabled */
+    /* Debugger state */
+    unsigned char stepping;       /* 0=off, 1=step-into, 2=step-over, 3=continue */
+    int step_depth;               /* current call depth for step-over */
+    vector(int)* breakpoints;     /* symbol table indices to break on */
 } EnvConfig;
 
 /* EnvScanner - Scanner/lexer state */

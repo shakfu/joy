@@ -175,6 +175,39 @@ static void writestack(pEnv env, Index n)
     }
 }
 
+/*
+ * debugger_prompt - prompt user for debugger command in step mode.
+ * Commands: s=step, c=continue to next breakpoint, q=quit
+ */
+static void debugger_prompt(pEnv env)
+{
+    int ch;
+    printf("[s]tep [c]ontinue [q]uit> ");
+    fflush(stdout);
+
+    SetRaw();
+    ch = getchar();
+    /* SetRaw pushes screen dimensions; discard them */
+    POP(env->stck);
+    POP(env->stck);
+    SetNormal();
+    putchar('\n');
+
+    switch (ch) {
+    case 's': case 'S': case '\n': case '\r':
+        env->config.stepping = 1;
+        break;
+    case 'c': case 'C':
+        env->config.stepping = 3;  /* continue to next breakpoint */
+        break;
+    case 'q': case 'Q':
+        env->config.stepping = 0;
+        env->config.debugging = 0;
+        execerror(env, "quit", "debugger");
+        break;
+    }
+}
+
 #ifdef COMPILER
 int count_quot(pEnv env)
 {
@@ -237,15 +270,41 @@ start:
         p = n;
 #endif
         env->stats.opers++;
-        if (env->config.debugging) {
-            writestack(env, env->stck);
-            if (env->config.debugging == 2) {
+
+        /* Check for breakpoint hit on user-defined symbols */
+        {
+            int hit_breakpoint = 0;
+            if (nodetype(p) == USR_ && env->config.breakpoints) {
+                int sym_idx = nodevalue(p).ent;
+                size_t bp_count = vec_size(env->config.breakpoints);
+                for (size_t i = 0; i < bp_count; i++) {
+                    if (vec_at(env->config.breakpoints, i) == sym_idx) {
+                        hit_breakpoint = 1;
+                        break;
+                    }
+                }
+            }
+
+            /* Display state if debugging, stepping, or hit breakpoint */
+            if (env->config.debugging || env->config.stepping || hit_breakpoint) {
+                writestack(env, env->stck);
                 printf(" : ");
                 writeterm(env, p, stdout);
+                putchar('\n');
+                fflush(stdout);
+
+                if (hit_breakpoint) {
+                    Entry ent = vec_at(env->symtab, nodevalue(p).ent);
+                    printf("[break: %s]\n", ent.name);
+                    env->config.stepping = 1;
+                }
+
+                if (env->config.stepping == 1) {
+                    debugger_prompt(env);
+                }
             }
-            putchar('\n');
-            fflush(stdout);
         }
+
         switch (nodetype(p)) {
         case ILLEGAL_:
         case COPIED_:

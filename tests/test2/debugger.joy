@@ -1,0 +1,13 @@
+(*
+    module  : debugger.joy
+    version : 1.0
+    date    : 02/01/26
+*)
+(* Test breakpoint management *)
+show-breakpoints [] equal.
+"dup" breakpoint show-breakpoints ["dup"] equal.
+"swap" breakpoint show-breakpoints size 2 =.
+clear-breakpoints show-breakpoints [] equal.
+
+(* Test debug-trace runs without error *)
+[1 2 +] debug-trace 3 =.
