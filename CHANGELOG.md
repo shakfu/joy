@@ -10,6 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **Code formatter** - Auto-format Joy source files
+  - `tools/fmt_joy.py` - Python script to format Joy code
+  - Consistent spacing: single space between tokens, no space inside `[]` or `{}`
+  - Proper indentation: 4 spaces within LIBRA/DEFINE blocks, extra indent for continuation lines
+  - Preserves comments and blank lines between sections
+  - Options: `--check` (verify formatting), `--diff` (show changes), `-i` (in-place edit)
+  - Usage: `python tools/fmt_joy.py lib/*.joy --check`
+
 - **Documentation generator** - Extract and format library documentation
   - `tools/gen_docs.py` - Python script to generate markdown from Joy library files
   - Extracts `(* ... *)` comments and associates them with definitions

@@ -67,9 +67,9 @@ See `doc/` for detailed documentation on each feature.
   - Generate markdown/HTML documentation
   - Include stack effects and examples
 
-- [ ] **Code formatter** - Auto-format Joy code
+- [x] **Code formatter** - Auto-format Joy code
   - Consistent indentation and spacing
-  - `joy --fmt file.joy`
+  - `python tools/fmt_joy.py file.joy`
 
 - [ ] **Futures/async** - Asynchronous computation
   - `[expensive-computation] future` -> future-handle
