@@ -576,6 +576,58 @@ DEFINE nats == lazy-range.
 
 **Safety:** Lazy sequences require explicit counts for materialization (`take`/`force`), preventing accidental infinite loops.
 
+## LSP Server (Editor Integration)
+
+Joy includes a built-in Language Server Protocol (LSP) server that provides IDE features in any LSP-compatible editor.
+
+### Building
+
+```bash
+make joy-lsp
+```
+
+### Features
+
+| Feature | Description |
+|---------|-------------|
+| **Autocompletion** | All 318 builtins + user-defined symbols, with signatures and docs |
+| **Hover docs** | Signature and description for builtins; definition body for user symbols |
+| **Go-to-definition** | Jump to where a user-defined symbol is defined |
+| **Document symbols** | Outline of all definitions in a file |
+| **Diagnostics** | Real-time syntax error highlighting |
+
+### Editor Configuration
+
+**Neovim** (with nvim-lspconfig):
+
+```lua
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'joy',
+  callback = function()
+    vim.lsp.start({
+      name = 'joy-lsp',
+      cmd = { '/path/to/build/joy-lsp' },
+    })
+  end,
+})
+```
+
+**VSCode** (settings.json, with a generic LSP client extension):
+
+```json
+{
+  "joy-lsp.server.path": "/path/to/build/joy-lsp"
+}
+```
+
+**Emacs** (with eglot):
+
+```elisp
+(add-to-list 'eglot-server-programs '(joy-mode . ("/path/to/build/joy-lsp")))
+```
+
+The server communicates via stdin/stdout JSON-RPC and has no dependencies beyond the `joy-lsp` binary itself.
+
 ## Debugging and Stepping
 
 Joy provides interactive debugging facilities for tracing execution and stepping through programs.
@@ -940,6 +992,15 @@ cmake -DJOY_SESSION=ON ..
 cmake --build .
 ```
 
+### Build the LSP Server
+
+No extra dependencies — just tree-sitter (included in `ext/`):
+
+```bash
+make joy-lsp
+# Binary: build/joy-lsp
+```
+
 ### Build with Debug/Tests
 
 ```bash
@@ -971,6 +1032,7 @@ Then edit `~/usrlib.joy` to change the path from `"../lib"` to `"usrlib"`.
 joy -h              # Show options
 joy program.joy     # Run a program
 joy                 # Interactive REPL
+joy-lsp             # Start LSP server (for editor integration)
 ```
 
 ### Example Session
