@@ -8,6 +8,7 @@
 #include "globals.h"
 #include "builtin.h"
 #include <stdio.h>
+#include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
 #if  defined(__APPLE__) || defined(__linux__)

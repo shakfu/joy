@@ -46,11 +46,24 @@ add_custom_command(
   VERBATIM
 )
 
+add_custom_command(
+  OUTPUT "${JOY_GENERATED_DIR}/lsp_builtins.h"
+  COMMAND ${CMAKE_COMMAND} -E make_directory "${JOY_GENERATED_DIR}"
+  COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tools/gen_lsp_builtins.py"
+          "${CMAKE_SOURCE_DIR}" "${JOY_GENERATED_DIR}/lsp_builtins.h"
+  DEPENDS ${JOY_PRIMITIVE_SOURCES} "${CMAKE_SOURCE_DIR}/tools/gen_lsp_builtins.py"
+  VERBATIM
+)
+
 add_custom_target(joy_generated
   DEPENDS
     "${JOY_GENERATED_DIR}/builtin.c"
     "${JOY_GENERATED_DIR}/builtin.h"
     "${JOY_GENERATED_DIR}/table.c")
+
+add_custom_target(lsp_generated
+  DEPENDS
+    "${JOY_GENERATED_DIR}/lsp_builtins.h")
 
 set(JOY_CORE_SOURCES
   src/error.c
@@ -169,6 +182,31 @@ target_link_libraries(joy PRIVATE joycore_static linenoise)
 target_include_directories(joy PRIVATE "${JOY_PUBLIC_INCLUDES}" "${JOY_GENERATED_DIR}" "${CMAKE_SOURCE_DIR}" ext)
 target_compile_definitions(joy PRIVATE USE_LINENOISE)
 add_dependencies(joy joy_generated)
+
+# LSP server (standalone, no joycore dependency)
+add_executable(joy-lsp
+  src/lsp/main.c
+  src/lsp/transport.c
+  src/lsp/json.c
+  src/lsp/server.c
+  src/lsp/document.c
+  src/lsp/completion.c
+  src/lsp/hover.c
+  src/lsp/definition.c
+  src/lsp/diagnostics.c
+  src/lsp/symbols.c
+)
+target_link_libraries(joy-lsp PRIVATE tree-sitter-joy)
+target_include_directories(joy-lsp PRIVATE
+  "${CMAKE_SOURCE_DIR}/src/lsp"
+  "${CMAKE_SOURCE_DIR}/include"
+  "${JOY_GENERATED_DIR}"
+)
+target_compile_features(joy-lsp PRIVATE c_std_11)
+if(NOT MSVC)
+  target_compile_options(joy-lsp PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter)
+endif()
+add_dependencies(joy-lsp lsp_generated)
 
 if(RUN_TESTS)
   enable_testing()

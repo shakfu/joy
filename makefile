@@ -3,7 +3,7 @@
 #   version : 2.0
 #   date    : 02/18/25
 #
-.PHONY: all joy clean test clang-format clang-format-check clang-tidy
+.PHONY: all joy joy-lsp clean test clang-format clang-format-check clang-tidy
 
 BUILD_DIR ?= build
 FORMAT_FILES := $(shell git ls-files '*.c' '*.h')
@@ -14,6 +14,10 @@ all: joy
 joy:
 	@cmake -S . -B $(BUILD_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 	@cmake --build $(BUILD_DIR) --target $@
+
+joy-lsp:
+	cmake -S . -B $(BUILD_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	cmake --build $(BUILD_DIR) --target $@
 
 clean:
 	@rm -rf $(BUILD_DIR)

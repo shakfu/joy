@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### [1.45]
+
+### Added
+
+- **LSP server** - Language Server Protocol implementation for editor integration
+  - Standalone `joy-lsp` binary communicating via stdin/stdout JSON-RPC
+  - **Autocompletion**: Prefix-matches against 318 builtins and document definitions, with signatures and docs
+  - **Hover documentation**: Markdown-formatted signature + description for builtins, definition body for user symbols
+  - **Go-to-definition**: Navigate to user-defined symbol definitions within the document
+  - **Document symbols**: Outline view of all definitions in a file
+  - **Diagnostics**: Real-time syntax error reporting from tree-sitter ERROR/MISSING nodes
+  - Full document sync (re-parses on every change, Joy files are small)
+  - No joycore dependency — links only against tree-sitter-joy for fast startup
+  - Build-time codegen: `tools/gen_lsp_builtins.py` extracts builtin database from `src/builtin/*.c` doc comments
+  - Build: `make joy-lsp`
+  - Works with any LSP-compatible editor (VSCode, Neovim, Emacs, Helix, etc.)
+
+---
+
 ### [1.44]
 
 ### Added

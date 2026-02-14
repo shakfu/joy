@@ -30,10 +30,10 @@ See `doc/` for detailed documentation on each feature.
   - Breakpoints on symbols
   - Essential for debugging non-trivial programs
 
-- [ ] **LSP server** - Editor integration
-  - Autocompletion, go-to-definition, hover docs
-  - VSCode, Neovim, Emacs integration
-  - High developer experience impact; would make Joy practical for larger projects
+- [x] **LSP server** - Editor integration
+  - Autocompletion, go-to-definition, hover docs, diagnostics, document symbols
+  - VSCode, Neovim, Emacs integration via `joy-lsp` binary
+  - Build: `make joy-lsp`
 
 ### Priority 3: Medium Value
 
