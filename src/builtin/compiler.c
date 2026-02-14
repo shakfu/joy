@@ -10,6 +10,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#if  defined(__APPLE__) || defined(__linux__)
+#include <stdarg.h>
+#endif
 
 /* String buffer for building output */
 typedef struct {

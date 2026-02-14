@@ -12,23 +12,23 @@ CLANG_TIDY ?= /opt/homebrew/opt/llvm/bin/clang-tidy
 all: joy
 
 joy:
-	cmake -S . -B $(BUILD_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-	cmake --build $(BUILD_DIR) --target $@
+	@cmake -S . -B $(BUILD_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	@cmake --build $(BUILD_DIR) --target $@
 
 clean:
-	rm -rf $(BUILD_DIR)
+	@rm -rf $(BUILD_DIR)
 
 test:
-	cmake -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Debug
-	cmake --build $(BUILD_DIR)
-	cd $(BUILD_DIR) && ctest --output-on-failure
+	@cmake -S . -B $(BUILD_DIR) -DCMAKE_BUILD_TYPE=Debug
+	@cmake --build $(BUILD_DIR)
+	@cd $(BUILD_DIR) && ctest --output-on-failure
 
 clang-format:
-	clang-format -i $(FORMAT_FILES)
+	@clang-format -i $(FORMAT_FILES)
 
 clang-format-check:
-	clang-format --dry-run --Werror $(FORMAT_FILES)
+	@clang-format --dry-run --Werror $(FORMAT_FILES)
 
 clang-tidy:
-	cmake -S . -B $(BUILD_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-	python3 tools/run_clang_tidy.py $(BUILD_DIR) $(CLANG_TIDY)
+	@cmake -S . -B $(BUILD_DIR) -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+	@python3 tools/run_clang_tidy.py $(BUILD_DIR) $(CLANG_TIDY)
