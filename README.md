@@ -948,6 +948,20 @@ For larger matrices (32x32 and above), optional BLAS support provides additional
 
 See [doc/vector_impl.md](doc/vector_impl.md) for implementation details.
 
+## Interactive REPL
+
+Running `joy` with no file on a terminal starts a line editor with syntax highlighting, TAB completion of defined words, and history in `.joy_history` in the current directory. Every statement on a line runs; a pasted multi-line block runs as one entry. Ctrl-C clears the line and Ctrl-D exits.
+
+Highlighting colours keywords, the name being defined, builtins (words not redefined by the user), operators, literals, comments, and brackets and delimiters. Tokens that are errors however the line continues (a stray `]`, an unexpected `(`) are shown in red; an unfinished quotation or string is not, since typing more can complete it.
+
+The theme comes from `JOY_THEME` (default `joy-nord`, the Nord palette with these Joy categories):
+
+```bash
+JOY_THEME=one-dark joy
+```
+
+Other themes are linenoise's stock themes: `monokai`, `dracula`, `solarized-dark`, `solarized-light`, `gruvbox-dark`, `nord`, `one-dark`, `basic16` (16 colours, for terminals without 256-colour support). They mark builtins and errors in their own colours but leave brackets and delimiters uncoloured. An unknown name prints the list.
+
 ## Building
 
 ### Standard Build (without parallel support)

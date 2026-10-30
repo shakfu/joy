@@ -86,6 +86,79 @@ def test_multi_line_paste_runs_every_statement():
     assert session(paste, b"\r") == ["25", "36"]
 
 
+def render(line, setup=b"", theme=None):
+    """Type line without Enter; return 'token:colour' for its last redraw."""
+    env = dict(os.environ)
+    env.pop("JOY_THEME", None)
+    if theme:
+        env["JOY_THEME"] = theme
+    cwd = tempfile.mkdtemp()
+    pid, fd = pty.fork()
+    if pid == 0:
+        os.chdir(cwd)
+        os.execve(JOY, [JOY, "-l"], env)
+    out = b""
+
+    def drain(seconds):
+        nonlocal out
+        end = time.time() + seconds
+        while time.time() < end:
+            if select.select([fd], [], [], 0.05)[0]:
+                try:
+                    chunk = os.read(fd, 65536)
+                except OSError:
+                    return
+                out += chunk
+                for _ in range(chunk.count(b"\x1b[6n")):
+                    os.write(fd, b"\x1b[1;1R")
+
+    drain(1.0)
+    if setup:
+        os.write(fd, setup)
+        drain(0.6)
+    mark = len(out)
+    os.write(fd, line)
+    drain(0.8)
+    try:
+        os.kill(pid, 9)
+    except ProcessLookupError:
+        pass
+    os.waitpid(pid, 0)
+    shutil.rmtree(cwd, ignore_errors=True)
+    segs, color = [], None
+    for tok in re.split(rb"(\x1b\[[0-9;?]*[A-Za-z])", out[mark:].split(b"joy> ")[-1]):
+        m = re.fullmatch(rb"\x1b\[38;5;(\d+)m", tok)
+        if m:
+            color = int(m.group(1))
+        elif tok == b"\x1b[0m":
+            color = None
+        elif not tok.startswith(b"\x1b") and tok.split(b"\r")[0].strip():
+            segs.append("%s:%s" % (tok.split(b"\r")[0].decode().strip(), color))
+    return " ".join(segs)
+
+
+def test_highlight_categories():
+    # joy-nord: keyword 173, definition 186, builtin 110, operator 109,
+    # punctuation 67, number 139, string 144, comment 60
+    assert render(b"DEFINE sq == dup * ;") == "DEFINE:173 sq:186 ==:173 dup:110 *:109 ;:67"
+    assert render(b"[1 \"s\"] map . (* c *)") == "[:67 1:139 \"s\":144 ]:67 map:110 .:67 (* c *):60"
+
+
+def test_highlight_user_words_are_not_builtins():
+    assert render(b"sq dup", setup=b"DEFINE sq == dup *.\r") == "sq:None dup:110"
+
+
+def test_highlight_marks_definite_errors_only():
+    assert render(b"1 (2) ] 3 .") == "1:139 (:131 2:139 ):131 ]:131 3:139 .:67"
+    # Unfinished input is not an error while it is being typed
+    assert "131" not in render(b"[1 2")
+    assert "131" not in render(b"\"abc")
+
+
+def test_theme_is_selectable():
+    assert render(b"DEFINE", theme="nord") == "DEFINE:139"
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         JOY = os.path.abspath(sys.argv[1])

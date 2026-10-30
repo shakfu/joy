@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **linenoise updated** from upstream `06552a1` to `16c6c78` (`ext/linenoise/VERSION`). The REPL gains bracketed paste (a pasted multi-line `DEFINE` is one entry, and history keeps it), completion of the word at the cursor, and no fixed 4 KB line limit. `tools/sync_linenoise.sh` repeats the update from a linenoise checkout.
 - **REPL runs every statement on a line.** It stopped at the first `.` and left the rest queued, to run later behind the next line's input; `DEFINE a == 7. a .` printed nothing after the definition. Each line now gets a sentinel ` . `, and a `.` read with the pushback buffer empty ends the line. Checking only for an empty buffer would block on stdin when blanks or a comment follow the last `.`. An error now discards the rest of its line.
 - Ctrl-C in the REPL discards the line instead of exiting; Ctrl-D still exits.
+- The REPL highlighting theme is selectable with `JOY_THEME`; the default is now `one-dark` (was linenoise's `monokai`). An unknown name lists the themes.
 - `joy` exits with status 1 if any runtime or syntax error was reported.
 - CI runs on push and pull request, runs tests in Release, and adds `JOY_SESSION`, `JOY_BLAS`, `JOY_PARALLEL` (allowed to fail) and `joy-lsp` ASan jobs.
 - 62 previously unregistered test2 files, the parallel tests (through the assertion runner) and the session scripts run under ctest.

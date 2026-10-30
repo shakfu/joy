@@ -16,6 +16,35 @@ extern const TSLanguage *tree_sitter_joy(void);
 static TSParser *parser = NULL;
 static TSQuery *query = NULL;
 static TSQueryCursor *cursor = NULL;
+static int (*builtin_lookup)(const char *word, size_t len) = NULL;
+
+/* xterm-256 approximations of the Nord palette (nord3 ... nord15) */
+const syntax_theme_t theme_joy_nord = {
+    .name = "joy-nord",
+    .description = "Nord palette with Joy categories",
+    .colors = {
+        [TOK_KEYWORD]               = 173, /* nord12 orange: DEFINE, LIBRA ... */
+        [TOK_KEYWORD_OPERATOR]      = 173, /* == */
+        [TOK_NUMBER]                = 139, /* nord15 purple */
+        [TOK_NUMBER_FLOAT]          = 139,
+        [TOK_BOOLEAN]               = 139,
+        [TOK_CONSTANT_BUILTIN]      = 139, /* null */
+        [TOK_STRING]                = 144, /* nord14 green: strings, chars */
+        [TOK_STRING_SPECIAL]        = 144, /* $"..." */
+        [TOK_COMMENT]               = 60,  /* nord3 */
+        [TOK_FUNCTION]              = 186, /* nord13 yellow: name being defined */
+        [TOK_FUNCTION_BUILTIN]      = 110, /* nord8 cyan: dup, map ... */
+        [TOK_OPERATOR]              = 109, /* nord9 blue: + >list ... */
+        [TOK_PUNCTUATION]           = 67,  /* nord10: v[ m[ */
+        [TOK_PUNCTUATION_BRACKET]   = 67,  /* [ ] { } */
+        [TOK_PUNCTUATION_DELIMITER] = 67,  /* . ; */
+        [TOK_ERROR]                 = 131, /* nord11 red */
+    },
+};
+
+void joy_highlight_set_builtin_lookup(int (*is_builtin)(const char *word, size_t len)) {
+    builtin_lookup = is_builtin;
+}
 
 /* Joy highlighting query.
  * Based on tree-sitter-joy grammar node types. */
@@ -202,6 +231,41 @@ void joy_highlight_free(void) {
     }
 }
 
+/* Colour bytes [start, end) as an error, overriding earlier captures */
+static void paint_error(char *colors, size_t len, uint32_t start, uint32_t end) {
+    unsigned char color = theme_color(TOK_ERROR);
+    uint32_t i;
+
+    for (i = start; i < end && i < len && color; i++)
+        colors[i] = (char)color;
+}
+
+/*
+ * Mark tokens that are errors however the line continues: closers the parser
+ * discarded ("]", "}" directly under ERROR) and unexpected characters (ERROR
+ * leaves). A leaf reaching the end of the line is skipped: an unterminated
+ * string or comment there is still being typed. Openers are never marked.
+ */
+static void mark_errors(TSNode node, char *colors, size_t len) {
+    uint32_t i, n = ts_node_child_count(node);
+
+    if (ts_node_is_error(node)) {
+        if (n == 0 && ts_node_end_byte(node) < len)
+            paint_error(colors, len, ts_node_start_byte(node), ts_node_end_byte(node));
+        for (i = 0; i < n; i++) {
+            TSNode child = ts_node_child(node, i);
+            const char *type = ts_node_type(child);
+            if (!ts_node_is_named(child) && (!strcmp(type, "]") || !strcmp(type, "}")))
+                paint_error(colors, len, ts_node_start_byte(child), ts_node_end_byte(child));
+        }
+    }
+    for (i = 0; i < n; i++) {
+        TSNode child = ts_node_child(node, i);
+        if (ts_node_is_error(child) || ts_node_has_error(child))
+            mark_errors(child, colors, len);
+    }
+}
+
 void joy_highlight_callback(const char *buf, char *colors, size_t len,
                             size_t pos, void *udata) {
     (void)pos;
@@ -243,6 +307,9 @@ void joy_highlight_callback(const char *buf, char *colors, size_t len,
         /* Get the capture name */
         capture_name = ts_query_capture_name_for_id(query, capture.index, &name_len);
         color = get_color_for_capture(capture_name, name_len);
+        if (builtin_lookup && name_len == 8 && strncmp(capture_name, "variable", 8) == 0
+            && end <= len && builtin_lookup(buf + start, end - start))
+            color = theme_color(TOK_FUNCTION_BUILTIN);
 
         /* Apply color to the byte range */
         if (start < len && color != 0) {
@@ -258,5 +325,6 @@ void joy_highlight_callback(const char *buf, char *colors, size_t len,
         }
     }
 
+    mark_errors(root, colors, len);
     ts_tree_delete(tree);
 }

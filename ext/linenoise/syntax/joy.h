@@ -8,6 +8,15 @@
 #define HIGHLIGHT_JOY_H
 
 #include <stddef.h>
+#include "syntax/theme.h"
+
+/* Nord palette with Joy-specific categories: visible brackets and
+ * delimiters, keywords distinct from numbers, builtins, and errors. */
+extern const syntax_theme_t theme_joy_nord;
+
+/* Register a function that tells whether a word is a builtin; such words
+ * get the theme's TOK_FUNCTION_BUILTIN colour. NULL disables the check. */
+void joy_highlight_set_builtin_lookup(int (*is_builtin)(const char *word, size_t len));
 
 /* Initialize the Joy highlighter.
  * Must be called before using joy_highlight_callback.

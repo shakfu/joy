@@ -8,6 +8,7 @@
 #ifdef USE_LINENOISE
 #include "linenoise/linenoise.h"
 #include "linenoise/syntax/joy.h"
+#include "linenoise/syntax/theme.h"
 #include <ctype.h>   /* for isspace() */
 #include <unistd.h>  /* for isatty() */
 
@@ -286,6 +287,52 @@ static void completion_callback(const char *buf, size_t pos,
 }
 
 /*
+ * select_theme - choose the highlighting theme: $JOY_THEME, else joy-nord.
+ * An unknown name lists the available themes and keeps the default.
+ */
+static void select_theme(void)
+{
+    const char* name = getenv("JOY_THEME");
+    const syntax_theme_t* theme = 0;
+    const char** names;
+
+    if (name && *name)
+        theme = strcmp(name, theme_joy_nord.name) ? theme_find(name) : &theme_joy_nord;
+    if (name && *name && !theme) {
+        fprintf(stderr, "joy: unknown JOY_THEME '%s'; available: %s", name,
+                theme_joy_nord.name);
+        for (names = theme_list(); *names; names++)
+            fprintf(stderr, " %s", *names);
+        fputc('\n', stderr);
+    }
+    theme_set(theme ? theme : &theme_joy_nord);
+}
+
+static pEnv repl_env; /* symbol table for is_builtin */
+
+/*
+ * is_builtin - tell the highlighter whether a word is a primitive that the
+ * user has not redefined. Looks the word up without entering it.
+ */
+static int is_builtin(const char* word, size_t len)
+{
+    char name[64];
+    khint_t key;
+
+    if (!repl_env || len >= sizeof(name))
+        return 0;
+    memcpy(name, word, len);
+    name[len] = 0;
+#ifdef USE_KHASHL
+    if ((key = symtab_get(repl_env->hash, name)) == kh_end(repl_env->hash))
+#else
+    if ((key = kh_get(Symtab, repl_env->hash, name)) == kh_end(repl_env->hash))
+#endif
+        return 0;
+    return !vec_at(repl_env->symtab, kh_val(repl_env->hash, key)).is_user;
+}
+
+/*
  * linenoise_repl - interactive REPL using linenoise for line editing.
  * Provides command history, line editing, and syntax highlighting.
  */
@@ -315,6 +362,9 @@ static void linenoise_repl(pEnv env)
     linenoise_set_completion_callback(ln_ctx, completion_callback, env);
 
     /* Initialize and set up syntax highlighting */
+    select_theme();
+    repl_env = env;
+    joy_highlight_set_builtin_lookup(is_builtin);
     if (joy_highlight_init() == 0) {
         linenoise_set_highlight_callback(ln_ctx, joy_highlight_callback, NULL);
     }
