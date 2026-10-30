@@ -199,3 +199,87 @@ int compound_def(pEnv env, int ch)
     }
     return ch;
 }
+
+/* A binding frame, kept until the bindings are undone */
+typedef struct BindFrame {
+    int* syms;    /* bound symbol table indices (owned) */
+    Entry* saved; /* entries before binding; bodies are kept on the dump */
+    int n;
+    int depth;    /* dump length before the frame's dump node was pushed */
+} BindFrame;
+
+static int dump_length(pEnv env)
+{
+    int n = 0;
+    Index p;
+
+    for (p = env->dump; p; p = nextnode1(p))
+        n++;
+    return n;
+}
+
+/*
+ * Restore the entries saved by exec_with_bindings and free the frame. On an
+ * error the dump may hold frames of unfinished combinators above this one.
+ */
+static void unbind(pEnv env, void* arg)
+{
+    BindFrame* f = arg;
+    Entry ent;
+    Index p;
+    int i;
+
+    while (dump_length(env) > f->depth + 1)
+        POP(env->dump);
+    p = nodevalue(env->dump).lis; /* saved bodies, last symbol first */
+    for (i = f->n - 1; i >= 0; i--, p = nextnode1(p)) {
+        ent = f->saved[i];
+        ent.u.body = nodevalue(p).lis;
+        vec_at(env->symtab, f->syms[i]) = ent;
+    }
+    POP(env->dump);
+    free(f->syms);
+    free(f->saved);
+}
+
+/*
+ * Bind syms[0..n-1] to the top n stack values (the top value binds
+ * syms[n-1]) and pop them, execute body, then restore the previous entries,
+ * also when an error unwinds through body. Takes ownership of the malloc'd
+ * syms. The caller must have reserved BIND_NODES(n) nodes, so that no GC
+ * moves body or the values while they are held here.
+ *
+ * Bindings are GC roots, like assigned variables. Saved bodies go on the dump
+ * so that a GC during body updates them.
+ */
+void exec_with_bindings(pEnv env, int* syms, int n, Index body)
+{
+    BindFrame f;
+    Entry ent;
+    Index saved_bodies = 0;
+    int i;
+
+    f.syms = syms;
+    f.n = n;
+    f.saved = malloc(n * sizeof(Entry));
+    if (!f.saved) {
+        free(syms);
+        execerror(env, "memory", "bindings");
+    }
+    for (i = 0; i < n; i++) {
+        f.saved[i] = vec_at(env->symtab, syms[i]);
+        saved_bodies = LIST_NEWNODE(f.saved[i].u.body, saved_bodies);
+    }
+    f.depth = dump_length(env);
+    env->dump = LIST_NEWNODE(saved_bodies, env->dump);
+    for (i = n - 1; i >= 0; i--) {
+        ent = f.saved[i];
+        ent.is_user = ent.is_root = 1;
+        ent.u.body = newnode2(env, env->stck, 0);
+        vec_at(env->symtab, syms[i]) = ent;
+        env->stck = nextnode1(env->stck);
+    }
+    env->variable_busy = 1; /* make scan_roots copy the bindings */
+    exec_term_protected(env, body, unbind, &f);
+    unbind(env, &f);
+}

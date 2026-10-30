@@ -3,4 +3,4 @@
     version : 1.6
     date    : 04/15/24
 *)
-"fseek.joy" "r" fopen 7 0 fseek not putln fgets 6 take "module" =.
+"fseek.joy" "r" fopen 7 0 fseek not . fgets 6 take "module" =.

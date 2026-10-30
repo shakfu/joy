@@ -56,6 +56,9 @@ extern "C" {
 /* Internal escape sequence buffer size. */
 #define LINENOISE_SEQ_SIZE 64
 
+/* Maximum number of folded (display-shortened) ranges per edited line. */
+#define LINENOISE_MAX_FOLDS 16
+
 /* ===== Error Handling ===== */
 
 /* Error codes returned by linenoise functions. */
@@ -99,12 +102,18 @@ extern char *linenoise_edit_more;
 typedef struct linenoise_completions {
     size_t len;
     char **cvec;
+    size_t start;   /* Candidates replace buf[start, pos). Preset to 0. */
 } linenoise_completions_t;
 
-/* Callback types. */
-typedef void (linenoise_completion_cb_t)(const char *buf, linenoise_completions_t *completions);
-typedef char *(linenoise_hints_cb_t)(const char *buf, int *color, int *bold);
-typedef void (linenoise_free_hints_cb_t)(void *hint);
+/* Callback types. 'pos' is the cursor as a byte offset into 'buf'. 'udata'
+ * is the pointer given to the matching setter. See docs/dev/callback-api.md. */
+typedef void (linenoise_completion_cb_t)(const char *buf, size_t pos,
+                                         linenoise_completions_t *completions,
+                                         void *udata);
+typedef char *(linenoise_hints_cb_t)(const char *buf, size_t pos,
+                                     int *color, int *bold, void *udata);
+/* Receives the hints callback's udata. */
+typedef void (linenoise_free_hints_cb_t)(void *hint, void *udata);
 
 /* Syntax highlighting callback.
  * Called with the current buffer contents. The callback should fill the
@@ -113,11 +122,15 @@ typedef void (linenoise_free_hints_cb_t)(void *hint);
  *   1 = red, 2 = green, 3 = yellow, 4 = blue,
  *   5 = magenta, 6 = cyan, 7 = white
  * Add 8 to make the color bold (e.g., 9 = bold red).
- * The colors array is pre-zeroed and has the same length as buf. */
-typedef void (linenoise_highlight_cb_t)(const char *buf, char *colors, size_t len);
+ * The colors array is pre-zeroed and has the same length as buf.
+ * buf is the displayed text, with folded pastes shown as placeholders, and
+ * pos is the cursor within it. */
+typedef void (linenoise_highlight_cb_t)(const char *buf, char *colors,
+                                        size_t len, size_t pos, void *udata);
 
 /* Opaque context structure. Each context has independent history, callbacks,
- * and settings. Thread-safe when using separate contexts per thread. */
+ * and settings, and at most one active editing session. Separate contexts may
+ * be used from separate threads. */
 typedef struct linenoise_context linenoise_context_t;
 
 /* Editing state for non-blocking API. */
@@ -138,6 +151,13 @@ typedef struct linenoise_state {
     size_t oldrows;
     int oldrpos;
     int history_index;
+    int fold_count;     /* Number of folded (display only) ranges. */
+    size_t fold_start[LINENOISE_MAX_FOLDS]; /* Folded range start offsets. */
+    size_t fold_end[LINENOISE_MAX_FOLDS];   /* Folded range end offsets. */
+    linenoise_context_t *ctx;              /* Context that owns this session. */
+    struct linenoise_undo_entry *undo_stack; /* Undo snapshots, freed on stop. */
+    int undo_len;
+    int undo_idx;
 } linenoise_state_t;
 
 /* ===== Context Management ===== */
@@ -150,10 +170,10 @@ void linenoise_context_destroy(linenoise_context_t *ctx);
 void linenoise_set_multiline(linenoise_context_t *ctx, int enable);
 void linenoise_set_mask_mode(linenoise_context_t *ctx, int enable);
 void linenoise_set_mouse_mode(linenoise_context_t *ctx, int enable);
-void linenoise_set_completion_callback(linenoise_context_t *ctx, linenoise_completion_cb_t *fn);
-void linenoise_set_hints_callback(linenoise_context_t *ctx, linenoise_hints_cb_t *fn);
+void linenoise_set_completion_callback(linenoise_context_t *ctx, linenoise_completion_cb_t *fn, void *udata);
+void linenoise_set_hints_callback(linenoise_context_t *ctx, linenoise_hints_cb_t *fn, void *udata);
 void linenoise_set_free_hints_callback(linenoise_context_t *ctx, linenoise_free_hints_cb_t *fn);
-void linenoise_set_highlight_callback(linenoise_context_t *ctx, linenoise_highlight_cb_t *fn);
+void linenoise_set_highlight_callback(linenoise_context_t *ctx, linenoise_highlight_cb_t *fn, void *udata);
 
 /* ===== Blocking API ===== */
 
@@ -161,6 +181,9 @@ char *linenoise_read(linenoise_context_t *ctx, const char *prompt);
 
 /* ===== Non-blocking API ===== */
 
+/* A context allows one active session: a second linenoise_edit_start() (or
+ * linenoise_read()) on the same context before linenoise_edit_stop() fails
+ * with LINENOISE_ERR_INVALID. */
 int linenoise_edit_start(linenoise_context_t *ctx, linenoise_state_t *state,
                          int stdin_fd, int stdout_fd,
                          char *buf, size_t buflen, const char *prompt);
@@ -171,6 +194,8 @@ char *linenoise_edit_feed(linenoise_state_t *state);
 void linenoise_edit_stop(linenoise_state_t *state);
 void linenoise_hide(linenoise_state_t *state);
 void linenoise_show(linenoise_state_t *state);
+/* Refetch the terminal width and redraw, e.g. after SIGWINCH. */
+void linenoise_resize(linenoise_state_t *state);
 
 /* ===== Word Movement ===== */
 

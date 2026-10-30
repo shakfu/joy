@@ -666,7 +666,7 @@ static void decode_time(pEnv env, struct tm* t)
     version : 1.3
     date    : 03/21/24
 */
-#define PLUSMINUS(PROCEDURE, NAME, OPER)                                      \
+#define PLUSMINUS(PROCEDURE, NAME, OPER, WRAP)                                \
     void PROCEDURE(pEnv env)                                                  \
     {                                                                         \
         TWOPARAMS(NAME);                                                      \
@@ -674,15 +674,12 @@ static void decode_time(pEnv env, struct tm* t)
         INTEGER(NAME);                                                        \
         NUMERIC2(NAME);                                                       \
         if (nodetype(nextnode1(env->stck)) == CHAR_)                          \
-            BINARY(CHAR_NEWNODE,                                              \
-                   nodevalue(nextnode1(env->stck))                            \
-                       .num OPER nodevalue(env->stck)                         \
-                       .num);                                                 \
+            BINARY(CHAR_NEWNODE, WRAP(nodevalue(nextnode1(env->stck)).num,    \
+                                      nodevalue(env->stck).num));             \
         else                                                                  \
             BINARY(INTEGER_NEWNODE,                                           \
-                   nodevalue(nextnode1(env->stck))                            \
-                       .num OPER nodevalue(env->stck)                         \
-                       .num);                                                 \
+                   WRAP(nodevalue(nextnode1(env->stck)).num,                  \
+                        nodevalue(env->stck).num));                           \
     }
 
 /* ======== predsucc.h ======== */
@@ -691,15 +688,15 @@ static void decode_time(pEnv env, struct tm* t)
     version : 1.3
     date    : 03/21/24
 */
-#define PREDSUCC(PROCEDURE, NAME, OPER)                                       \
+#define PREDSUCC(PROCEDURE, NAME, WRAP)                                       \
     void PROCEDURE(pEnv env)                                                  \
     {                                                                         \
         ONEPARAM(NAME);                                                       \
         NUMERICTYPE(NAME);                                                    \
         if (nodetype(env->stck) == CHAR_)                                     \
-            UNARY(CHAR_NEWNODE, nodevalue(env->stck).num OPER 1);             \
+            UNARY(CHAR_NEWNODE, WRAP(nodevalue(env->stck).num, 1));           \
         else                                                                  \
-            UNARY(INTEGER_NEWNODE, nodevalue(env->stck).num OPER 1);          \
+            UNARY(INTEGER_NEWNODE, WRAP(nodevalue(env->stck).num, 1));        \
     }
 
 /* ======== push.h ======== */

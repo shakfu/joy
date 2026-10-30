@@ -115,6 +115,13 @@ static void profiler_report(pEnv env)
     free(sorted);
 }
 
+/* An error inside profile stops profiling, as a normal return does */
+static void stop_profiling(pEnv env, void* arg)
+{
+    (void)arg;
+    env->profiler.enabled = 0;
+}
+
 /**
 Q1  OK  3950  profile  :  [P]  ->  ...
 Executes P with profiling enabled and prints a timing report.
@@ -131,7 +138,7 @@ void profile_(pEnv env)
     env->profiler.enabled = 1;
 
     /* Execute the quotation */
-    exec_term(env, nodevalue(SAVED1).lis);
+    exec_term_protected(env, nodevalue(SAVED1).lis, stop_profiling, 0);
 
     /* Stop profiling and print report */
     env->profiler.enabled = 0;

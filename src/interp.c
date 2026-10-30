@@ -309,6 +309,26 @@ int is_valid_C_identifier(char* str)
 #endif
 
 /*
+ * exec_term, but if an error unwinds through n, call cleanup(env, arg) before
+ * passing the error on to the enclosing handler.
+ */
+void exec_term_protected(pEnv env, Index n, void (*cleanup)(pEnv, void*),
+                         void* arg)
+{
+    jmp_buf outer;
+    int code;
+
+    memcpy(outer, env->error_jmp, sizeof(jmp_buf));
+    if ((code = setjmp(env->error_jmp)) != 0) {
+        memcpy(env->error_jmp, outer, sizeof(jmp_buf));
+        cleanup(env, arg);
+        longjmp(env->error_jmp, code);
+    }
+    exec_term(env, n);
+    memcpy(env->error_jmp, outer, sizeof(jmp_buf));
+}
+
+/*
  * exec_term evaluates a sequence of factors. There is no protection against
  * recursion without end condition: it will overflow the call stack.
  */
@@ -383,6 +403,8 @@ start:
         switch (nodetype(p)) {
         case ILLEGAL_:
         case COPIED_:
+            /* A stale index after GC: count it, so the exit status shows it */
+            env->error.count++;
             fflush(stdout);
             fputs("exec_term: attempting to execute bad node\n", stderr);
 #ifdef TRACEGC

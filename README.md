@@ -16,6 +16,8 @@ This is the NOBDW (No Boehm-Demers-Weiser) version with a custom conservative ga
 
 ## Parallel Execution
 
+**Known defect:** `-DJOY_PARALLEL=ON` does not currently compile. Without it, these combinators run sequentially. See `TODO.md`.
+
 Joy now supports parallel combinators that leverage multiple CPU cores:
 
 ### `pmap` - Parallel Map
@@ -970,6 +972,8 @@ cmake --build .
 
 ### Build with Parallel Support
 
+**Known defect:** `-DJOY_PARALLEL=ON` does not currently compile. Without it, these combinators run sequentially. See `TODO.md`.
+
 Requires OpenMP:
 - **macOS**: `brew install libomp`
 - **Linux**: OpenMP is typically built into GCC/Clang
@@ -1093,6 +1097,8 @@ See [doc/parallel.md](doc/parallel.md) for detailed design documentation.
 ## Development Tools
 
 ### Code Formatter
+
+**Known defect:** the formatter corrupts some valid code. It drops `:` in `match`/`cases` patterns (`[h : t]` becomes `[h t]`) and splits `$"..."` interpolated strings. Do not run it with `-i` on files that use these forms.
 
 Auto-format Joy source files with consistent style:
 

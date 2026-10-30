@@ -53,9 +53,8 @@ static void collect_errors(TSNode node, const char *text, size_t text_len,
         json_object_set(start, "character", json_int(sp.column));
         /* Missing nodes are zero-width */
         json_object_set(range, "start", start);
-        json_object_set(range, "end", json_object_get(range, "start"));
 
-        /* Re-create end since we can't reuse the same object */
+        /* Separate object: json_free would release a shared one twice */
         JsonValue *end = json_object();
         json_object_set(end, "line", json_int(sp.row));
         json_object_set(end, "character", json_int(sp.column));

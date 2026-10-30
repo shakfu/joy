@@ -145,9 +145,16 @@ void json_free(JsonValue *v) {
 
 /* ---------- parser ---------- */
 
+/*
+ * Strict RFC 8259 parser. Input is untrusted (stdin), so nesting is capped
+ * to bound recursion, and any syntax error rejects the whole message.
+ */
+#define JSON_MAX_DEPTH 64
+
 typedef struct {
     const char *p;
     const char *end;
+    int depth;
 } Parser;
 
 static void skip_ws(Parser *ps) {
@@ -167,70 +174,122 @@ static bool match_char(Parser *ps, char c) {
 
 static JsonValue *parse_value(Parser *ps);
 
+/* Read 4 hex digits after "\u"; -1 if missing or invalid */
+static long parse_hex4(Parser *ps) {
+    long cp = 0;
+
+    if (ps->end - ps->p < 4)
+        return -1;
+    for (int i = 0; i < 4; i++) {
+        char c = ps->p[i];
+        cp <<= 4;
+        if (c >= '0' && c <= '9') cp |= c - '0';
+        else if (c >= 'a' && c <= 'f') cp |= c - 'a' + 10;
+        else if (c >= 'A' && c <= 'F') cp |= c - 'A' + 10;
+        else return -1;
+    }
+    ps->p += 4;
+    return cp;
+}
+
+/* Append code point cp as UTF-8; buf has room for 4 bytes */
+static size_t put_utf8(char *buf, unsigned long cp) {
+    if (cp < 0x80) {
+        buf[0] = (char)cp;
+        return 1;
+    }
+    if (cp < 0x800) {
+        buf[0] = (char)(0xC0 | (cp >> 6));
+        buf[1] = (char)(0x80 | (cp & 0x3F));
+        return 2;
+    }
+    if (cp < 0x10000) {
+        buf[0] = (char)(0xE0 | (cp >> 12));
+        buf[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        buf[2] = (char)(0x80 | (cp & 0x3F));
+        return 3;
+    }
+    buf[0] = (char)(0xF0 | (cp >> 18));
+    buf[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+    buf[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
+    buf[3] = (char)(0x80 | (cp & 0x3F));
+    return 4;
+}
+
+/* Decode the code point after "\u"; a lone surrogate becomes U+FFFD */
+static long parse_unicode_escape(Parser *ps) {
+    long cp = parse_hex4(ps), lo;
+
+    if (cp < 0)
+        return -1;
+    if (cp >= 0xDC00 && cp <= 0xDFFF)
+        return 0xFFFD;
+    if (cp < 0xD800 || cp > 0xDBFF)
+        return cp;
+    /* High surrogate: combine with a following \uDC00-\uDFFF */
+    if (ps->end - ps->p >= 2 && ps->p[0] == '\\' && ps->p[1] == 'u') {
+        const char *save = ps->p;
+        ps->p += 2;
+        lo = parse_hex4(ps);
+        if (lo >= 0xDC00 && lo <= 0xDFFF)
+            return 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+        ps->p = save;
+    }
+    return 0xFFFD;
+}
+
 static char *parse_string_value(Parser *ps) {
     if (ps->p >= ps->end || *ps->p != '"') return NULL;
     ps->p++; /* skip opening quote */
 
-    /* Estimate length */
     size_t cap = 64;
     char *buf = malloc(cap);
     size_t len = 0;
 
-    while (ps->p < ps->end && *ps->p != '"') {
-        if (len + 6 >= cap) {
+    for (;;) {
+        if (ps->p >= ps->end)
+            goto fail; /* unterminated */
+        unsigned char c = (unsigned char)*ps->p++;
+        if (c == '"')
+            break;
+        if (c < 0x20)
+            goto fail; /* raw control characters must be escaped */
+        if (len + 4 >= cap) {
             cap *= 2;
             buf = realloc(buf, cap);
         }
-        if (*ps->p == '\\') {
-            ps->p++;
-            if (ps->p >= ps->end) break;
-            switch (*ps->p) {
-            case '"':  buf[len++] = '"';  break;
-            case '\\': buf[len++] = '\\'; break;
-            case '/':  buf[len++] = '/';  break;
-            case 'b':  buf[len++] = '\b'; break;
-            case 'f':  buf[len++] = '\f'; break;
-            case 'n':  buf[len++] = '\n'; break;
-            case 'r':  buf[len++] = '\r'; break;
-            case 't':  buf[len++] = '\t'; break;
-            case 'u':
-                /* Simplified: decode basic ASCII range, else '?' */
-                if (ps->p + 4 < ps->end) {
-                    unsigned int cp = 0;
-                    for (int i = 1; i <= 4; i++) {
-                        char c = ps->p[i];
-                        cp <<= 4;
-                        if (c >= '0' && c <= '9') cp |= (unsigned)(c - '0');
-                        else if (c >= 'a' && c <= 'f') cp |= (unsigned)(c - 'a' + 10);
-                        else if (c >= 'A' && c <= 'F') cp |= (unsigned)(c - 'A' + 10);
-                    }
-                    if (cp < 0x80) {
-                        buf[len++] = (char)cp;
-                    } else if (cp < 0x800) {
-                        buf[len++] = (char)(0xC0 | (cp >> 6));
-                        buf[len++] = (char)(0x80 | (cp & 0x3F));
-                    } else {
-                        buf[len++] = (char)(0xE0 | (cp >> 12));
-                        buf[len++] = (char)(0x80 | ((cp >> 6) & 0x3F));
-                        buf[len++] = (char)(0x80 | (cp & 0x3F));
-                    }
-                    ps->p += 4;
-                }
-                break;
-            default:
-                buf[len++] = *ps->p;
-            }
-            ps->p++;
-        } else {
-            buf[len++] = *ps->p;
-            ps->p++;
+        if (c != '\\') {
+            buf[len++] = (char)c;
+            continue;
+        }
+        if (ps->p >= ps->end)
+            goto fail;
+        switch (*ps->p++) {
+        case '"':  buf[len++] = '"';  break;
+        case '\\': buf[len++] = '\\'; break;
+        case '/':  buf[len++] = '/';  break;
+        case 'b':  buf[len++] = '\b'; break;
+        case 'f':  buf[len++] = '\f'; break;
+        case 'n':  buf[len++] = '\n'; break;
+        case 'r':  buf[len++] = '\r'; break;
+        case 't':  buf[len++] = '\t'; break;
+        case 'u': {
+            long cp = parse_unicode_escape(ps);
+            if (cp < 0)
+                goto fail;
+            len += put_utf8(buf + len, (unsigned long)cp);
+            break;
+        }
+        default:
+            goto fail; /* unknown escape */
         }
     }
-    if (ps->p < ps->end && *ps->p == '"')
-        ps->p++; /* skip closing quote */
-
     buf[len] = '\0';
     return buf;
+
+fail:
+    free(buf);
+    return NULL;
 }
 
 static JsonValue *parse_string(Parser *ps) {
@@ -241,55 +300,80 @@ static JsonValue *parse_string(Parser *ps) {
     return v;
 }
 
+static bool is_digit(Parser *ps) {
+    return ps->p < ps->end && *ps->p >= '0' && *ps->p <= '9';
+}
+
+/*
+ * Numbers follow the JSON grammar. LSP only sends integers that matter here,
+ * so a fraction or exponent is accepted but truncated to an integer.
+ */
 static JsonValue *parse_number(Parser *ps) {
+    char tmp[64];
     const char *start = ps->p;
+    bool integral = true;
+
     if (*ps->p == '-') ps->p++;
-    while (ps->p < ps->end && *ps->p >= '0' && *ps->p <= '9') ps->p++;
-    /* We only need integers for LSP */
-    char *end;
-    int64_t val = strtoll(start, &end, 10);
-    return json_int(val);
+    if (!is_digit(ps)) return NULL;
+    if (*ps->p == '0') ps->p++;
+    else while (is_digit(ps)) ps->p++;
+    if (ps->p < ps->end && *ps->p == '.') {
+        ps->p++;
+        if (!is_digit(ps)) return NULL;
+        while (is_digit(ps)) ps->p++;
+        integral = false;
+    }
+    if (ps->p < ps->end && (*ps->p == 'e' || *ps->p == 'E')) {
+        ps->p++;
+        if (ps->p < ps->end && (*ps->p == '+' || *ps->p == '-')) ps->p++;
+        if (!is_digit(ps)) return NULL;
+        while (is_digit(ps)) ps->p++;
+        integral = false;
+    }
+    /* The input is not NUL-terminated: convert from a bounded copy */
+    size_t n = (size_t)(ps->p - start);
+    if (n >= sizeof(tmp)) return NULL;
+    memcpy(tmp, start, n);
+    tmp[n] = '\0';
+    if (integral)
+        return json_int(strtoll(tmp, NULL, 10));
+    double d = strtod(tmp, NULL);
+    if (!(d > -9.2e18 && d < 9.2e18)) return NULL; /* out of int64 range */
+    return json_int((int64_t)d);
 }
 
 static JsonValue *parse_array(Parser *ps) {
     JsonValue *arr = json_array();
     ps->p++; /* skip [ */
-    skip_ws(ps);
-    if (ps->p < ps->end && *ps->p == ']') {
-        ps->p++;
+    if (match_char(ps, ']'))
         return arr;
-    }
     for (;;) {
         JsonValue *item = parse_value(ps);
-        if (!item) break;
+        if (!item) goto fail;
         json_array_push(arr, item);
-        skip_ws(ps);
-        if (ps->p < ps->end && *ps->p == ',') {
-            ps->p++;
-        } else {
-            break;
-        }
+        if (match_char(ps, ','))
+            continue;
+        if (match_char(ps, ']'))
+            return arr;
+        goto fail;
     }
-    match_char(ps, ']');
-    return arr;
+fail:
+    json_free(arr);
+    return NULL;
 }
 
 static JsonValue *parse_object(Parser *ps) {
     JsonValue *obj = json_object();
     ps->p++; /* skip { */
-    skip_ws(ps);
-    if (ps->p < ps->end && *ps->p == '}') {
-        ps->p++;
+    if (match_char(ps, '}'))
         return obj;
-    }
     for (;;) {
         skip_ws(ps);
         char *key = parse_string_value(ps);
-        if (!key) break;
-        skip_ws(ps);
-        if (ps->p < ps->end && *ps->p == ':') ps->p++;
+        if (!key) goto fail;
+        if (!match_char(ps, ':')) { free(key); goto fail; }
         JsonValue *val = parse_value(ps);
-        if (!val) { free(key); break; }
+        if (!val) { free(key); goto fail; }
         /* Transfer ownership of key */
         if (obj->u.object.len >= obj->u.object.cap) {
             obj->u.object.cap *= 2;
@@ -300,25 +384,33 @@ static JsonValue *parse_object(Parser *ps) {
         obj->u.object.members[obj->u.object.len].value = val;
         obj->u.object.len++;
 
-        skip_ws(ps);
-        if (ps->p < ps->end && *ps->p == ',') {
-            ps->p++;
-        } else {
-            break;
-        }
+        if (match_char(ps, ','))
+            continue;
+        if (match_char(ps, '}'))
+            return obj;
+        goto fail;
     }
-    match_char(ps, '}');
-    return obj;
+fail:
+    json_free(obj);
+    return NULL;
 }
 
 static JsonValue *parse_value(Parser *ps) {
+    JsonValue *v;
+
     skip_ws(ps);
     if (ps->p >= ps->end) return NULL;
 
     switch (*ps->p) {
     case '"': return parse_string(ps);
-    case '{': return parse_object(ps);
-    case '[': return parse_array(ps);
+    case '{':
+    case '[':
+        if (ps->depth >= JSON_MAX_DEPTH)
+            return NULL;
+        ps->depth++;
+        v = *ps->p == '{' ? parse_object(ps) : parse_array(ps);
+        ps->depth--;
+        return v;
     case 't':
         if (ps->p + 4 <= ps->end && memcmp(ps->p, "true", 4) == 0) {
             ps->p += 4;
@@ -344,9 +436,17 @@ static JsonValue *parse_value(Parser *ps) {
     }
 }
 
+/* Parse one JSON value spanning the whole input; NULL on any error */
 JsonValue *json_parse(const char *input, size_t len) {
-    Parser ps = { input, input + len };
-    return parse_value(&ps);
+    Parser ps = { input, input + len, 0 };
+    JsonValue *v = parse_value(&ps);
+
+    skip_ws(&ps);
+    if (v && ps.p != ps.end) {
+        json_free(v); /* trailing garbage */
+        return NULL;
+    }
+    return v;
 }
 
 /* ---------- emitter ---------- */

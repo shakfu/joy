@@ -238,6 +238,13 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
         NULLARY(MATRIX_NEWNODE, mat);
         break;
     }
+
+    case MEMPTY: {
+        MatrixData* mat = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData));
+        mat->rows = mat->cols = 0;
+        NULLARY(MATRIX_NEWNODE, mat);
+        break;
+    }
 #endif /* JOY_NATIVE_TYPES */
 
     case '(':

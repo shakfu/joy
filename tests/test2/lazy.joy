@@ -59,3 +59,8 @@
 -5 0 lazy-range 6 take [-5 -4 -3 -2 -1 0] equal.
 
 .
+
+(* Sequences survive garbage collection while they are advanced *)
+0 [1 +] iterate 100000 drop first 100000 =.
+0 [1 +] iterate 5000 take size 5000 =.
+0 [1 +] iterate 3000 [rest] times first 3000 =.

@@ -14,6 +14,8 @@
 "" ['t <] all.
 {} [2 <] all.
 
-[1 2 3] [] all false =.
-"test"  [] all false =.
-{1 2 3} [] all false =.
+(* An empty test leaves each member as its own truth value *)
+[1 2 3] [] all.
+"test"  [] all.
+{1 2 3} [] all.
+[1 0 3] [] all false =.

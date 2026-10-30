@@ -1,0 +1,21 @@
+(*
+    Bindings that an error unwinds through must be restored.
+    Run with ALLOW_ERRORS=1: each "0 /" below raises a runtime error.
+*)
+DEFINE n == 42.
+DEFINE h == 43.
+
+(* let, match and cases restore their bindings *)
+5 [n] [n 0 /] let.
+newstack n 42 =.
+[1 2 3] [[h : t]] [h 0 /] match.
+newstack h 43 =.
+7 [[[0] [0]] [[n] [n 0 /]]] cases.
+newstack n 42 =.
+
+(* nested let: the outer binding is restored by the inner frame *)
+1 [n] [2 [n] [n 0 /] let] let.
+newstack n 42 =.
+
+(* the runner requires the last line to be true: the run reached the end *)
+"done" "done" =.

@@ -8,6 +8,10 @@
  */
 #include "globals.h"
 
+static int lazy_null(pEnv env, LazyData* lzy);
+void lazy_step(pEnv env);
+void lazy_take(pEnv env, int64_t n);
+
 /*
  * Helper: Allocate and initialize a LazyData structure.
  */
@@ -138,9 +142,7 @@ Error if L is not a lazy sequence or N is negative.
 */
 void force_(pEnv env)
 {
-    LazyData* lzy;
-    Index temp, state, result;
-    int n, i;
+    int n;
 
     TWOPARAMS("force");
     POSITIVEINDEX(env->stck, "force");
@@ -152,140 +154,78 @@ void force_(pEnv env)
         execerror(env, "lazy sequence", "force");
         return;
     }
-
-    lzy = nodevalue(env->stck).lzy;
-
-    /* Build result list using dump registers for GC protection */
-    env->dump1 = LIST_NEWNODE(0, env->dump1);  /* head */
-    env->dump2 = LIST_NEWNODE(0, env->dump2);  /* tail */
-    env->dump3 = LIST_NEWNODE(lzy->state, env->dump3);  /* current state */
-
-    for (i = 0; i < n; i++) {
-        state = DMP3;
-
-        /* Check if finite sequence exhausted */
-        if (lzy->kind == LAZY_RANGE && lzy->limit >= 0) {
-            if (nodetype(state) != INTEGER_ || nodevalue(state).num > lzy->limit)
-                break;
-        }
-        if (lzy->kind == LAZY_CYCLE && !state)
-            break;  /* Should not happen for valid cycle */
-
-        /* Get current value */
-        switch (lzy->kind) {
-        case LAZY_ITERATE:
-        case LAZY_REPEAT:
-        case LAZY_RANGE:
-            temp = newnode2(env, state, 0);
-            break;
-        case LAZY_CYCLE:
-            temp = newnode2(env, state, 0);
-            break;
-        default:
-            temp = 0;
-            break;
-        }
-
-        /* Append to result list */
-        if (!DMP1) {
-            DMP1 = temp;
-            DMP2 = temp;
-        } else {
-            nextnode1(DMP2) = temp;
-            DMP2 = temp;
-        }
-
-        /* Advance state for next iteration */
-        switch (lzy->kind) {
-        case LAZY_ITERATE:
-            /* Execute generator: push state, execute quotation, get result */
-            {
-                Index saved_stck = env->stck;
-                env->stck = newnode2(env, state, 0);
-                exec_term(env, lzy->generator);
-                if (env->stck) {
-                    DMP3 = newnode2(env, env->stck, 0);
-                }
-                env->stck = saved_stck;
-            }
-            break;
-        case LAZY_REPEAT:
-            /* State stays the same */
-            break;
-        case LAZY_CYCLE:
-            /* Move to next element, wrap to beginning if needed */
-            if (nextnode1(state))
-                DMP3 = nextnode1(state);
-            else
-                DMP3 = lzy->generator;  /* Wrap to beginning */
-            break;
-        case LAZY_RANGE:
-            /* Increment state */
-            DMP3 = INTEGER_NEWNODE(nodevalue(state).num + 1, 0);
-            break;
-        }
-    }
-
-    result = DMP1;
-    POP(env->dump3);
-    POP(env->dump2);
-    POP(env->dump1);
-
-    UNARY(LIST_NEWNODE, result);
+    lazy_take(env, n);
 }
 
 /*
- * Helper: Advance a lazy sequence by one step, returning new LazyData.
- * Used by rest_ for LAZY_ type.
+ * Replace the lazy sequence on top of the stack by its rest. A GC copies the
+ * LazyData and moves the nodes it refers to, so nothing read from it is kept
+ * across an allocation: the sequence stays on the stack, or on the dump while
+ * the generator runs, and nodes are reserved before an index is held.
  */
-static LazyData* lazy_rest(pEnv env, LazyData* lzy)
+void lazy_step(pEnv env)
 {
-    LazyData* new_lzy;
-    Index new_state;
+    LazyData* lzy;
+    Index state;
 
-    switch (lzy->kind) {
-    case LAZY_ITERATE:
-        /* Execute generator to get next state */
-        {
-            Index saved_stck = env->stck;
-            env->stck = newnode2(env, lzy->state, 0);
-            exec_term(env, lzy->generator);
-            if (env->stck) {
-                new_state = newnode2(env, env->stck, 0);
-            } else {
-                new_state = 0;
-            }
-            env->stck = saved_stck;
-        }
-        new_lzy = make_lazy(env, LAZY_ITERATE, new_state, lzy->generator, -1);
-        break;
-
-    case LAZY_REPEAT:
-        /* State stays the same, just copy */
-        new_lzy = copy_lazy(env, lzy);
-        break;
-
-    case LAZY_CYCLE:
-        /* Move to next element, wrap if needed */
-        if (nextnode1(lzy->state))
-            new_state = nextnode1(lzy->state);
-        else
-            new_state = lzy->generator;  /* Wrap to beginning */
-        new_lzy = make_lazy(env, LAZY_CYCLE, new_state, lzy->generator, -1);
-        break;
-
-    case LAZY_RANGE:
-        /* Increment state */
-        new_state = INTEGER_NEWNODE(nodevalue(lzy->state).num + 1, 0);
-        new_lzy = make_lazy(env, LAZY_RANGE, new_state, 0, lzy->limit);
-        break;
-
-    default:
-        new_lzy = copy_lazy(env, lzy);
-        break;
+    if (nodevalue(env->stck).lzy->kind == LAZY_ITERATE) {
+        /* The generator sees only the state; the stack waits on the dump */
+        env->dump1 = LIST_NEWNODE(env->stck, env->dump1);
+        env->stck = newnode2(env, nodevalue(DMP1).lzy->state, 0);
+        exec_term(env, nodevalue(DMP1).lzy->generator);
+        ensure_capacity(env, 2);
+        state = env->stck ? newnode2(env, env->stck, 0) : 0;
+        lzy = make_lazy(env, LAZY_ITERATE, state, nodevalue(DMP1).lzy->generator, -1);
+        env->stck = DMP1;
+        POP(env->dump1);
+        UNARY(LAZY_NEWNODE, lzy);
+        return;
     }
 
-    return new_lzy;
+    ensure_capacity(env, 2);
+    lzy = nodevalue(env->stck).lzy;
+    switch (lzy->kind) {
+    case LAZY_CYCLE:
+        /* Move to next element, wrap to the beginning */
+        state = nextnode1(lzy->state) ? nextnode1(lzy->state) : lzy->generator;
+        lzy = make_lazy(env, LAZY_CYCLE, state, lzy->generator, -1);
+        break;
+    case LAZY_RANGE:
+        state = INTEGER_NEWNODE(WRAP_ADD(nodevalue(lzy->state).num, 1), 0);
+        lzy = make_lazy(env, LAZY_RANGE, state, 0, lzy->limit);
+        break;
+    default: /* LAZY_REPEAT: the state does not change */
+        lzy = copy_lazy(env, lzy);
+        break;
+    }
+    UNARY(LAZY_NEWNODE, lzy);
+}
+
+/*
+ * Replace the lazy sequence on top of the stack by a list of its first n
+ * elements (fewer if it ends). The list is built on the dump.
+ */
+void lazy_take(pEnv env, int64_t n)
+{
+    Index temp, result;
+
+    env->dump2 = LIST_NEWNODE(0, env->dump2); /* head */
+    env->dump3 = LIST_NEWNODE(0, env->dump3); /* last */
+    for (; n > 0 && !lazy_null(env, nodevalue(env->stck).lzy); n--) {
+        temp = newnode2(env, nodevalue(env->stck).lzy->state, 0);
+        if (!DMP2)
+            DMP2 = DMP3 = temp;
+        else {
+            nextnode1(DMP3) = temp;
+            DMP3 = temp;
+        }
+        if (n > 1)
+            lazy_step(env);
+    }
+    result = DMP2;
+    POP(env->dump3);
+    POP(env->dump2);
+    UNARY(LIST_NEWNODE, result);
 }
 
 /*
@@ -326,11 +266,6 @@ static int lazy_null(pEnv env, LazyData* lzy)
  */
 
 /* Export helper functions for use in aggregate.c */
-LazyData* lazy_rest_helper(pEnv env, LazyData* lzy)
-{
-    return lazy_rest(env, lzy);
-}
-
 Index lazy_first_helper(pEnv env, LazyData* lzy)
 {
     return lazy_first(env, lzy);

@@ -191,6 +191,7 @@ int server_handle_message(const char *msg, size_t msg_len) {
     JsonValue *root = json_parse(msg, msg_len);
     if (!root) {
         fprintf(stderr, "joy-lsp: failed to parse JSON message\n");
+        send_error(NULL, -32700, "Parse error");
         return 0;
     }
 

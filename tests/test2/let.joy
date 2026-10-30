@@ -66,3 +66,6 @@ DEFINE pyth == [a_val b_val] [a_val a_val * b_val b_val * + sqrt] let.
 [] unstack.
 100 200 10 20 [m n] [m n +] let
 stack [30 200 100] equal.
+
+(* Bindings survive garbage collection inside the body *)
+[7 8 9] [n] [200000 [[1 2 3] pop] times n] let [7 8 9] equal.

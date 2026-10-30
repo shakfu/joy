@@ -1,0 +1,2 @@
+(* A runtime error must make joy exit with a nonzero status *)
+1 0 /.

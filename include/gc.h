@@ -39,6 +39,8 @@ typedef struct GC_Context {
     uint64_t lower;             /* lower bound of heap pointers */
     uint64_t upper;             /* upper bound of heap pointers */
     char* stack_bottom;         /* bottom of C stack for this context */
+    void (*root_fn)(struct GC_Context* ctx, void* arg); /* marks extra roots */
+    void* root_arg;
 #ifdef COUNT_COLLECTIONS
     size_t gc_no;               /* number of garbage collections */
     size_t memory_use;          /* bytes currently allocated */
@@ -59,6 +61,8 @@ void fatal(char* str);
 GC_Context* gc_ctx_create(void);
 void gc_ctx_destroy(GC_Context* ctx);
 void gc_ctx_set_stack_bottom(GC_Context* ctx, char* bottom);
+void gc_ctx_set_root_fn(GC_Context* ctx, void (*fn)(GC_Context*, void*), void* arg);
+void gc_ctx_mark_range(GC_Context* ctx, const void* start, size_t size);
 
 void* gc_ctx_malloc(GC_Context* ctx, size_t size);
 void* gc_ctx_malloc_atomic(GC_Context* ctx, size_t size);

@@ -15,6 +15,18 @@ add_custom_target(${src}.old ALL
           COMMAND ${JOY_EXECUTABLE} ${CMAKE_SOURCE_DIR}/lib/${src}.joy 24 54 >${LIB_OUTPUT_DIR}/${src}.old)
 endmacro(exe9)
 
+# For scripts that raise errors on purpose: the exit status is ignored.
+macro(exe9_err src)
+add_custom_target(${src}.old ALL
+          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
+          DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/${src}.joy
+          COMMAND ${CMAKE_COMMAND} -DJOY=${JOY_EXECUTABLE}
+                  -DOUT=${LIB_OUTPUT_DIR}/${src}.old
+                  "-DARGS=${CMAKE_SOURCE_DIR}/lib/${src}.joy|24|54"
+                  -P ${CMAKE_SOURCE_DIR}/tools/run_joy_output.cmake
+          VERBATIM)
+endmacro(exe9_err)
+
 add_custom_target(tutinp.old ALL
           WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/lib
           DEPENDS joy ${CMAKE_SOURCE_DIR}/lib/tutinp.joy
@@ -34,7 +46,7 @@ exe9(grmtst)
 exe9(reptst)
 exe9(jp-reprodtst)
 exe9(flatjoy)
-exe9(modtst)
+exe9_err(modtst)
 exe9(alljoy)
 exe9(gcd)
 exe9(jp-church)

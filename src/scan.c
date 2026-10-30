@@ -152,6 +152,7 @@ void error(pEnv env, char* str)
 {
     int leng;
 
+    env->error.count++;
     fflush(stdout);
     leng = stderr_printf_count("%s:%d:", env->scanner.srcfilename, env->scanner.linenum);
     leng += stderr_printf_count("%.*s", env->scanner.linepos, env->scanner.linebuf);
@@ -673,6 +674,10 @@ start:
             if (next == '[') {
                 env->scanner.sym = MBRACKET;
                 return getch(env);  /* consume second [ */
+            }
+            if (next == ']') {  /* m[] is the 0x0 matrix, as written by write.c */
+                env->scanner.sym = MEMPTY;
+                return getch(env);
             }
             ungetch(env, next);  /* not m[[, push back */
         }

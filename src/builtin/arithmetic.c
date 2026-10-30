@@ -23,7 +23,7 @@ void abs_(pEnv env)
     FLOAT("abs");
     if (nodetype(env->stck) == INTEGER_) {
         if (nodevalue(env->stck).num < 0)
-            UNARY(INTEGER_NEWNODE, -nodevalue(env->stck).num);
+            UNARY(INTEGER_NEWNODE, WRAP_NEG(nodevalue(env->stck).num));
         return;
     }
     /* end new */
@@ -47,8 +47,8 @@ void div_(pEnv env)
     TWOPARAMS("div");
     INTEGERS2("div");
     CHECKZERO("div");
-    quotient = nodevalue(nextnode1(env->stck)).num / nodevalue(env->stck).num;
-    remainder = nodevalue(nextnode1(env->stck)).num % nodevalue(env->stck).num;
+    quotient = WRAP_DIV(nodevalue(nextnode1(env->stck)).num, nodevalue(env->stck).num);
+    remainder = WRAP_REM(nodevalue(nextnode1(env->stck)).num, nodevalue(env->stck).num);
     BINARY(INTEGER_NEWNODE, quotient);
     NULLARY(INTEGER_NEWNODE, remainder);
 }
@@ -64,7 +64,7 @@ void divide_(pEnv env)
     FLOAT_I(/);
     INTEGERS2("divide");
     BINARY(INTEGER_NEWNODE,
-           nodevalue(nextnode1(env->stck)).num / nodevalue(env->stck).num);
+           WRAP_DIV(nodevalue(nextnode1(env->stck)).num, nodevalue(env->stck).num));
 }
 
 /**
@@ -121,7 +121,7 @@ Q0  OK  1390  -\0minus  :  M I  ->  N
 Numeric N is the result of subtracting integer I from numeric M.
 Also supports float.
 */
-PLUSMINUS(minus_, "-", -)
+PLUSMINUS(minus_, "-", -, WRAP_SUB)
 
 /**
 Q0  OK  1620  modf  :  F  ->  G H
@@ -148,7 +148,7 @@ void mul_(pEnv env)
     FLOAT_I(*);
     INTEGERS2("*");
     BINARY(INTEGER_NEWNODE,
-           nodevalue(nextnode1(env->stck)).num * nodevalue(env->stck).num);
+           WRAP_MUL(nodevalue(nextnode1(env->stck)).num, nodevalue(env->stck).num));
 }
 
 /**
@@ -162,7 +162,7 @@ void neg_(pEnv env)
     FLOAT("neg");
     if (nodetype(env->stck) == INTEGER_) {
         if (nodevalue(env->stck).num)
-            UNARY(INTEGER_NEWNODE, -nodevalue(env->stck).num);
+            UNARY(INTEGER_NEWNODE, WRAP_NEG(nodevalue(env->stck).num));
         return;
     }
     /* end new */
@@ -174,13 +174,13 @@ Q0  OK  1380  +\0plus  :  M I  ->  N
 Numeric N is the result of adding integer I to numeric M.
 Also supports float.
 */
-PLUSMINUS(plus_, "+", +)
+PLUSMINUS(plus_, "+", +, WRAP_ADD)
 
 /**
 Q0  OK  1790  pred  :  M  ->  N
 Numeric N is the predecessor of numeric M.
 */
-PREDSUCC(pred_, "pred", -)
+PREDSUCC(pred_, "pred", WRAP_SUB)
 
 /**
 Q0  OK  1420  rem  :  I J  ->  K
@@ -193,7 +193,7 @@ void rem_(pEnv env)
     INTEGERS2("rem");
     CHECKZERO("rem");
     BINARY(INTEGER_NEWNODE,
-           nodevalue(nextnode1(env->stck)).num % nodevalue(env->stck).num);
+           WRAP_REM(nodevalue(nextnode1(env->stck)).num, nodevalue(env->stck).num));
 }
 
 /**
@@ -236,7 +236,7 @@ void sign_(pEnv env)
 Q0  OK  1800  succ  :  M  ->  N
 Numeric N is the successor of numeric M.
 */
-PREDSUCC(succ_, "succ", +)
+PREDSUCC(succ_, "succ", WRAP_ADD)
 
 /**
 Q0  OK  1690  trunc  :  F  ->  I
@@ -246,6 +246,11 @@ void trunc_(pEnv env)
 {
     ONEPARAM("trunc");
     FLOAT("trunc");
+    if (nodetype(env->stck) == INTEGER_)
+        return; /* already integral; (double) would round maxint up */
+    /* Out of range or NaN, the conversion is undefined; 2^63 is exact */
+    if (!(FLOATVAL >= -0x1p63 && FLOATVAL < 0x1p63))
+        execerror(env, "float in integer range", "trunc");
     UNARY(INTEGER_NEWNODE, (int64_t)FLOATVAL);
 }
 

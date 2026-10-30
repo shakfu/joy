@@ -8,21 +8,35 @@
  */
 #include "globals.h"
 
+/* Restore a debugger flag when an error unwinds through the quotation */
+typedef struct {
+    unsigned char* flag;
+    unsigned char saved;
+} SavedFlag;
+
+static void restore_flag(pEnv env, void* arg)
+{
+    SavedFlag* f = arg;
+    (void)env;
+    *f->flag = f->saved;
+}
+
 /**
 Q1  OK  3900  debug-trace\0debug_trace  :  [P]  ->  ...
 Executes P with full execution tracing enabled.
 */
 void debug_trace_(pEnv env)
 {
-    unsigned char saved;
+    SavedFlag saved;
     ONEPARAM("debug-trace");
     ONEQUOTE("debug-trace");
     SAVESTACK;
     POP(env->stck);
-    saved = env->config.debugging;
+    saved.flag = &env->config.debugging;
+    saved.saved = env->config.debugging;
     env->config.debugging = 2;
-    exec_term(env, nodevalue(SAVED1).lis);
-    env->config.debugging = saved;
+    exec_term_protected(env, nodevalue(SAVED1).lis, restore_flag, &saved);
+    env->config.debugging = saved.saved;
     POP(env->dump);
 }
 
@@ -33,15 +47,16 @@ Commands: s=step, c=continue, q=quit
 */
 void debug_step_(pEnv env)
 {
-    unsigned char saved;
+    SavedFlag saved;
     ONEPARAM("debug-step");
     ONEQUOTE("debug-step");
     SAVESTACK;
     POP(env->stck);
-    saved = env->config.stepping;
+    saved.flag = &env->config.stepping;
+    saved.saved = env->config.stepping;
     env->config.stepping = 1;
-    exec_term(env, nodevalue(SAVED1).lis);
-    env->config.stepping = saved;
+    exec_term_protected(env, nodevalue(SAVED1).lis, restore_flag, &saved);
+    env->config.stepping = saved.saved;
     POP(env->dump);
 }
 

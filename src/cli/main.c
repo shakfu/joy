@@ -252,44 +252,36 @@ static void unknown_opt(char* exe, int ch)
 #ifdef USE_LINENOISE
 /*
  * completion_callback - provides tab completion for Joy words.
- * Searches the symbol table for words matching the current prefix.
+ * Completes the word before the cursor from the symbol table of env (udata).
  */
-static void completion_callback(const char *buf, linenoise_completions_t *lc)
+static void completion_callback(const char *buf, size_t pos,
+                                linenoise_completions_t *lc, void *udata)
 {
-    size_t len = strlen(buf);
+    pEnv env = udata;
     const char *word_start;
     size_t prefix_len;
     int i, symtab_size;
 
-    if (!global_env || !global_env->symtab)
+    if (!env || !env->symtab)
         return;
 
     /* Find the start of the current word (scan backwards for whitespace) */
-    word_start = buf + len;
+    word_start = buf + pos;
     while (word_start > buf && !isspace((unsigned char)word_start[-1]))
         word_start--;
-    prefix_len = (buf + len) - word_start;
+    prefix_len = (buf + pos) - word_start;
 
     /* If no prefix, don't complete */
     if (prefix_len == 0)
         return;
 
-    /* Search symbol table for matching entries */
-    symtab_size = vec_size(global_env->symtab);
+    /* Candidates replace only the word before the cursor */
+    lc->start = word_start - buf;
+    symtab_size = vec_size(env->symtab);
     for (i = 0; i < symtab_size; i++) {
-        Entry ent = vec_at(global_env->symtab, i);
-        if (ent.name && strncmp(ent.name, word_start, prefix_len) == 0) {
-            /* Build completion: text before word + completed word */
-            size_t before_len = word_start - buf;
-            size_t name_len = strlen(ent.name);
-            char *completion = malloc(before_len + name_len + 1);
-            if (completion) {
-                memcpy(completion, buf, before_len);
-                memcpy(completion + before_len, ent.name, name_len + 1);
-                linenoise_add_completion(lc, completion);
-                free(completion);
-            }
-        }
+        Entry ent = vec_at(env->symtab, i);
+        if (ent.name && strncmp(ent.name, word_start, prefix_len) == 0)
+            linenoise_add_completion(lc, ent.name);
     }
 }
 
@@ -320,14 +312,20 @@ static void linenoise_repl(pEnv env)
     linenoise_history_load(ln_ctx, ".joy_history");
 
     /* Set up tab completion using symbol table */
-    linenoise_set_completion_callback(ln_ctx, completion_callback);
+    linenoise_set_completion_callback(ln_ctx, completion_callback, env);
 
     /* Initialize and set up syntax highlighting */
     if (joy_highlight_init() == 0) {
-        linenoise_set_highlight_callback(ln_ctx, joy_highlight_callback);
+        linenoise_set_highlight_callback(ln_ctx, joy_highlight_callback, NULL);
     }
 
-    while ((line = linenoise_read(ln_ctx, "joy> ")) != NULL) {
+    for (;;) {
+        if ((line = linenoise_read(ln_ctx, "joy> ")) == NULL) {
+            /* Ctrl-C discards the line; Ctrl-D (or an error) ends the REPL */
+            if (linenoise_get_error() == LINENOISE_ERR_INTERRUPTED)
+                continue;
+            break;
+        }
         /* Skip empty lines */
         if (line[0] == '\0') {
             linenoise_free(line);
@@ -345,33 +343,36 @@ static void linenoise_repl(pEnv env)
         }
         if (err == ABORT_RETRY) {
             linenoise_free(line);
+            vec_setsize(env->pushback, 0); /* drop the rest of the line */
             continue;
         }
 
-        /* Feed line to interpreter via pushback mechanism.
-         * Add '. ' at end as statement terminator if not present. */
+        /* Feed the line to the interpreter through the pushback buffer,
+         * followed by a sentinel " . ". A '.' read with the buffer empty is
+         * the sentinel: every statement on the line has run. Testing for an
+         * empty buffer alone would block on stdin when trailing blanks or a
+         * comment follow the last '.'. */
         len = strlen(line);
-
-        /* Push terminator and trailing space */
         vec_push(env->pushback, ' ');
-        if (len == 0 || line[len-1] != '.') {
-            vec_push(env->pushback, '.');
-            vec_push(env->pushback, ' ');
-        }
-
-        /* Push line in reverse order */
-        for (size_t i = len; i > 0; i--) {
+        vec_push(env->pushback, '.');
+        vec_push(env->pushback, ' ');
+        for (size_t i = len; i > 0; i--)
             vec_push(env->pushback, line[i - 1]);
-        }
 
         linenoise_free(line);
         line = NULL;  /* Prevent double-free if longjmp occurs */
 
-        /* Process the input */
+        /* Process the statements on the line */
         int ch = getch(env);
         ch = getsym(env, ch);
 
-        while (env->scanner.sym != '.') {
+        for (;;) {
+            if (env->scanner.sym == '.') {
+                if (!vec_size(env->pushback))
+                    break;              /* the sentinel */
+                ch = getsym(env, ch);   /* empty statement: skip */
+                continue;
+            }
             if (env->scanner.sym == LIBRA || env->scanner.sym == HIDE || env->scanner.sym == MODULE_
                 || env->scanner.sym == CONST_) {
 #ifdef NOBDW
@@ -386,9 +387,6 @@ static void linenoise_repl(pEnv env)
 #ifdef NOBDW
                 inimem2(env);
 #endif
-                if (env->scanner.sym == '.')
-                    break;
-                ch = getsym(env, ch);
             } else {
                 ch = readterm(env, ch);
                 if (env->stck && nodetype(env->stck) == LIST_) {
@@ -400,10 +398,9 @@ static void linenoise_repl(pEnv env)
                     exec_term(env, env->prog);
                 }
                 print(env);
-                if (env->scanner.sym == '.')
-                    break;
-                ch = getsym(env, ch);
             }
+            if (env->scanner.sym != '.')
+                ch = getsym(env, ch);
         }
     }
 
@@ -417,7 +414,7 @@ static void linenoise_repl(pEnv env)
 }
 #endif /* USE_LINENOISE */
 
-static void my_main(int argc, char** argv)
+static int my_main(int argc, char** argv)
 {
     static unsigned char psdump = 0, pstats = 0;
 #ifdef BYTECODE
@@ -602,13 +599,13 @@ static void my_main(int argc, char** argv)
             if (!joy) {
                 if ((fp = fopen(env.filename = argv[i], "rb")) == 0) {
                     stderr_printf("failed to open the file '%s'.\n", argv[i]);
-                    return;
+                    return EXIT_FAILURE;
                 }
             } else
 #endif
                 if (include(&env, env.filename = argv[i])) {
                 stderr_printf("failed to open the file '%s'.\n", argv[i]);
-                return;
+                return EXIT_FAILURE;
             }
             /*
              *  Overwrite argv[0] with the filename and shift subsequent
@@ -749,16 +746,16 @@ einde:
     mem_free(&env);
 #endif
     SetNormal(); /* set the terminal back to normal */
+    return env.error.count ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
 int main(int argc, char** argv)
 {
-    void (*volatile m)(int, char**) = my_main;
+    int (*volatile m)(int, char**) = my_main;
 
     bottom_of_stack = (char*)&argc;
     GC_INIT();
-    (*m)(argc, argv);
-    return 0;
+    return (*m)(argc, argv);
 }
 
 /*

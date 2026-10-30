@@ -357,6 +357,33 @@ void gc_ctx_set_stack_bottom(GC_Context* ctx, char* bottom)
 }
 
 /*
+ * Register a callback that marks roots outside the stack, such as memory
+ * allocated with plain malloc that holds pointers to collected blocks.
+ */
+void gc_ctx_set_root_fn(GC_Context* ctx, void (*fn)(GC_Context*, void*), void* arg)
+{
+    if (ctx) {
+        ctx->root_fn = fn;
+        ctx->root_arg = arg;
+    }
+}
+
+/*
+ * Mark every block pointed to from the pointer-aligned words of a range.
+ */
+void gc_ctx_mark_range(GC_Context* ctx, const void* start, size_t size)
+{
+    const char* p = start;
+    char* child;
+    size_t i;
+
+    for (i = 0; i + sizeof(char*) <= size; i += sizeof(char*)) {
+        memcpy(&child, p + i, sizeof(char*));
+        ctx_mark_ptr(ctx, child);
+    }
+}
+
+/*
  * Allocate memory that may contain pointers (will be scanned during GC).
  */
 void* gc_ctx_malloc(GC_Context* ctx, size_t size)
@@ -438,6 +465,8 @@ void gc_ctx_collect(GC_Context* ctx)
     memset(&env, 0, sizeof(jmp_buf));
     setjmp(env);
     (*m)(ctx);
+    if (ctx->root_fn)
+        ctx->root_fn(ctx, ctx->root_arg);
 #ifdef SCAN_BSS_MEMORY
     ctx_mark_bss(ctx);
 #endif

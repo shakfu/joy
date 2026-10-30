@@ -436,3 +436,25 @@ joy_test(strinterp)
 joy_test(regex)
 joy_test(lazy)
 joy_test(debugger)
+joy_test(overflow)
+
+# I/O, system and introspection primitives. argv.joy is not registered: it
+# expects to be the main file, and the runner includes it from stdin.
+foreach(t abort argc autoput clock __dump echo fclose feof ferror fflush fgetch
+          fgets file filetime finclude fopen fput fputch fputchars fputstring
+          fread fremove frename fseek ftell fwrite get getenv gmtime _help help
+          helpdetail __html_manual include __latex_manual localtime manual
+          __manual_list __memoryindex __memorymax put putch putchars quit rand
+          setautoput setecho __settracegc setundeferror srand stderr stdin
+          stdout strftime __symtabindex __symtabmax system time undeferror
+          undefs)
+  joy_test(${t})
+endforeach()
+
+# mktime reads its argument as local time, so the gmtime round trip holds in UTC only
+joy_test(mktime)
+set_tests_properties(test2_mktime PROPERTIES ENVIRONMENT "TZ=UTC0")
+
+if(JOY_NATIVE_TYPES)
+  joy_test(vector_native)
+endif()

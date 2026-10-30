@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Test harness executed no test2 files.** The CLI runs only its first filename argument; later ones become `argv`. `run_test.sh` passed `inilib.joy` first, so all 174 registered tests loaded the library and passed without running. The runner now includes `usrlib.joy` and the test from stdin, in the test's directory. Six tests then failed: four lacked `agglib` definitions; `all2.joy` and `matrix.joy` had wrong expectations (exact float equality after `inv`).
+- **Conservative GC freed live vector/matrix payloads.** Nodes live in a `calloc`'d arena that the collector never scanned, so an allocation that triggered a collection could free a `MatrixData` still referenced by a node. glibc then wrote its free-list pointer over `rows`/`cols`. The arena (and the old arena during a copying GC) is now a registered root.
+- **`let`, `match` and `cases` bindings were not GC roots**, so a collection inside the body left names pointing at moved nodes (`[7 8 9] [n] [200000 [[1 2 3] pop] times n] let` gave `[]`). An error inside the body also left the names rebound. Bindings are now roots, saved bodies live on the dump, and an error restores them; `debug-trace`, `debug-step` and `profile` restore their flags the same way.
+- **`scan_roots` stopped at the first variable ever assigned**, not the lowest-indexed one, so a later `assign` to an older symbol was not GC-copied.
+- **Integer arithmetic** wraps instead of overflowing; `INT64_MIN -1 /` (and `div`, `rem`) no longer dies with SIGFPE. `trunc` of an out-of-range float is an error. Wrapping over erroring keeps existing results unchanged.
+- **Vector/matrix constructors** reject sizes whose element count exceeds `INT_MAX`; `(int)(n*n)` truncation made `3037000500 meye` write out of bounds. All allocations are checked.
+- **`compile-to-c`**: `=` mapped to `equal_` and several names to functions that do not exist; nested quotations were silently dropped; `div` was folded to one result; integer comparisons were folded as doubles; inlining never applied to builtins but did apply to user words named like them.
+- **`joy-lsp`**: use-after-free in diagnostics for MISSING nodes (any unterminated definition). The JSON parser now caps nesting, rejects malformed input with `-32700`, and decodes surrogate pairs.
+- **Sessions**: a failed open no longer leaves a half-open session; SQLite errors raise runtime errors and detach attached databases; `restore` and `snapshot` run in a transaction, so a failed insert no longer deletes all symbols.
+- `m[]` now reads back as the empty matrix it prints as.
+- **Lazy sequences broke on garbage collection.** `drop`, `take`, `force` and `rest` advanced a C-local `LazyData*` that no node referenced, so a GC left its state and generator indices stale (`0 [1 +] iterate 300 drop first` raised "two parameters needed for +"). The sequence now stays on the stack and is stepped in place.
+- **`>list` on a matrix** held list indices across per-row allocations; `10000 3 nmones >list` returned 3868 rows. Nodes are now reserved before any index or payload pointer is taken.
+- Executing a bad node (a stale index after GC) counts as an error, and `run_test.sh` fails on it even with `ALLOW_ERRORS`. Before, such corruption printed a warning and the test passed.
+
+### Changed
+
+- **linenoise updated** from upstream `06552a1` to `16c6c78` (`ext/linenoise/VERSION`). The REPL gains bracketed paste (a pasted multi-line `DEFINE` is one entry, and history keeps it), completion of the word at the cursor, and no fixed 4 KB line limit. `tools/sync_linenoise.sh` repeats the update from a linenoise checkout.
+- **REPL runs every statement on a line.** It stopped at the first `.` and left the rest queued, to run later behind the next line's input; `DEFINE a == 7. a .` printed nothing after the definition. Each line now gets a sentinel ` . `, and a `.` read with the pushback buffer empty ends the line. Checking only for an empty buffer would block on stdin when blanks or a comment follow the last `.`. An error now discards the rest of its line.
+- Ctrl-C in the REPL discards the line instead of exiting; Ctrl-D still exits.
+- `joy` exits with status 1 if any runtime or syntax error was reported.
+- CI runs on push and pull request, runs tests in Release, and adds `JOY_SESSION`, `JOY_BLAS`, `JOY_PARALLEL` (allowed to fail) and `joy-lsp` ASan jobs.
+- 62 previously unregistered test2 files, the parallel tests (through the assertion runner) and the session scripts run under ctest.
+
 ### [1.45]
 
 ### Added

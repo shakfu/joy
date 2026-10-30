@@ -223,126 +223,27 @@ static void emit_user_func_definitions(Compiler* c) {
     }
 }
 
-/* Map Joy builtin names to C function names */
-static const char* builtin_to_c(const char* name) {
-    /* Stack operations */
-    if (strcmp(name, "dup") == 0) return "dup_";
-    if (strcmp(name, "pop") == 0) return "pop_";
-    if (strcmp(name, "swap") == 0) return "swap_";
-    if (strcmp(name, "rollup") == 0) return "rollup_";
-    if (strcmp(name, "rolldown") == 0) return "rolldown_";
-    if (strcmp(name, "rotate") == 0) return "rotate_";
-    if (strcmp(name, "dupd") == 0) return "dupd_";
-    if (strcmp(name, "popd") == 0) return "popd_";
-    if (strcmp(name, "swapd") == 0) return "swapd_";
-    if (strcmp(name, "over") == 0) return "over_";
-    if (strcmp(name, "pick") == 0) return "pick_";
-
-    /* Arithmetic */
-    if (strcmp(name, "+") == 0) return "plus_";
-    if (strcmp(name, "-") == 0) return "minus_";
-    if (strcmp(name, "*") == 0) return "mul_";
-    if (strcmp(name, "/") == 0) return "divide_";
-    if (strcmp(name, "rem") == 0) return "rem_";
-    if (strcmp(name, "div") == 0) return "div_";
-    if (strcmp(name, "neg") == 0) return "neg_";
-    if (strcmp(name, "abs") == 0) return "abs_";
-    if (strcmp(name, "succ") == 0) return "succ_";
-    if (strcmp(name, "pred") == 0) return "pred_";
-    if (strcmp(name, "max") == 0) return "max_";
-    if (strcmp(name, "min") == 0) return "min_";
-
-    /* Comparison */
-    if (strcmp(name, "<") == 0) return "less_";
-    if (strcmp(name, "<=") == 0) return "leql_";
-    if (strcmp(name, ">") == 0) return "greater_";
-    if (strcmp(name, ">=") == 0) return "geql_";
-    if (strcmp(name, "=") == 0) return "equal_";
-    if (strcmp(name, "!=") == 0) return "neql_";
-
-    /* Logic */
-    if (strcmp(name, "and") == 0) return "and_";
-    if (strcmp(name, "or") == 0) return "or_";
-    if (strcmp(name, "not") == 0) return "not_";
-    if (strcmp(name, "xor") == 0) return "xor_";
-
-    /* Combinators */
-    if (strcmp(name, "i") == 0) return "i_";
-    if (strcmp(name, "x") == 0) return "x_";
-    if (strcmp(name, "dip") == 0) return "dip_";
-    if (strcmp(name, "dipd") == 0) return "dipd_";
-    if (strcmp(name, "dipdd") == 0) return "dipdd_";
-    if (strcmp(name, "app1") == 0) return "app1_";
-    if (strcmp(name, "app2") == 0) return "app2_";
-    if (strcmp(name, "app3") == 0) return "app3_";
-    if (strcmp(name, "map") == 0) return "map_";
-    if (strcmp(name, "fold") == 0) return "fold_";
-    if (strcmp(name, "filter") == 0) return "filter_";
-    if (strcmp(name, "times") == 0) return "times_";
-    if (strcmp(name, "while") == 0) return "while_";
-    if (strcmp(name, "ifte") == 0) return "ifte_";
-    if (strcmp(name, "cond") == 0) return "cond_";
-    if (strcmp(name, "branch") == 0) return "branch_";
-    if (strcmp(name, "choice") == 0) return "choice_";
-    if (strcmp(name, "nullary") == 0) return "nullary_";
-    if (strcmp(name, "unary") == 0) return "unary_";
-    if (strcmp(name, "binary") == 0) return "binary_";
-    if (strcmp(name, "ternary") == 0) return "ternary_";
-    if (strcmp(name, "primrec") == 0) return "primrec_";
-    if (strcmp(name, "linrec") == 0) return "linrec_";
-    if (strcmp(name, "binrec") == 0) return "binrec_";
-    if (strcmp(name, "genrec") == 0) return "genrec_";
-    if (strcmp(name, "tailrec") == 0) return "tailrec_";
-    if (strcmp(name, "step") == 0) return "step_";
-    if (strcmp(name, "infra") == 0) return "infra_";
-    if (strcmp(name, "cleave") == 0) return "cleave_";
-
-    /* List operations */
-    if (strcmp(name, "first") == 0) return "first_";
-    if (strcmp(name, "rest") == 0) return "rest_";
-    if (strcmp(name, "cons") == 0) return "cons_";
-    if (strcmp(name, "swons") == 0) return "swons_";
-    if (strcmp(name, "uncons") == 0) return "uncons_";
-    if (strcmp(name, "unswons") == 0) return "unswons_";
-    if (strcmp(name, "null") == 0) return "null_";
-    if (strcmp(name, "size") == 0) return "size_";
-    if (strcmp(name, "concat") == 0) return "concat_";
-    if (strcmp(name, "reverse") == 0) return "reverse_";
-    if (strcmp(name, "at") == 0) return "at_";
-    if (strcmp(name, "of") == 0) return "of_";
-    if (strcmp(name, "take") == 0) return "take_";
-    if (strcmp(name, "drop") == 0) return "drop_";
-    if (strcmp(name, "enconcat") == 0) return "enconcat_";
-
-    /* I/O */
-    if (strcmp(name, "put") == 0) return "put_";
-    if (strcmp(name, "putch") == 0) return "putch_";
-    if (strcmp(name, "get") == 0) return "get_";
-    if (strcmp(name, ".") == 0) return "put_";
-
-    /* Type checking */
-    if (strcmp(name, "integer") == 0) return "integer_";
-    if (strcmp(name, "float") == 0) return "float_";
-    if (strcmp(name, "string") == 0) return "string_";
-    if (strcmp(name, "list") == 0) return "list_";
-    if (strcmp(name, "logical") == 0) return "logical_";
-    if (strcmp(name, "char") == 0) return "char_";
-    if (strcmp(name, "set") == 0) return "set_";
-
-    /* Misc */
-    if (strcmp(name, "id") == 0) return "id_";
-    if (strcmp(name, "stack") == 0) return "stack_";
-    if (strcmp(name, "unstack") == 0) return "unstack_";
-    if (strcmp(name, "newstack") == 0) return "newstack_";
-    if (strcmp(name, "unit") == 0) return "unit_";
-    if (strcmp(name, "small") == 0) return "small_";
-    if (strcmp(name, "name") == 0) return "name_";
-    if (strcmp(name, "body") == 0) return "body_";
-    if (strcmp(name, "intern") == 0) return "intern_";
-    if (strcmp(name, "type") == 0) return "type_";
-    if (strcmp(name, "typeof") == 0) return "typeof_";
-
-    return NULL;
+/* Write the C function name of builtin `proc` into buf; 0 if not a builtin.
+ * The optable name is used, or its nickname after '\0' when the name is not
+ * a C identifier (e.g. "=\0eql", "regex-match\0regex_match"). */
+static int builtin_cname(Compiler* c, proc_t proc, char* buf, size_t size) {
+    for (int i = 0; i < (int)vec_size(c->env->symtab); i++) {
+        Entry ent = vec_at(c->env->symtab, i);
+        if (ent.is_user || ent.u.proc != proc)
+            continue;
+        const char* name = ent.name;
+        const char* s = name;
+        if (*s == '#')
+            return 0;  /* internal entry: no stable C name */
+        if (!isdigit((unsigned char)*s))
+            while (*s && (isalnum((unsigned char)*s) || *s == '_'))
+                s++;
+        if (*s || isdigit((unsigned char)*name))
+            name += strlen(name) + 1;
+        snprintf(buf, size, "%s_", name);
+        return 1;
+    }
+    return 0;
 }
 
 /* Get inline code for simple operations */
@@ -355,15 +256,15 @@ static const char* get_inline_op(const char* name) {
         return "{ TWOPARAMS(\"swap\"); SAVESTACK; GBINARY(SAVED1); GNULLARY(SAVED2); POP(env->dump); }";
     if (strcmp(name, "+") == 0)
         return "if (nodetype(env->stck) == INTEGER_ && nodetype(nextnode1(env->stck)) == INTEGER_) {\n"
-               "        BINARY(INTEGER_NEWNODE, nodevalue(nextnode1(env->stck)).num + nodevalue(env->stck).num);\n"
+               "        BINARY(INTEGER_NEWNODE, WRAP_ADD(nodevalue(nextnode1(env->stck)).num, nodevalue(env->stck).num));\n"
                "    } else { plus_(env); }";
     if (strcmp(name, "-") == 0)
         return "if (nodetype(env->stck) == INTEGER_ && nodetype(nextnode1(env->stck)) == INTEGER_) {\n"
-               "        BINARY(INTEGER_NEWNODE, nodevalue(nextnode1(env->stck)).num - nodevalue(env->stck).num);\n"
+               "        BINARY(INTEGER_NEWNODE, WRAP_SUB(nodevalue(nextnode1(env->stck)).num, nodevalue(env->stck).num));\n"
                "    } else { minus_(env); }";
     if (strcmp(name, "*") == 0)
         return "if (nodetype(env->stck) == INTEGER_ && nodetype(nextnode1(env->stck)) == INTEGER_) {\n"
-               "        BINARY(INTEGER_NEWNODE, nodevalue(nextnode1(env->stck)).num * nodevalue(env->stck).num);\n"
+               "        BINARY(INTEGER_NEWNODE, WRAP_MUL(nodevalue(nextnode1(env->stck)).num, nodevalue(env->stck).num));\n"
                "    } else { mul_(env); }";
     if (strcmp(name, "<") == 0)
         return "if (nodetype(env->stck) == INTEGER_ && nodetype(nextnode1(env->stck)) == INTEGER_) {\n"
@@ -375,11 +276,11 @@ static const char* get_inline_op(const char* name) {
                "    } else { greater_(env); }";
     if (strcmp(name, "pred") == 0)
         return "if (nodetype(env->stck) == INTEGER_) {\n"
-               "        UNARY(INTEGER_NEWNODE, nodevalue(env->stck).num - 1);\n"
+               "        UNARY(INTEGER_NEWNODE, WRAP_SUB(nodevalue(env->stck).num, 1));\n"
                "    } else { pred_(env); }";
     if (strcmp(name, "succ") == 0)
         return "if (nodetype(env->stck) == INTEGER_) {\n"
-               "        UNARY(INTEGER_NEWNODE, nodevalue(env->stck).num + 1);\n"
+               "        UNARY(INTEGER_NEWNODE, WRAP_ADD(nodevalue(env->stck).num, 1));\n"
                "    } else { succ_(env); }";
     if (strcmp(name, "rollup") == 0)
         return "{ THREEPARAMS(\"rollup\"); SAVESTACK;\n"
@@ -396,6 +297,120 @@ static void emit_indent(Compiler* c, int indent) {
         cbuf_append(&c->out, "    ");
 }
 
+/* Count nodes needed to rebuild a quotation, including nested ones */
+static int quotation_nodes(pEnv env, Index list) {
+    int n = 0;
+    for (Index p = list; p; p = nextnode1(p)) {
+        n++;
+        if (nodetype(p) == LIST_)
+            n += quotation_nodes(env, nodevalue(p).lis);
+    }
+    return n;
+}
+
+/* Emit code that builds `list` into the C local _q<depth> */
+static void emit_quotation_build(Compiler* c, Index list, int depth, int indent) {
+    pEnv env = c->env;  /* Required for node macros */
+    char cname[256];
+
+    int count = 0;
+    for (Index p = list; p; p = nextnode1(p))
+        count++;
+
+    emit_indent(c, indent);
+    cbuf_printf(&c->out, "Index _q%d = 0;\n", depth);
+
+    /* Build in reverse order */
+    Index* terms = GC_malloc(count * sizeof(Index));
+    int i = 0;
+    for (Index p = list; p; p = nextnode1(p))
+        terms[i++] = p;
+
+    for (i = count - 1; i >= 0; i--) {
+        Index p = terms[i];
+        emit_indent(c, indent);
+
+        switch (nodetype(p)) {
+        case INTEGER_:
+            cbuf_printf(&c->out, "_q%d = INTEGER_NEWNODE(%lldLL, _q%d);\n", depth,
+                       (long long)nodevalue(p).num, depth);
+            break;
+
+        case FLOAT_:
+            cbuf_printf(&c->out, "_q%d = FLOAT_NEWNODE(%.17g, _q%d);\n", depth,
+                       nodevalue(p).dbl, depth);
+            break;
+
+        case BOOLEAN_:
+            cbuf_printf(&c->out, "_q%d = BOOLEAN_NEWNODE(%d, _q%d);\n", depth,
+                       nodevalue(p).num ? 1 : 0, depth);
+            break;
+
+        case CHAR_:
+            /* Numeric form: valid C for every value, including 0 and quotes */
+            cbuf_printf(&c->out, "_q%d = CHAR_NEWNODE(%lld, _q%d);\n", depth,
+                       (long long)nodevalue(p).num, depth);
+            break;
+
+        case STRING_: {
+            cbuf_printf(&c->out, "_q%d = STRING_NEWNODE(\"", depth);
+            const char* s = (const char*)&nodevalue(p);
+            while (*s) {
+                if (*s == '"') cbuf_append(&c->out, "\\\"");
+                else if (*s == '\\') cbuf_append(&c->out, "\\\\");
+                else if (*s == '\n') cbuf_append(&c->out, "\\n");
+                else if (*s == '\t') cbuf_append(&c->out, "\\t");
+                else cbuf_printf(&c->out, "%c", *s);
+                s++;
+            }
+            cbuf_printf(&c->out, "\", _q%d);\n", depth);
+            break;
+        }
+
+        case USR_: {
+            int ent_idx = nodevalue(p).ent;
+            Entry ent = vec_at(c->env->symtab, ent_idx);
+            if (ent.is_user) {
+                /* Collect this user function for emission */
+                collect_user_func(c, ent_idx);
+                sanitize_name(ent.name, cname, sizeof(cname));
+                cbuf_printf(&c->out, "_q%d = ANON_FUNCT_NEWNODE(%s, _q%d);\n",
+                           depth, cname, depth);
+            } else {
+                cbuf_printf(&c->out, "_q%d = USR_NEWNODE(lookup(env, \"%s\"), _q%d);\n",
+                           depth, ent.name, depth);
+            }
+            break;
+        }
+
+        case ANON_FUNCT_:
+            if (!builtin_cname(c, nodevalue(p).proc, cname, sizeof(cname)))
+                execerror(env, "known builtin in quotation", "compile-to-c");
+            cbuf_printf(&c->out, "_q%d = ANON_FUNCT_NEWNODE(%s, _q%d);\n",
+                       depth, cname, depth);
+            break;
+
+        case LIST_:
+            cbuf_append(&c->out, "{\n");
+            emit_quotation_build(c, nodevalue(p).lis, depth + 1, indent + 1);
+            emit_indent(c, indent + 1);
+            cbuf_printf(&c->out, "_q%d = LIST_NEWNODE(_q%d, _q%d);\n",
+                       depth, depth + 1, depth);
+            emit_indent(c, indent);
+            cbuf_append(&c->out, "}\n");
+            break;
+
+        case SET_:
+            cbuf_printf(&c->out, "_q%d = SET_NEWNODE(%lluULL, _q%d);\n", depth,
+                       (unsigned long long)nodevalue(p).set, depth);
+            break;
+
+        default:
+            execerror(env, "compilable term in quotation", "compile-to-c");
+        }
+    }
+}
+
 /* Emit code for pushing a quotation onto the stack */
 static void emit_quotation_push(Compiler* c, Index list, int indent) {
     pEnv env = c->env;  /* Required for node macros */
@@ -407,125 +422,14 @@ static void emit_quotation_push(Compiler* c, Index list, int indent) {
         return;
     }
 
-    /* Count terms */
-    int count = 0;
-    for (Index p = list; p; p = nextnode1(p))
-        count++;
-
-    cbuf_printf(&c->out, "/* push quotation [%d terms] */\n", count);
-    emit_indent(c, indent);
     cbuf_append(&c->out, "{\n");
+    /* Reserve every node up front: a GC during the build would move _q* */
     emit_indent(c, indent + 1);
-    cbuf_append(&c->out, "Index _q = 0;\n");
-
-    /* Build in reverse order */
-    Index* terms = GC_malloc(count * sizeof(Index));
-    int i = 0;
-    for (Index p = list; p; p = nextnode1(p))
-        terms[i++] = p;
-
-    for (i = count - 1; i >= 0; i--) {
-        Index p = terms[i];
-        emit_indent(c, indent + 1);
-
-        switch (nodetype(p)) {
-        case INTEGER_:
-            cbuf_printf(&c->out, "_q = INTEGER_NEWNODE(%lldLL, _q);\n",
-                       (long long)nodevalue(p).num);
-            break;
-
-        case FLOAT_:
-            cbuf_printf(&c->out, "_q = FLOAT_NEWNODE(%g, _q);\n", nodevalue(p).dbl);
-            break;
-
-        case BOOLEAN_:
-            cbuf_printf(&c->out, "_q = BOOLEAN_NEWNODE(%d, _q);\n",
-                       nodevalue(p).num ? 1 : 0);
-            break;
-
-        case CHAR_:
-            if (nodevalue(p).num == '\n')
-                cbuf_append(&c->out, "_q = CHAR_NEWNODE('\\n', _q);\n");
-            else if (nodevalue(p).num == '\t')
-                cbuf_append(&c->out, "_q = CHAR_NEWNODE('\\t', _q);\n");
-            else if (nodevalue(p).num == '\\')
-                cbuf_append(&c->out, "_q = CHAR_NEWNODE('\\\\', _q);\n");
-            else if (nodevalue(p).num == '\'')
-                cbuf_append(&c->out, "_q = CHAR_NEWNODE('\\'', _q);\n");
-            else
-                cbuf_printf(&c->out, "_q = CHAR_NEWNODE('%c', _q);\n",
-                           (char)nodevalue(p).num);
-            break;
-
-        case STRING_: {
-            cbuf_append(&c->out, "_q = STRING_NEWNODE(\"");
-            const char* s = (const char*)&nodevalue(p);
-            while (*s) {
-                if (*s == '"') cbuf_append(&c->out, "\\\"");
-                else if (*s == '\\') cbuf_append(&c->out, "\\\\");
-                else if (*s == '\n') cbuf_append(&c->out, "\\n");
-                else if (*s == '\t') cbuf_append(&c->out, "\\t");
-                else cbuf_printf(&c->out, "%c", *s);
-                s++;
-            }
-            cbuf_append(&c->out, "\", _q);\n");
-            break;
-        }
-
-        case USR_: {
-            int ent_idx = nodevalue(p).ent;
-            Entry ent = vec_at(c->env->symtab, ent_idx);
-            const char* cfunc = builtin_to_c(ent.name);
-            if (cfunc) {
-                cbuf_printf(&c->out, "_q = ANON_FUNCT_NEWNODE(%s, _q);\n", cfunc);
-            } else if (ent.is_user) {
-                /* Collect this user function for emission */
-                collect_user_func(c, ent_idx);
-                char cname[256];
-                sanitize_name(ent.name, cname, sizeof(cname));
-                cbuf_printf(&c->out, "_q = ANON_FUNCT_NEWNODE(%s, _q);\n", cname);
-            } else {
-                cbuf_printf(&c->out, "_q = USR_NEWNODE(lookup(env, \"%s\"), _q);\n",
-                           ent.name);
-            }
-            break;
-        }
-
-        case ANON_FUNCT_: {
-            /* Find the function name */
-            const char* fname = NULL;
-            for (int j = 0; j < (int)vec_size(c->env->symtab); j++) {
-                Entry ent = vec_at(c->env->symtab, j);
-                if (!ent.is_user && ent.u.proc == nodevalue(p).proc) {
-                    fname = builtin_to_c(ent.name);
-                    if (!fname) fname = ent.name;
-                    break;
-                }
-            }
-            if (fname)
-                cbuf_printf(&c->out, "_q = ANON_FUNCT_NEWNODE(%s, _q);\n", fname);
-            else
-                cbuf_append(&c->out, "/* unknown function */\n");
-            break;
-        }
-
-        case LIST_:
-            cbuf_append(&c->out, "/* nested quotation - TODO */\n");
-            break;
-
-        case SET_:
-            cbuf_printf(&c->out, "_q = SET_NEWNODE(%lluULL, _q);\n",
-                       (unsigned long long)nodevalue(p).set);
-            break;
-
-        default:
-            cbuf_append(&c->out, "/* unknown term type */\n");
-            break;
-        }
-    }
-
+    cbuf_printf(&c->out, "ensure_capacity(env, %d);\n",
+               quotation_nodes(env, list) + 1);
+    emit_quotation_build(c, list, 0, indent + 1);
     emit_indent(c, indent + 1);
-    cbuf_append(&c->out, "NULLARY(LIST_NEWNODE, _q);\n");
+    cbuf_append(&c->out, "NULLARY(LIST_NEWNODE, _q0);\n");
     emit_indent(c, indent);
     cbuf_append(&c->out, "}\n");
 }
@@ -715,7 +619,7 @@ static int is_foldable_binop(const char* name) {
     if (!name) return 0;
     return strcmp(name, "+") == 0 || strcmp(name, "-") == 0 ||
            strcmp(name, "*") == 0 || strcmp(name, "/") == 0 ||
-           strcmp(name, "rem") == 0 || strcmp(name, "div") == 0 ||
+           strcmp(name, "rem") == 0 ||
            strcmp(name, "max") == 0 || strcmp(name, "min") == 0 ||
            strcmp(name, "<") == 0 || strcmp(name, "<=") == 0 ||
            strcmp(name, ">") == 0 || strcmp(name, ">=") == 0 ||
@@ -760,29 +664,25 @@ static int apply_binop(const char* op,
 
     if (strcmp(op, "+") == 0) {
         if (use_float) { *r_is_float = 1; *r_dbl = a + b; }
-        else { *r_is_float = 0; *r_int = a_int + b_int; }
+        else { *r_is_float = 0; *r_int = WRAP_ADD(a_int, b_int); }
     } else if (strcmp(op, "-") == 0) {
         if (use_float) { *r_is_float = 1; *r_dbl = a - b; }
-        else { *r_is_float = 0; *r_int = a_int - b_int; }
+        else { *r_is_float = 0; *r_int = WRAP_SUB(a_int, b_int); }
     } else if (strcmp(op, "*") == 0) {
         if (use_float) { *r_is_float = 1; *r_dbl = a * b; }
-        else { *r_is_float = 0; *r_int = a_int * b_int; }
+        else { *r_is_float = 0; *r_int = WRAP_MUL(a_int, b_int); }
     } else if (strcmp(op, "/") == 0) {
         if (use_float) {
             if (b == 0.0) return 0;  /* division by zero */
             *r_is_float = 1; *r_dbl = a / b;
         } else {
             if (b_int == 0) return 0;  /* division by zero */
-            *r_is_float = 0; *r_int = a_int / b_int;
+            *r_is_float = 0; *r_int = WRAP_DIV(a_int, b_int);
         }
     } else if (strcmp(op, "rem") == 0) {
         if (use_float) return 0;  /* rem only for integers */
         if (b_int == 0) return 0;
-        *r_is_float = 0; *r_int = a_int % b_int;
-    } else if (strcmp(op, "div") == 0) {
-        if (use_float) return 0;  /* div only for integers */
-        if (b_int == 0) return 0;
-        *r_is_float = 0; *r_int = a_int / b_int;
+        *r_is_float = 0; *r_int = WRAP_REM(a_int, b_int);
     } else if (strcmp(op, "max") == 0) {
         if (use_float) { *r_is_float = 1; *r_dbl = a > b ? a : b; }
         else { *r_is_float = 0; *r_int = a_int > b_int ? a_int : b_int; }
@@ -790,17 +690,23 @@ static int apply_binop(const char* op,
         if (use_float) { *r_is_float = 1; *r_dbl = a < b ? a : b; }
         else { *r_is_float = 0; *r_int = a_int < b_int ? a_int : b_int; }
     } else if (strcmp(op, "<") == 0) {
-        *r_is_bool = 1; *r_is_float = 0; *r_int = a < b;
+        *r_is_bool = 1; *r_is_float = 0;
+        *r_int = use_float ? a < b : a_int < b_int;
     } else if (strcmp(op, "<=") == 0) {
-        *r_is_bool = 1; *r_is_float = 0; *r_int = a <= b;
+        *r_is_bool = 1; *r_is_float = 0;
+        *r_int = use_float ? a <= b : a_int <= b_int;
     } else if (strcmp(op, ">") == 0) {
-        *r_is_bool = 1; *r_is_float = 0; *r_int = a > b;
+        *r_is_bool = 1; *r_is_float = 0;
+        *r_int = use_float ? a > b : a_int > b_int;
     } else if (strcmp(op, ">=") == 0) {
-        *r_is_bool = 1; *r_is_float = 0; *r_int = a >= b;
+        *r_is_bool = 1; *r_is_float = 0;
+        *r_int = use_float ? a >= b : a_int >= b_int;
     } else if (strcmp(op, "=") == 0) {
-        *r_is_bool = 1; *r_is_float = 0; *r_int = a == b;
+        *r_is_bool = 1; *r_is_float = 0;
+        *r_int = use_float ? a == b : a_int == b_int;
     } else if (strcmp(op, "!=") == 0) {
-        *r_is_bool = 1; *r_is_float = 0; *r_int = a != b;
+        *r_is_bool = 1; *r_is_float = 0;
+        *r_int = use_float ? a != b : a_int != b_int;
     } else if (strcmp(op, "and") == 0) {
         *r_is_bool = 1; *r_is_float = 0; *r_int = (a_int != 0) && (b_int != 0);
     } else if (strcmp(op, "or") == 0) {
@@ -822,16 +728,16 @@ static int apply_unaryop(const char* op,
 
     if (strcmp(op, "neg") == 0) {
         if (a_is_float) { *r_is_float = 1; *r_dbl = -a_dbl; }
-        else { *r_is_float = 0; *r_int = -a_int; }
+        else { *r_is_float = 0; *r_int = WRAP_NEG(a_int); }
     } else if (strcmp(op, "abs") == 0) {
         if (a_is_float) { *r_is_float = 1; *r_dbl = a_dbl < 0 ? -a_dbl : a_dbl; }
-        else { *r_is_float = 0; *r_int = a_int < 0 ? -a_int : a_int; }
+        else { *r_is_float = 0; *r_int = a_int < 0 ? WRAP_NEG(a_int) : a_int; }
     } else if (strcmp(op, "succ") == 0) {
         if (a_is_float) { *r_is_float = 1; *r_dbl = a_dbl + 1; }
-        else { *r_is_float = 0; *r_int = a_int + 1; }
+        else { *r_is_float = 0; *r_int = WRAP_ADD(a_int, 1); }
     } else if (strcmp(op, "pred") == 0) {
         if (a_is_float) { *r_is_float = 1; *r_dbl = a_dbl - 1; }
-        else { *r_is_float = 0; *r_int = a_int - 1; }
+        else { *r_is_float = 0; *r_int = WRAP_SUB(a_int, 1); }
     } else if (strcmp(op, "not") == 0) {
         *r_is_bool = 1; *r_is_float = 0; *r_int = a_int == 0;
     } else if (strcmp(op, "sign") == 0) {
@@ -1053,22 +959,8 @@ static void emit_term(Compiler* c, Index n, int indent) {
     case USR_: {
         int ent_idx = nodevalue(n).ent;
         Entry ent = vec_at(c->env->symtab, ent_idx);
-        const char* cfunc = builtin_to_c(ent.name);
 
-        if (c->inline_ops) {
-            const char* inline_code = get_inline_op(ent.name);
-            if (inline_code) {
-                cbuf_printf(&c->out, "/* %s */\n", ent.name);
-                emit_indent(c, indent + 1);
-                cbuf_append(&c->out, inline_code);
-                cbuf_append(&c->out, "\n");
-                return;
-            }
-        }
-
-        if (cfunc) {
-            cbuf_printf(&c->out, "%s(env);\n", cfunc);
-        } else if (ent.is_user) {
+        if (ent.is_user) {
             /* Collect this user function for emission */
             collect_user_func(c, ent_idx);
             char cname[256];
@@ -1089,30 +981,26 @@ static void emit_term(Compiler* c, Index n, int indent) {
     }
 
     case ANON_FUNCT_: {
-        /* Anonymous function - find its name */
-        const char* fname = NULL;
-        for (int i = 0; i < (int)vec_size(c->env->symtab); i++) {
-            Entry ent = vec_at(c->env->symtab, i);
-            if (!ent.is_user && ent.u.proc == nodevalue(n).proc) {
-                fname = builtin_to_c(ent.name);
-                if (!fname) {
-                    /* Unknown builtin, call by name */
-                    cbuf_printf(&c->out, "%s_(env);\n", ent.name);
-                    return;
-                }
-                break;
+        char cname[256];
+        if (!builtin_cname(c, nodevalue(n).proc, cname, sizeof(cname)))
+            execerror(env, "known builtin", "compile-to-c");
+        if (c->inline_ops) {
+            const char* name = get_op_name(c, n);
+            const char* inline_code = get_inline_op(name);
+            if (inline_code) {
+                cbuf_printf(&c->out, "/* %s */\n", name);
+                emit_indent(c, indent + 1);
+                cbuf_append(&c->out, inline_code);
+                cbuf_append(&c->out, "\n");
+                return;
             }
         }
-        if (fname)
-            cbuf_printf(&c->out, "%s(env);\n", fname);
-        else
-            cbuf_append(&c->out, "/* unknown anonymous function */\n");
+        cbuf_printf(&c->out, "%s(env);\n", cname);
         break;
     }
 
     default:
-        cbuf_printf(&c->out, "/* unhandled node type %d */\n", nodetype(n));
-        break;
+        execerror(env, "compilable term", "compile-to-c");
     }
 }
 
@@ -1295,13 +1183,6 @@ void compile_to_file_(pEnv env)
     POP(env->stck);
     LIST("compile-to-file");
 
-    /* Open output file */
-    fp = fopen(filename, "w");
-    if (!fp) {
-        execerror(env, "cannot open output file", "compile-to-file");
-        return;
-    }
-
     /* Initialize compiler */
     c.env = env;
     c.quot_counter = 0;
@@ -1348,7 +1229,12 @@ void compile_to_file_(pEnv env)
     /* Emit entry point */
     emit_entry_point(&c);
 
-    /* Write to file and close */
+    /* Open only after generation: a compile error must not leak the file */
+    fp = fopen(filename, "w");
+    if (!fp) {
+        execerror(env, "cannot open output file", "compile-to-file");
+        return;
+    }
     fputs(c.out.data, fp);
     fflush(fp);
     fclose(fp);

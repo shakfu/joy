@@ -30,6 +30,7 @@ void joy_highlight_free(void);
  *   definitions - blue
  *   booleans - orange
  */
-void joy_highlight_callback(const char *buf, char *colors, size_t len);
+void joy_highlight_callback(const char *buf, char *colors, size_t len,
+                            size_t pos, void *udata);
 
 #endif /* HIGHLIGHT_JOY_H */

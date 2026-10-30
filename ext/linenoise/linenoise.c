@@ -216,9 +216,15 @@ static char *unsupported_term[] = {"dumb","cons25","emacs",NULL};
 
 /* ======================= Error Handling ==================================== */
 
-/* Thread-local error code (using static for single-threaded simplicity).
- * For true thread-safety, this should use thread-local storage. */
-static linenoise_error_t last_error = LINENOISE_OK;
+/* Error code of the last failed call on the calling thread. */
+#if defined(_MSC_VER)
+#define LN_THREAD_LOCAL __declspec(thread)
+#elif defined(__GNUC__) || defined(__clang__)
+#define LN_THREAD_LOCAL __thread
+#else
+#define LN_THREAD_LOCAL
+#endif
+static LN_THREAD_LOCAL linenoise_error_t last_error = LINENOISE_OK;
 
 static void set_error(linenoise_error_t err) {
     last_error = err;
@@ -291,22 +297,28 @@ static char *ln_strdup(const char *s) {
 static char *linenoise_no_tty(void);
 static void refresh_line_with_completion(linenoise_state_t *ls, linenoise_completions_t *lc, int flags);
 static void refresh_line_with_flags(linenoise_state_t *l, int flags);
-static int history_add(const char *line);
+static void undo_save(linenoise_state_t *l);
+static int edit_grow(linenoise_state_t *l, size_t needed);
+static int edit_insert_no_refresh(linenoise_state_t *l, const char *c, size_t clen);
+static int range_overlaps_fold(linenoise_state_t *l, size_t pos, size_t len);
+static void adjust_folds_after_delete(linenoise_state_t *l, size_t pos, size_t len);
+static int history_push(linenoise_context_t *ctx, const char *line);
+static void history_drop_placeholder(linenoise_state_t *l);
+static void fold_clear(linenoise_state_t *l);
 
 /* ======================= Context Structure ================================= */
 
 /* The linenoise_context structure encapsulates all state for one linenoise
- * instance. This enables thread-safe usage and multiple independent instances.
- * The old global API uses a default context for backward compatibility. */
+ * instance. Editing code reaches it through linenoise_state_t.ctx. */
 struct linenoise_context {
     /* Terminal state */
-#ifdef _WIN32
-    DWORD orig_console_mode;
-#else
+#ifndef _WIN32
     struct termios orig_termios;
 #endif
     int rawmode;
-    int atexit_registered;
+    int raw_fd;         /* fd put in raw mode, restored at exit */
+    linenoise_state_t *session; /* Active editing session, or NULL. */
+    int placeholder;    /* history[history_len-1] is the session's own line */
 
     /* Configuration */
     int maskmode;
@@ -323,26 +335,15 @@ struct linenoise_context {
     linenoise_hints_cb_t *hints_callback;
     linenoise_free_hints_cb_t *free_hints_callback;
     linenoise_highlight_cb_t *highlight_callback;
+    void *completion_udata;
+    void *hints_udata;
+    void *highlight_udata;
 };
 
-/* Internal global variables used by the editing functions. */
-static linenoise_completion_cb_t *completion_callback = NULL;
-static linenoise_hints_cb_t *hints_callback = NULL;
-static linenoise_free_hints_cb_t *free_hints_callback = NULL;
-static linenoise_highlight_cb_t *highlight_callback = NULL;
-#ifdef _WIN32
-static DWORD orig_console_mode; /* In order to restore at exit.*/
-#else
-static struct termios orig_termios; /* In order to restore at exit.*/
-#endif
-static int maskmode = 0; /* Show "***" instead of input. For passwords. */
-static int rawmode = 0; /* For atexit() function to check if restore is needed*/
-static int mlmode = 0;  /* Multi line mode. Default is single line. */
-static int mousemode = 0; /* Mouse tracking mode. */
-static int atexit_registered = 0; /* Register atexit just 1 time. */
-static int history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
-static int history_len = 0;
-static char **history = NULL;
+/* Process-wide terminal restore at exit: covers the context that most
+ * recently entered raw mode. */
+static int atexit_registered = 0;
+static linenoise_context_t *raw_ctx = NULL;
 
 /* UTF-8 support is now provided by src/utf8.c via internal/utf8.h.
  * The compatibility macros above map old function names to the new module. */
@@ -357,6 +358,7 @@ enum KEY_ACTION{
 	CTRL_F = 6,         /* Ctrl-f */
 	CTRL_H = 8,         /* Ctrl-h */
 	TAB = 9,            /* Tab */
+	CTRL_J = 10,        /* Ctrl-j, newline */
 	CTRL_K = 11,        /* Ctrl+k */
 	CTRL_L = 12,        /* Ctrl+l */
 	ENTER = 13,         /* Enter */
@@ -429,14 +431,14 @@ static HANDLE h_console_output = INVALID_HANDLE_VALUE;
 static DWORD orig_input_mode = 0;
 static DWORD orig_output_mode = 0;
 
-/* Raw mode for Windows using VT100 emulation (Windows 10+). */
-static int enable_raw_mode(int fd) {
+/* Raw mode for Windows using VT100 emulation (Windows 10+). The console is
+ * per process, so its original modes are kept in globals. */
+static int enable_raw_mode(linenoise_context_t *ctx, int fd) {
     DWORD input_mode, output_mode;
-    (void)fd;  /* Unused on Windows. */
 
     /* Test mode: when LINENOISE_ASSUME_TTY is set, skip terminal setup. */
     if (getenv("LINENOISE_ASSUME_TTY")) {
-        rawmode = 1;
+        ctx->rawmode = 1;
         return 0;
     }
 
@@ -480,23 +482,24 @@ static int enable_raw_mode(int fd) {
         return -1;
     }
 
-    rawmode = 1;
+    ctx->rawmode = 1;
+    ctx->raw_fd = fd;
+    raw_ctx = ctx;
     return 0;
 }
 
-static void disable_raw_mode(int fd) {
-    (void)fd;
-
+static void disable_raw_mode(linenoise_context_t *ctx) {
     if (getenv("LINENOISE_ASSUME_TTY")) {
-        rawmode = 0;
+        ctx->rawmode = 0;
         return;
     }
 
-    if (rawmode) {
+    if (ctx->rawmode) {
         SetConsoleMode(h_console_input, orig_input_mode);
         SetConsoleMode(h_console_output, orig_output_mode);
-        rawmode = 0;
+        ctx->rawmode = 0;
     }
+    if (raw_ctx == ctx) raw_ctx = NULL;
 }
 
 /* Read a single byte with a timeout on Windows. */
@@ -526,24 +529,24 @@ static int read_byte_with_timeout(int fd, char *c, int timeout_ms) {
 #else /* POSIX */
 
 /* Raw mode: 1960 magic shit. */
-static int enable_raw_mode(int fd) {
+static int enable_raw_mode(linenoise_context_t *ctx, int fd) {
     struct termios raw;
 
     /* Test mode: when LINENOISE_ASSUME_TTY is set, skip terminal setup.
      * This allows testing via pipes without a real terminal. */
     if (getenv("LINENOISE_ASSUME_TTY")) {
-        rawmode = 1;
+        ctx->rawmode = 1;
         return 0;
     }
 
-    if (!isatty(STDIN_FILENO)) goto fatal;
+    if (!isatty(fd)) goto fatal;
     if (!atexit_registered) {
         atexit(linenoise_at_exit);
         atexit_registered = 1;
     }
-    if (tcgetattr(fd,&orig_termios) == -1) goto fatal;
+    if (tcgetattr(fd,&ctx->orig_termios) == -1) goto fatal;
 
-    raw = orig_termios;  /* modify the original mode */
+    raw = ctx->orig_termios;  /* modify the original mode */
     /* input modes: no break, no CR to NL, no parity check, no strip char,
      * no start/stop output control. */
     raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
@@ -558,9 +561,11 @@ static int enable_raw_mode(int fd) {
      * We want read to return every single byte, without timeout. */
     raw.c_cc[VMIN] = 1; raw.c_cc[VTIME] = 0; /* 1 byte, no timer */
 
-    /* put terminal in raw mode after flushing */
-    if (tcsetattr(fd,TCSAFLUSH,&raw) < 0) goto fatal;
-    rawmode = 1;
+    /* put terminal in raw mode; TCSADRAIN keeps unread input */
+    if (tcsetattr(fd,TCSADRAIN,&raw) < 0) goto fatal;
+    ctx->rawmode = 1;
+    ctx->raw_fd = fd;
+    raw_ctx = ctx;
     return 0;
 
 fatal:
@@ -568,15 +573,16 @@ fatal:
     return -1;
 }
 
-static void disable_raw_mode(int fd) {
+static void disable_raw_mode(linenoise_context_t *ctx) {
     /* Test mode: nothing to restore. */
     if (getenv("LINENOISE_ASSUME_TTY")) {
-        rawmode = 0;
+        ctx->rawmode = 0;
         return;
     }
     /* Don't even check the return value as it's too late. */
-    if (rawmode && tcsetattr(fd,TCSAFLUSH,&orig_termios) != -1)
-        rawmode = 0;
+    if (ctx->rawmode && tcsetattr(ctx->raw_fd,TCSADRAIN,&ctx->orig_termios) != -1)
+        ctx->rawmode = 0;
+    if (raw_ctx == ctx) raw_ctx = NULL;
 }
 
 /* Read a single byte with a timeout. Returns 1 on success, 0 on timeout,
@@ -613,12 +619,24 @@ static void disable_mouse_tracking(int fd) {
     if (write(fd, seq, strlen(seq)) == -1) { /* Ignore errors */ }
 }
 
+/* Ask the terminal to wrap pasted input between ESC[200~ and ESC[201~, so
+ * that a paste can be told apart from typed input. */
+static void enable_bracketed_paste(int fd) {
+    if (write(fd, "\x1b[?2004h", 8) == -1) { /* Ignore errors */ }
+}
+
+/* Leave bracketed paste mode. */
+static void disable_bracketed_paste(int fd) {
+    if (write(fd, "\x1b[?2004l", 8) == -1) { /* Ignore errors */ }
+}
+
 #ifdef _WIN32
 
-/* Get terminal columns on Windows. */
-static int get_columns(int ifd, int ofd) {
+/* Return the terminal width from LINENOISE_COLS or the console, or -1.
+ * It has no side effects, so it can run on every key. */
+static int query_columns(int ofd) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
-    (void)ifd; (void)ofd;
+    (void)ofd;
 
     /* Test mode: use LINENOISE_COLS env var for fixed width. */
     char *cols_env = getenv("LINENOISE_COLS");
@@ -627,7 +645,14 @@ static int get_columns(int ifd, int ofd) {
     if (GetConsoleScreenBufferInfo(h_console_output, &csbi)) {
         return csbi.srWindow.Right - csbi.srWindow.Left + 1;
     }
-    return 80;
+    return -1;
+}
+
+/* Get terminal columns on Windows. */
+static int get_columns(int ifd, int ofd) {
+    int cols = query_columns(ofd);
+    (void)ifd;
+    return cols > 0 ? cols : 80;
 }
 
 /* Internal: Clear the screen on Windows. */
@@ -676,18 +701,28 @@ static int get_cursor_position(int ifd, int ofd) {
     return cols;
 }
 
-/* Try to get the number of columns in the current terminal, or assume 80
- * if it fails. */
-static int get_columns(int ifd, int ofd) {
+/* Return the terminal width from LINENOISE_COLS or the window size ioctl,
+ * or -1. It has no side effects, so it can run on every key. */
+static int query_columns(int ofd) {
     struct winsize ws;
 
     /* Test mode: use LINENOISE_COLS env var for fixed width. */
     char *cols_env = getenv("LINENOISE_COLS");
     if (cols_env) return atoi(cols_env);
 
-    if (ioctl(1, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
-        /* ioctl() failed. Try to query the terminal itself. */
-        int start, cols;
+    if (ioctl(ofd, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) return -1;
+    return ws.ws_col;
+}
+
+/* Try to get the number of columns in the current terminal, or assume 80
+ * if it fails. */
+static int get_columns(int ifd, int ofd) {
+    int cols = query_columns(ofd);
+
+    if (cols <= 0) {
+        /* ioctl() failed. Try to query the terminal itself. The reply is
+         * read from ifd, so this must not run while the user types. */
+        int start;
 
         /* Get the initial position so we can restore it later. */
         start = get_cursor_position(ifd,ofd);
@@ -706,10 +741,8 @@ static int get_columns(int ifd, int ofd) {
                 /* Can't recover... */
             }
         }
-        return cols;
-    } else {
-        return ws.ws_col;
     }
+    return cols;
 
 failed:
     return 80;
@@ -742,6 +775,20 @@ static void free_completions(linenoise_completions_t *lc) {
         ln_free(lc->cvec);
 }
 
+/* Ask the callback for the completions at the cursor. The replacement span
+ * comes from caller code, so it is made safe here: a start past the cursor
+ * becomes the cursor, and a start inside a UTF-8 sequence moves back to its
+ * first byte. */
+static void get_completions(linenoise_state_t *ls, linenoise_completions_t *lc) {
+    lc->len = 0;
+    lc->cvec = NULL;
+    lc->start = 0;
+    ls->ctx->completion_callback(ls->buf,ls->pos,lc,ls->ctx->completion_udata);
+    if (lc->start > ls->pos) lc->start = ls->pos;
+    while (lc->start > 0 && ((unsigned char)ls->buf[lc->start] & 0xC0) == 0x80)
+        lc->start--;
+}
+
 /* Called by complete_line() and linenoise_show() to render the current
  * edited line with the proposed completion. If the current completion table
  * is already available, it is passed as second argument, otherwise the
@@ -750,27 +797,68 @@ static void free_completions(linenoise_completions_t *lc) {
  * Flags are the same as refresh_line*(), that is REFRESH_* macros. */
 static void refresh_line_with_completion(linenoise_state_t *ls, linenoise_completions_t *lc, int flags) {
     /* Obtain the table of completions if the caller didn't provide one. */
-    linenoise_completions_t ctable = { 0, NULL };
+    linenoise_completions_t ctable;
     if (lc == NULL) {
-        completion_callback(ls->buf,&ctable);
+        get_completions(ls,&ctable);
         lc = &ctable;
     }
 
-    /* Show the edited line with completion if possible, or just refresh. */
-    if (ls->completion_idx < lc->len) {
+    /* Show the line with the span replaced by the candidate if possible, or
+     * just refresh. */
+    const char *cand = ls->completion_idx < lc->len ? lc->cvec[ls->completion_idx] : NULL;
+    size_t clen = cand ? strlen(cand) : 0;
+    size_t tail = ls->len - ls->pos;
+    char *preview = cand ? ln_malloc(lc->start + clen + tail + 1) : NULL;
+    if (preview) {
         linenoise_state_t saved = *ls;
-        ls->len = ls->pos = strlen(lc->cvec[ls->completion_idx]);
-        ls->buf = lc->cvec[ls->completion_idx];
+        int j;
+
+        memcpy(preview, ls->buf, lc->start);
+        memcpy(preview + lc->start, cand, clen);
+        memcpy(preview + lc->start + clen, ls->buf + ls->pos, tail + 1);
+        /* The span never overlaps a fold, so folds after it only shift. */
+        for (j = 0; j < ls->fold_count; j++) {
+            if (ls->fold_start[j] >= ls->pos) {
+                ls->fold_start[j] = ls->fold_start[j] - ls->pos + lc->start + clen;
+                ls->fold_end[j] = ls->fold_end[j] - ls->pos + lc->start + clen;
+            }
+        }
+        ls->buf = preview;
+        ls->buflen = ls->len = lc->start + clen + tail;
+        ls->pos = lc->start + clen;
         refresh_line_with_flags(ls,flags);
+        ls->buf = saved.buf;
+        ls->buflen = saved.buflen;
         ls->len = saved.len;
         ls->pos = saved.pos;
-        ls->buf = saved.buf;
+        memcpy(ls->fold_start, saved.fold_start, sizeof(saved.fold_start));
+        memcpy(ls->fold_end, saved.fold_end, sizeof(saved.fold_end));
+        ln_free(preview);
     } else {
         refresh_line_with_flags(ls,flags);
     }
 
     /* Free the completions table if we allocated it locally. */
     if (lc == &ctable) free_completions(&ctable);
+}
+
+/* Replace buf[start, pos) with 'cand' and put the cursor after it. A
+ * candidate that does not fit is truncated at a UTF-8 boundary. */
+static void completion_accept(linenoise_state_t *ls, size_t start, const char *cand) {
+    size_t clen = strlen(cand);
+    size_t span = ls->pos - start;
+
+    undo_save(ls);
+    memmove(ls->buf+start, ls->buf+ls->pos, ls->len-ls->pos+1);
+    ls->len -= span;
+    adjust_folds_after_delete(ls,start,span);
+    ls->pos = start;
+
+    if (clen > SIZE_MAX-ls->len || edit_grow(ls,ls->len+clen) == -1) {
+        clen = ls->buflen > ls->len ? ls->buflen - ls->len : 0;
+        while (clen > 0 && ((unsigned char)cand[clen] & 0xC0) == 0x80) clen--;
+    }
+    edit_insert_no_refresh(ls,cand,clen);
 }
 
 /* This is an helper function for linenoise_edit_*() and is called when the
@@ -788,14 +876,14 @@ static void refresh_line_with_completion(linenoise_state_t *ls, linenoise_comple
  * possible completions, and the caller should read for the next characters
  * from stdin. */
 static int complete_line(linenoise_state_t *ls, int keypressed) {
-    linenoise_completions_t lc = { 0, NULL };
-    int nwritten;
+    linenoise_completions_t lc;
     char c = keypressed;
 
-    completion_callback(ls->buf,&lc);
-    if (lc.len == 0) {
+    get_completions(ls,&lc);
+    if (lc.len == 0 || range_overlaps_fold(ls,lc.start,ls->pos-lc.start)) {
         linenoise_beep();
         ls->in_completion = 0;
+        c = 0; /* The key was consumed: don't insert a literal TAB. */
     } else {
         switch(c) {
             case 9: /* tab */
@@ -808,7 +896,7 @@ static int complete_line(linenoise_state_t *ls, int keypressed) {
                 }
                 c = 0;
                 break;
-            case 27: /* escape */
+            case ESC: /* lone ESC, Up or Down, see complete_line_end() */
                 /* Re-show original buffer */
                 if (ls->completion_idx < lc.len) refresh_line(ls);
                 ls->in_completion = 0;
@@ -816,11 +904,8 @@ static int complete_line(linenoise_state_t *ls, int keypressed) {
                 break;
             default:
                 /* Update buffer and return */
-                if (ls->completion_idx < lc.len) {
-                    nwritten = snprintf(ls->buf,ls->buflen,"%s",
-                        lc.cvec[ls->completion_idx]);
-                    ls->len = ls->pos = nwritten;
-                }
+                if (ls->completion_idx < lc.len)
+                    completion_accept(ls,lc.start,lc.cvec[ls->completion_idx]);
                 ls->in_completion = 0;
                 break;
         }
@@ -835,6 +920,13 @@ static int complete_line(linenoise_state_t *ls, int keypressed) {
 
     free_completions(&lc);
     return c; /* Return last read character */
+}
+
+/* End an active completion on an escape sequence: accept the shown candidate,
+ * or restore the line as typed. */
+static void complete_line_end(linenoise_state_t *ls, int accept) {
+    if (ls->in_completion && ls->ctx->completion_callback != NULL)
+        complete_line(ls, accept ? 0 : ESC);
 }
 
 /* This function is used by the callback function registered by the user
@@ -886,8 +978,313 @@ static void ab_free(struct abuf *ab) {
     ln_free(ab->b);
 }
 
+/* ===================== Bracketed paste and folding ======================== */
+
+/* Minimum byte length of a single line paste before it gets folded. */
+#define PASTE_FOLD_THRESHOLD 200
+/* Context characters kept visible around a fold rebuilt from history. */
+#define PASTE_FOLD_CONTEXT 8
+/* Upper bound for a single paste, and for the growth of a dynamic buffer. */
+#define PASTE_MAX_BYTES (1024*1024)
+
+/* A fold is a display-only replacement for a range in l->buf. The edited
+ * buffer always keeps the real bytes; the refresh code asks render_buffer()
+ * for a temporary printable version plus the cursor position inside it. */
+struct fold {
+    size_t start;
+    size_t end;
+    char display[64];
+    size_t displaylen;
+};
+
+struct folds {
+    int count;
+    struct fold fold[LINENOISE_MAX_FOLDS];
+};
+
+/* Return the number of logical lines in the range. */
+static size_t fold_count_lines(const char *buf, size_t len) {
+    size_t lines = 1, j;
+    for (j = 0; j < len; j++) {
+        if (buf[j] == '\n') lines++;
+    }
+    return lines;
+}
+
+/* Return true if the text should be folded: if it contains newlines or is at
+ * least PASTE_FOLD_THRESHOLD bytes long. */
+static int should_fold_text(const char *buf, size_t len) {
+    return memchr(buf, '\n', len) != NULL || len >= PASTE_FOLD_THRESHOLD;
+}
+
+/* Fill f->display with the text shown instead of the folded range. */
+static void fold_set_rendered_text(struct fold *f, const char *buf) {
+    size_t hidden = f->end - f->start;
+    size_t lines = fold_count_lines(buf + f->start, hidden);
+    int n;
+
+    if (lines > 1)
+        n = snprintf(f->display,sizeof(f->display),
+                     "[... %lu pasted lines ...]",(unsigned long)lines);
+    else
+        n = snprintf(f->display,sizeof(f->display),
+                     "[... %lu pasted chars ...]",(unsigned long)hidden);
+    if (n < 0) n = 0;
+    f->displaylen = (size_t)n;
+}
+
+/* Populate f with one fold reconstructed from a history entry. History stores
+ * the real text, but not the original paste boundaries, so we reconstruct an
+ * approximation of the text we want to hide on the fly: if it is long or
+ * contains newlines. */
+static int build_history_fold(linenoise_state_t *l, struct fold *f) {
+    f->start = f->end = f->displaylen = 0;
+    if (l->len == 0 || l->ctx->maskmode) return 0;
+    if (!should_fold_text(l->buf,l->len)) return 0;
+
+    f->start = 0;
+    f->end = l->len;
+    if (l->len > PASTE_FOLD_CONTEXT*2) {
+        size_t pos = 0, chars = 0;
+        int nl = 0;
+
+        /* We leave (if possible) a few chars on the start before the fold,
+         * to give context. */
+        while (pos < l->len && chars < PASTE_FOLD_CONTEXT) {
+            size_t step = utf8NextCharLen(l->buf,pos,l->len);
+            if (step == 0 || pos + step > l->len) break;
+            if (l->buf[pos] == '\n') nl = 1;
+            pos += step;
+            chars++;
+        }
+        f->start = nl ? 0 : pos;
+
+        /* And also on the end side. */
+        pos = l->len;
+        chars = 0;
+        nl = 0;
+        while (pos > 0 && chars < PASTE_FOLD_CONTEXT) {
+            size_t step = utf8PrevCharLen(l->buf,pos);
+            if (step == 0 || step > pos) break;
+            pos -= step;
+            if (l->buf[pos] == '\n') nl = 1;
+            chars++;
+        }
+        f->end = nl ? l->len : pos;
+        if (f->start >= f->end) {
+            f->start = 0;
+            f->end = l->len;
+        }
+    }
+    fold_set_rendered_text(f,l->buf);
+    return 1;
+}
+
+/* Populate fs with the folds to render for the current buffer. As a side
+ * effect, the rendered text of each fold is updated. Return 1 if folding
+ * should be used, or 0 if the buffer should be rendered as-is. */
+static int get_render_folds(linenoise_state_t *l, struct folds *fs) {
+    int j;
+
+    fs->count = 0;
+    if (l->len == 0 || l->ctx->maskmode) return 0;
+
+    for (j = 0; j < l->fold_count; j++) {
+        struct fold *f;
+        size_t start = l->fold_start[j];
+        size_t end = l->fold_end[j];
+
+        if (start >= end || end > l->len) continue;
+        f = fs->fold + fs->count++;
+        f->start = start;
+        f->end = end;
+        fold_set_rendered_text(f,l->buf);
+    }
+    return fs->count != 0;
+}
+
+/* Return the freshly allocated string content that is actually displayed in
+ * the user prompt. It can be the actual edited line, or a special version
+ * where pasted or multiline history ranges are replaced by their folded
+ * "[...]" style versions. outpos is l->pos translated into this rendered
+ * buffer. Returns 0 on success, -1 on allocation failure. */
+static int render_buffer(linenoise_state_t *l, char **out, size_t *outlen, size_t *outpos) {
+    struct folds fs;
+    size_t len, pos, src, dst;
+    char *r;
+    int j, pos_set = 0;
+
+    if (!get_render_folds(l,&fs)) {
+        /* Keep the refresh code simple: it always owns a temporary render
+         * buffer, even when the render is identical to the real edit buffer. */
+        r = ln_malloc(l->len+1);
+        if (r == NULL) return -1;
+        memcpy(r,l->buf,l->len);
+        r[l->len] = '\0';
+        *out = r;
+        *outlen = l->len;
+        *outpos = l->pos;
+        return 0;
+    }
+
+    /* Gaps are copied as-is, folded ranges are replaced by their markers.
+     * The bytes inside each [start,end) range stay in l->buf but are not
+     * emitted to the terminal. */
+    len = l->len;
+    for (j = 0; j < fs.count; j++) {
+        struct fold *f = fs.fold+j;
+        len -= f->end - f->start;
+        len += f->displaylen;
+    }
+    r = ln_malloc(len+1);
+    if (r == NULL) return -1;
+
+    src = dst = 0;
+    pos = 0;
+    for (j = 0; j < fs.count; j++) {
+        struct fold *f = fs.fold+j;
+        size_t gap = f->start - src;
+
+        if (!pos_set && l->pos <= f->start) {
+            pos = dst + (l->pos - src);
+            pos_set = 1;
+        }
+        memcpy(r+dst,l->buf+src,gap);
+        dst += gap;
+
+        if (!pos_set && l->pos < f->end) {
+            pos = dst + f->displaylen;
+            pos_set = 1;
+        }
+        memcpy(r+dst,f->display,f->displaylen);
+        dst += f->displaylen;
+        if (!pos_set && l->pos == f->end) {
+            pos = dst;
+            pos_set = 1;
+        }
+        src = f->end;
+    }
+    if (!pos_set) pos = dst + (l->pos - src);
+    memcpy(r+dst,l->buf+src,l->len-src);
+    r[len] = '\0';
+
+    *out = r;
+    *outlen = len;
+    *outpos = pos;
+    return 0;
+}
+
+/* Return the number of bytes to move right from pos. If pos is at the start of
+ * a folded range, the whole hidden range is skipped by one cursor movement. */
+static size_t edit_next_len(linenoise_state_t *l, size_t pos) {
+    struct folds fs;
+    int j;
+
+    if (get_render_folds(l,&fs)) {
+        for (j = 0; j < fs.count; j++) {
+            if (pos == fs.fold[j].start)
+                return fs.fold[j].end - fs.fold[j].start;
+        }
+    }
+    return utf8NextCharLen(l->buf,pos,l->len);
+}
+
+/* Return the number of bytes to move left from pos. If pos is at the end of a
+ * folded range, the whole hidden range is skipped by one cursor movement. */
+static size_t edit_prev_len(linenoise_state_t *l, size_t pos) {
+    struct folds fs;
+    int j;
+
+    if (get_render_folds(l,&fs)) {
+        for (j = 0; j < fs.count; j++) {
+            if (pos == fs.fold[j].end)
+                return fs.fold[j].end - fs.fold[j].start;
+        }
+    }
+    return utf8PrevCharLen(l->buf,pos);
+}
+
+/* Add a fold range, keeping the array sorted by start offset. */
+static void fold_add(linenoise_state_t *l, size_t start, size_t end) {
+    int j;
+
+    if (start >= end || l->fold_count == LINENOISE_MAX_FOLDS) return;
+    j = l->fold_count;
+    while (j > 0 && start < l->fold_start[j-1]) {
+        l->fold_start[j] = l->fold_start[j-1];
+        l->fold_end[j] = l->fold_end[j-1];
+        j--;
+    }
+    l->fold_start[j] = start;
+    l->fold_end[j] = end;
+    l->fold_count++;
+}
+
+/* Clear all remembered fold ranges. */
+static void fold_clear(linenoise_state_t *l) {
+    l->fold_count = 0;
+}
+
+/* Remove one remembered fold range. */
+static void fold_remove(linenoise_state_t *l, int j) {
+    memmove(l->fold_start+j,l->fold_start+j+1,
+            sizeof(size_t)*(l->fold_count-j-1));
+    memmove(l->fold_end+j,l->fold_end+j+1,
+            sizeof(size_t)*(l->fold_count-j-1));
+    l->fold_count--;
+}
+
+/* Return true if [pos,pos+len) overlaps any folded range. */
+static int range_overlaps_fold(linenoise_state_t *l, size_t pos, size_t len) {
+    size_t end = pos + len;
+    int j;
+
+    for (j = 0; j < l->fold_count; j++) {
+        if (end > l->fold_start[j] && pos < l->fold_end[j])
+            return 1;
+    }
+    return 0;
+}
+
+/* Adjust fold ranges after an insertion. If insertion somehow lands inside a
+ * fold, remove that fold because it no longer maps to an unchanged range. */
+static void adjust_folds_after_insert(linenoise_state_t *l, size_t pos, size_t len) {
+    int j = 0;
+
+    while (j < l->fold_count) {
+        if (pos <= l->fold_start[j]) {
+            l->fold_start[j] += len;
+            l->fold_end[j] += len;
+            j++;
+        } else if (pos < l->fold_end[j]) {
+            fold_remove(l,j);
+        } else {
+            j++;
+        }
+    }
+}
+
+/* Adjust fold ranges after a deletion. If the deletion overlaps a fold, remove
+ * that fold because it no longer maps to an unchanged range. */
+static void adjust_folds_after_delete(linenoise_state_t *l, size_t pos, size_t len) {
+    size_t end = pos + len;
+    int j = 0;
+
+    while (j < l->fold_count) {
+        if (end <= l->fold_start[j]) {
+            l->fold_start[j] -= len;
+            l->fold_end[j] -= len;
+            j++;
+        } else if (pos >= l->fold_end[j]) {
+            j++;
+        } else {
+            fold_remove(l,j);
+        }
+    }
+}
+
 /* Helper to append text with syntax highlighting.
- * If highlight_callback is set, calls it to get colors for each byte,
+ * If 'highlight' is set, calls it to get colors for each byte,
  * then outputs the text with appropriate ANSI color codes.
  *
  * Color values use 256-color palette:
@@ -902,13 +1299,15 @@ static void ab_free(struct abuf *ab) {
  * For colors 16-255, we use the 256-color escape sequence:
  *   \x1b[38;5;Xm where X is the color number
  */
-static void ab_append_highlighted(struct abuf *ab, const char *buf, size_t len) {
+static void ab_append_highlighted(struct abuf *ab, linenoise_context_t *ctx,
+                                  const char *buf, size_t len, size_t pos) {
+    linenoise_highlight_cb_t *highlight = ctx->highlight_callback;
     char seq[32];
     char *colors = NULL;
     size_t i;
     int cur_color = 0;
 
-    if (!highlight_callback || len == 0) {
+    if (!highlight || len == 0) {
         /* Output text, clearing each line after newlines for multiline support. */
         size_t start = 0;
         for (i = 0; i < len; i++) {
@@ -933,7 +1332,7 @@ static void ab_append_highlighted(struct abuf *ab, const char *buf, size_t len) 
     memset(colors, 0, len);
 
     /* Call the highlight callback. */
-    highlight_callback(buf, colors, len);
+    highlight(buf, colors, len, pos, ctx->highlight_udata);
 
     /* Output text with color changes. */
     for (i = 0; i < len; i++) {
@@ -977,12 +1376,12 @@ static void ab_append_highlighted(struct abuf *ab, const char *buf, size_t len) 
 
 /* Helper of refresh_single_line() and refresh_multi_line() to show hints
  * to the right of the prompt. Now uses display widths for proper UTF-8. */
-void refresh_show_hints(struct abuf *ab, linenoise_state_t *l, int pwidth) {
+void refresh_show_hints(struct abuf *ab, linenoise_state_t *l, int pwidth, size_t bufwidth) {
     char seq[LINENOISE_SEQ_SIZE];
-    size_t bufwidth = utf8StrWidth(l->buf, l->len);
-    if (hints_callback && pwidth + bufwidth < l->cols) {
+    if (l->ctx->hints_callback && pwidth + bufwidth < l->cols) {
         int color = -1, bold = 0;
-        char *hint = hints_callback(l->buf,&color,&bold);
+        char *hint = l->ctx->hints_callback(l->buf,l->pos,&color,&bold,
+                                            l->ctx->hints_udata);
         if (hint) {
             size_t hintlen = strlen(hint);
             size_t hintwidth = utf8StrWidth(hint, hintlen);
@@ -1009,7 +1408,8 @@ void refresh_show_hints(struct abuf *ab, linenoise_state_t *l, int pwidth) {
             if (color != -1 || bold != 0)
                 ab_append(ab,"\033[0m",4);
             /* Call the function to free the hint returned. */
-            if (free_hints_callback) free_hints_callback(hint);
+            if (l->ctx->free_hints_callback)
+                l->ctx->free_hints_callback(hint,l->ctx->hints_udata);
         }
     }
 }
@@ -1086,16 +1486,22 @@ static void refresh_single_line(linenoise_state_t *l, int flags) {
     char seq[LINENOISE_SEQ_SIZE];
     size_t pwidth = utf8StrWidth(l->prompt, l->plen); /* Prompt display width */
     int fd = l->ofd;
-    char *buf = l->buf;
-    size_t len = l->len;    /* Byte length of buffer to display */
-    size_t pos = l->pos;    /* Byte position of cursor */
+    char *render = NULL;    /* Display version of the buffer (folds applied). */
+    char *buf;
+    size_t len;             /* Byte length of buffer to display */
+    size_t pos;             /* Byte position of cursor in display buffer */
     size_t poscol;          /* Display column of cursor */
     size_t lencol;          /* Display width of buffer */
+    size_t fullwidth;       /* Display width before horizontal trimming. */
     struct abuf ab;
+
+    if (render_buffer(l,&render,&len,&pos) == -1) return;
+    buf = render;
 
     /* Calculate the display width up to cursor and total display width. */
     poscol = utf8StrWidth(buf, pos);
     lencol = utf8StrWidth(buf, len);
+    fullwidth = lencol;
 
     /* Scroll the buffer horizontally if cursor is past the right edge.
      * We need to trim full UTF-8 characters from the left until the
@@ -1126,7 +1532,7 @@ static void refresh_single_line(linenoise_state_t *l, int flags) {
     if (flags & REFRESH_WRITE) {
         /* Write the prompt and the current buffer content */
         ab_append(&ab,l->prompt,l->plen);
-        if (maskmode == 1) {
+        if (l->ctx->maskmode == 1) {
             /* In mask mode, we output one '*' per UTF-8 character, not byte */
             size_t i = 0;
             while (i < len) {
@@ -1134,10 +1540,10 @@ static void refresh_single_line(linenoise_state_t *l, int flags) {
                 i += utf8NextCharLen(buf, i, len);
             }
         } else {
-            ab_append_highlighted(&ab,buf,len);
+            ab_append_highlighted(&ab,l->ctx,buf,len,pos);
         }
         /* Show hints if any. */
-        refresh_show_hints(&ab,l,pwidth);
+        refresh_show_hints(&ab,l,pwidth,fullwidth);
     }
 
     /* Erase to right */
@@ -1152,6 +1558,7 @@ static void refresh_single_line(linenoise_state_t *l, int flags) {
 
     if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
     ab_free(&ab);
+    ln_free(render);
 }
 
 /* Multi line low level line refresh.
@@ -1166,7 +1573,10 @@ static void refresh_single_line(linenoise_state_t *l, int flags) {
 static void refresh_multi_line(linenoise_state_t *l, int flags) {
     char seq[LINENOISE_SEQ_SIZE];
     size_t pwidth = utf8StrWidth(l->prompt, l->plen);  /* Prompt display width */
-    int rows;      /* rows used by current buffer */
+    char *render = NULL;     /* Display version of the buffer (folds applied). */
+    size_t render_len, render_pos;
+    size_t bufwidth;
+    int rows;      /* rows used by current rendered buffer */
     int rpos = l->oldrpos;   /* cursor relative row from previous refresh. */
     int rpos2; /* rpos after refresh. */
     int col; /* column position, zero-based. */
@@ -1174,8 +1584,11 @@ static void refresh_multi_line(linenoise_state_t *l, int flags) {
     int fd = l->ofd, j;
     struct abuf ab;
 
+    if (render_buffer(l,&render,&render_len,&render_pos) == -1) return;
+    bufwidth = utf8StrWidth(render, render_len);
+
     /* Calculate rows accounting for embedded newlines in the buffer. */
-    rows = calc_rows_with_newlines(l->buf, l->len, l->cols, pwidth);
+    rows = calc_rows_with_newlines(render, render_len, l->cols, pwidth);
 
     l->oldrows = rows;
 
@@ -1222,28 +1635,28 @@ static void refresh_multi_line(linenoise_state_t *l, int flags) {
     if (flags & REFRESH_WRITE) {
         /* Write the prompt and the current buffer content */
         ab_append(&ab,l->prompt,l->plen);
-        if (maskmode == 1) {
+        if (l->ctx->maskmode == 1) {
             /* In mask mode, output one '*' per UTF-8 character, not byte */
             size_t i = 0;
-            while (i < l->len) {
+            while (i < render_len) {
                 ab_append(&ab,"*",1);
-                i += utf8NextCharLen(l->buf, i, l->len);
+                i += utf8NextCharLen(render, i, render_len);
             }
         } else {
-            ab_append_highlighted(&ab,l->buf,l->len);
+            ab_append_highlighted(&ab,l->ctx,render,render_len,render_pos);
         }
 
         /* Show hints if any. */
-        refresh_show_hints(&ab,l,pwidth);
+        refresh_show_hints(&ab,l,pwidth,bufwidth);
 
         /* Calculate cursor position accounting for embedded newlines. */
-        calc_cursor_pos_with_newlines(l->buf, l->pos, l->len, l->cols, pwidth, &rpos2, &col);
+        calc_cursor_pos_with_newlines(render, render_pos, render_len, l->cols, pwidth, &rpos2, &col);
         lndebug("rpos2 %d col %d", rpos2, col);
 
         /* If we are at the very end of the screen with our prompt, we need to
          * emit a newline and move the prompt to the first column. */
-        if (l->pos &&
-            l->pos == l->len &&
+        if (render_pos &&
+            render_pos == render_len &&
             col == 0)
         {
             lndebug("<newline>");
@@ -1276,12 +1689,13 @@ static void refresh_multi_line(linenoise_state_t *l, int flags) {
 
     if (write(fd,ab.b,ab.len) == -1) {} /* Can't recover from write error. */
     ab_free(&ab);
+    ln_free(render);
 }
 
 /* Calls the two low level functions refresh_single_line() or
  * refresh_multi_line() according to the selected mode. */
 static void refresh_line_with_flags(linenoise_state_t *l, int flags) {
-    if (mlmode)
+    if (l->ctx->mlmode)
         refresh_multi_line(l,flags);
     else
         refresh_single_line(l,flags);
@@ -1294,7 +1708,7 @@ static void refresh_line(linenoise_state_t *l) {
 
 /* Hide the current line, when using the multiplexing API. */
 void linenoise_hide(linenoise_state_t *l) {
-    if (mlmode)
+    if (l->ctx->mlmode)
         refresh_multi_line(l,REFRESH_CLEAN);
     else
         refresh_single_line(l,REFRESH_CLEAN);
@@ -1309,58 +1723,119 @@ void linenoise_show(linenoise_state_t *l) {
     }
 }
 
+/* Adopt a new terminal width and redraw the line. In multi line mode the
+ * rows on screen are assumed rewrapped to the new width, as most terminals
+ * do on resize. */
+static void set_columns(linenoise_state_t *l, int cols) {
+    if (cols <= 0 || (size_t)cols == l->cols) return;
+    l->cols = cols;
+    if (l->ctx->mlmode) {
+        char *render;
+        size_t render_len, render_pos;
+        size_t pwidth = utf8StrWidth(l->prompt, l->plen);
+        int col;
+        if (render_buffer(l,&render,&render_len,&render_pos) == 0) {
+            l->oldrows = calc_rows_with_newlines(render,render_len,l->cols,pwidth);
+            calc_cursor_pos_with_newlines(render,render_pos,render_len,
+                                          l->cols,pwidth,&l->oldrpos,&col);
+            ln_free(render);
+        }
+    }
+    if (l->in_completion) {
+        refresh_line_with_completion(l,NULL,REFRESH_ALL);
+    } else {
+        refresh_line(l);
+    }
+}
+
+/* Refetch the terminal width, when using the multiplexing API. */
+void linenoise_resize(linenoise_state_t *l) {
+    set_columns(l, get_columns(l->ifd, l->ofd));
+}
+
 /* Insert the character(s) 'c' of length 'clen' at cursor current position.
  * This handles both single-byte ASCII and multi-byte UTF-8 sequences.
  *
  * On error writing to the terminal -1 is returned, otherwise 0. */
-int linenoise_edit_insert(linenoise_state_t *l, const char *c, size_t clen) {
-    /* Check if we need to grow the buffer (dynamic mode only). */
-    if (l->len + clen > l->buflen) {
-        if (l->buf_dynamic) {
-            /* Grow buffer: double the size or add at least the needed space. */
-            size_t newsize = l->buflen * 2;
-            if (newsize < l->len + clen + 1) {
-                newsize = l->len + clen + 1;
-            }
-            char *newbuf = ln_realloc(l->buf, newsize);
-            if (newbuf == NULL) {
-                return -1;  /* Out of memory */
-            }
-            l->buf = newbuf;
-            l->buflen = newsize - 1;  /* Reserve space for null terminator */
-        } else {
-            /* Fixed buffer, can't grow - silently ignore. */
-            return 0;
+/* Make sure the edit buffer can hold 'needed' bytes plus the nul term.
+ * Only dynamic buffers (linenoise_edit_start_dynamic() and the blocking API)
+ * can grow: with a caller-provided fixed buffer there is nothing to grow.
+ * Returns 0 on success, -1 if the buffer cannot hold that much. */
+static int edit_grow(linenoise_state_t *l, size_t needed) {
+    size_t newsize;
+    char *newbuf;
+
+    if (needed <= l->buflen) return 0;
+    if (!l->buf_dynamic || needed > PASTE_MAX_BYTES) return -1;
+
+    /* Grow exponentially, but stop at the configured maximum before the
+     * doubling would overflow or go past it. */
+    newsize = l->buflen ? l->buflen : 16;
+    while (newsize < needed) {
+        if (newsize > PASTE_MAX_BYTES/2) {
+            newsize = PASTE_MAX_BYTES;
+            break;
         }
+        newsize *= 2;
     }
+    if (newsize < needed) return -1;
+
+    /* Allocate one extra byte for the nul terminator. */
+    newbuf = ln_realloc(l->buf, newsize+1);
+    if (newbuf == NULL) return -1;
+    l->buf = newbuf;
+    l->buflen = newsize;
+    return 0;
+}
+
+/* Insert bytes into l->buf without repainting the prompt. The paste path uses
+ * this to first store the real pasted bytes, then mark their range as folded,
+ * and only then refresh, so raw pasted newlines are never printed directly.
+ * Returns 0 on success, -1 if the bytes don't fit. */
+static int edit_insert_no_refresh(linenoise_state_t *l, const char *c, size_t clen) {
+    size_t insert_pos = l->pos;
+
+    if (clen > SIZE_MAX-l->len || edit_grow(l,l->len+clen) == -1)
+        return -1;
 
     if (l->len == l->pos) {
-        /* Append at end of line. */
         memcpy(l->buf+l->pos, c, clen);
-        l->pos += clen;
-        l->len += clen;
-        l->buf[l->len] = '\0';
-        if ((!mlmode &&
-             utf8StrWidth(l->prompt,l->plen)+utf8StrWidth(l->buf,l->len) < l->cols &&
-             !hints_callback &&
-             !highlight_callback)) {
-            /* Avoid a full update of the line in the trivial case:
-             * single-width char, no hints, no highlighting, fits in one line. */
-            if (maskmode == 1) {
-                if (write(l->ofd,"*",1) == -1) return -1;
-            } else {
-                if (write(l->ofd,c,clen) == -1) return -1;
-            }
-        } else {
-            refresh_line(l);
-        }
     } else {
-        /* Insert in the middle of the line. */
         memmove(l->buf+l->pos+clen, l->buf+l->pos, l->len-l->pos);
         memcpy(l->buf+l->pos, c, clen);
-        l->len += clen;
-        l->pos += clen;
-        l->buf[l->len] = '\0';
+    }
+    l->pos += clen;
+    l->len += clen;
+    l->buf[l->len] = '\0';
+    adjust_folds_after_insert(l,insert_pos,clen);
+    return 0;
+}
+
+int linenoise_edit_insert(linenoise_state_t *l, const char *c, size_t clen) {
+    if (l->len == l->pos) {
+        int needs_refresh = memchr(c, '\n', clen) != NULL ||
+                            memchr(c, '\r', clen) != NULL;
+
+        /* Append at end of line. */
+        if (edit_insert_no_refresh(l,c,clen) == -1) return 0;
+        if (!needs_refresh && !l->ctx->mlmode && !l->ctx->hints_callback && !l->ctx->highlight_callback &&
+            (l->ctx->maskmode || l->fold_count == 0))
+        {
+            if (utf8StrWidth(l->prompt,l->plen)+utf8StrWidth(l->buf,l->len) < l->cols) {
+                /* Avoid a full update of the line in the trivial case:
+                 * single-width char, no hints, no highlighting, fits in one line. */
+                if (l->ctx->maskmode == 1) {
+                    if (write(l->ofd,"*",1) == -1) return -1;
+                } else {
+                    if (write(l->ofd,c,clen) == -1) return -1;
+                }
+                return 0;
+            }
+        }
+        refresh_line(l);
+    } else {
+        /* Insert in the middle of the line. */
+        if (edit_insert_no_refresh(l,c,clen) == -1) return 0;
         refresh_line(l);
     }
     return 0;
@@ -1369,7 +1844,7 @@ int linenoise_edit_insert(linenoise_state_t *l, const char *c, size_t clen) {
 /* Move cursor on the left. Moves by one UTF-8 character, not byte. */
 void linenoise_edit_move_left(linenoise_state_t *l) {
     if (l->pos > 0) {
-        l->pos -= utf8PrevCharLen(l->buf, l->pos);
+        l->pos -= edit_prev_len(l, l->pos);
         refresh_line(l);
     }
 }
@@ -1377,7 +1852,7 @@ void linenoise_edit_move_left(linenoise_state_t *l) {
 /* Move cursor on the right. Moves by one UTF-8 character, not byte. */
 void linenoise_edit_move_right(linenoise_state_t *l) {
     if (l->pos != l->len) {
-        l->pos += utf8NextCharLen(l->buf, l->pos, l->len);
+        l->pos += edit_next_len(l, l->pos);
         refresh_line(l);
     }
 }
@@ -1429,23 +1904,39 @@ static void linenoise_edit_move_to_column(linenoise_state_t *l, int col) {
 #define LINENOISE_HISTORY_NEXT 0
 #define LINENOISE_HISTORY_PREV 1
 void linenoise_edit_history_next(linenoise_state_t *l, int dir) {
-    if (history_len > 1) {
+    /* Browsing stores edits in the session's own line, so it needs one. */
+    if (l->ctx->placeholder && l->ctx->history_len > 1) {
+        const char *src;
+        size_t len;
+        struct fold f;
+
         /* Update the current history entry before to
          * overwrite it with the next one. */
-        ln_free(history[history_len - 1 - l->history_index]);
-        history[history_len - 1 - l->history_index] = ln_strdup(l->buf);
+        ln_free(l->ctx->history[l->ctx->history_len - 1 - l->history_index]);
+        l->ctx->history[l->ctx->history_len - 1 - l->history_index] = ln_strdup(l->buf);
         /* Show the new entry */
         l->history_index += (dir == LINENOISE_HISTORY_PREV) ? 1 : -1;
         if (l->history_index < 0) {
             l->history_index = 0;
             return;
-        } else if (l->history_index >= history_len) {
-            l->history_index = history_len-1;
+        } else if (l->history_index >= l->ctx->history_len) {
+            l->history_index = l->ctx->history_len-1;
             return;
         }
-        strncpy(l->buf,history[history_len - 1 - l->history_index],l->buflen);
-        l->buf[l->buflen-1] = '\0';
-        l->len = l->pos = strlen(l->buf);
+        /* Copy the selected history entry into the edit buffer. With a
+         * fixed-size buffer, truncate the entry if it does not fit. */
+        src = l->ctx->history[l->ctx->history_len - 1 - l->history_index];
+        len = strlen(src);
+        if (edit_grow(l,len) == -1 && len > l->buflen) len = l->buflen;
+        memcpy(l->buf,src,len);
+        l->buf[len] = '\0';
+        l->len = l->pos = len;
+        fold_clear(l);
+
+        /* History stores the real text, but not the original paste ranges.
+         * If the recalled entry needs folding, create one display fold now
+         * so text typed after the recall remains outside the folded range. */
+        if (build_history_fold(l,&f)) fold_add(l,f.start,f.end);
         refresh_line(l);
     }
 }
@@ -1455,7 +1946,8 @@ void linenoise_edit_history_next(linenoise_state_t *l, int dir) {
  * Now handles multi-byte UTF-8 characters. */
 void linenoise_edit_delete(linenoise_state_t *l) {
     if (l->len > 0 && l->pos < l->len) {
-        size_t clen = utf8NextCharLen(l->buf, l->pos, l->len);
+        size_t clen = edit_next_len(l, l->pos);
+        adjust_folds_after_delete(l,l->pos,clen);
         memmove(l->buf+l->pos, l->buf+l->pos+clen, l->len-l->pos-clen);
         l->len -= clen;
         l->buf[l->len] = '\0';
@@ -1466,7 +1958,8 @@ void linenoise_edit_delete(linenoise_state_t *l) {
 /* Backspace implementation. Deletes the UTF-8 character before the cursor. */
 void linenoise_edit_backspace(linenoise_state_t *l) {
     if (l->pos > 0 && l->len > 0) {
-        size_t clen = utf8PrevCharLen(l->buf, l->pos);
+        size_t clen = edit_prev_len(l, l->pos);
+        adjust_folds_after_delete(l,l->pos-clen,clen);
         memmove(l->buf+l->pos-clen, l->buf+l->pos, l->len-l->pos);
         l->pos -= clen;
         l->len -= clen;
@@ -1481,13 +1974,14 @@ void linenoise_edit_delete_prev_word(linenoise_state_t *l) {
     size_t old_pos = l->pos;
     size_t diff;
 
-    /* Skip spaces before the word (move backwards by UTF-8 chars). */
-    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
-        l->pos -= utf8PrevCharLen(l->buf, l->pos);
-    /* Skip non-space characters (move backwards by UTF-8 chars). */
-    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
-        l->pos -= utf8PrevCharLen(l->buf, l->pos);
+    /* Skip whitespace before the word (move backwards by UTF-8 chars). */
+    while (l->pos > 0 && isspace((unsigned char)l->buf[l->pos-1]))
+        l->pos -= edit_prev_len(l, l->pos);
+    /* Skip non-whitespace characters (move backwards by UTF-8 chars). */
+    while (l->pos > 0 && !isspace((unsigned char)l->buf[l->pos-1]))
+        l->pos -= edit_prev_len(l, l->pos);
     diff = old_pos - l->pos;
+    adjust_folds_after_delete(l,l->pos,diff);
     memmove(l->buf+l->pos, l->buf+old_pos, l->len-old_pos+1);
     l->len -= diff;
     refresh_line(l);
@@ -1497,10 +1991,10 @@ void linenoise_edit_delete_prev_word(linenoise_state_t *l) {
 void linenoise_edit_move_word_left(linenoise_state_t *l) {
     if (l->pos == 0) return;
     /* Skip spaces before the word. */
-    while (l->pos > 0 && l->buf[l->pos-1] == ' ')
+    while (l->pos > 0 && isspace((unsigned char)l->buf[l->pos-1]))
         l->pos -= utf8PrevCharLen(l->buf, l->pos);
     /* Skip non-space characters. */
-    while (l->pos > 0 && l->buf[l->pos-1] != ' ')
+    while (l->pos > 0 && !isspace((unsigned char)l->buf[l->pos-1]))
         l->pos -= utf8PrevCharLen(l->buf, l->pos);
     refresh_line(l);
 }
@@ -1509,10 +2003,10 @@ void linenoise_edit_move_word_left(linenoise_state_t *l) {
 void linenoise_edit_move_word_right(linenoise_state_t *l) {
     if (l->pos >= l->len) return;
     /* Skip current word characters. */
-    while (l->pos < l->len && l->buf[l->pos] != ' ')
+    while (l->pos < l->len && !isspace((unsigned char)l->buf[l->pos]))
         l->pos += utf8NextCharLen(l->buf, l->pos, l->len);
     /* Skip spaces after the word. */
-    while (l->pos < l->len && l->buf[l->pos] == ' ')
+    while (l->pos < l->len && isspace((unsigned char)l->buf[l->pos]))
         l->pos += utf8NextCharLen(l->buf, l->pos, l->len);
     refresh_line(l);
 }
@@ -1524,12 +2018,13 @@ void linenoise_edit_delete_word_right(linenoise_state_t *l) {
 
     if (l->pos >= l->len) return;
     /* Skip current word characters. */
-    while (l->pos < l->len && l->buf[l->pos] != ' ')
+    while (l->pos < l->len && !isspace((unsigned char)l->buf[l->pos]))
         l->pos += utf8NextCharLen(l->buf, l->pos, l->len);
     /* Skip spaces after the word. */
-    while (l->pos < l->len && l->buf[l->pos] == ' ')
+    while (l->pos < l->len && isspace((unsigned char)l->buf[l->pos]))
         l->pos += utf8NextCharLen(l->buf, l->pos, l->len);
     diff = l->pos - old_pos;
+    adjust_folds_after_delete(l,old_pos,diff);
     memmove(l->buf+old_pos, l->buf+l->pos, l->len-l->pos+1);
     l->len -= diff;
     l->pos = old_pos;
@@ -1541,79 +2036,73 @@ void linenoise_edit_delete_word_right(linenoise_state_t *l) {
 #define LINENOISE_UNDO_MAX 100  /* Maximum undo stack size */
 
 /* Undo entry structure. */
-typedef struct undo_entry {
+typedef struct linenoise_undo_entry {
     char *buf;          /* Buffer content snapshot */
     size_t len;         /* Buffer length */
     size_t pos;         /* Cursor position */
 } undo_entry_t;
 
-/* Undo state - stored per editing state (simplified: using static for now). */
-static undo_entry_t *undo_stack = NULL;
-static int undo_stack_len = 0;
-static int undo_stack_idx = 0;  /* Current position in stack */
-static int undo_stack_cap = 0;
-
-/* Save current state to undo stack. */
+/* Save current state to the session's undo stack. */
 static void undo_save(linenoise_state_t *l) {
     undo_entry_t *entry;
 
     /* Initialize stack if needed. */
-    if (undo_stack == NULL) {
-        undo_stack_cap = LINENOISE_UNDO_MAX;
-        undo_stack = ln_malloc(sizeof(undo_entry_t) * undo_stack_cap);
-        if (undo_stack == NULL) return;
-        memset(undo_stack, 0, sizeof(undo_entry_t) * undo_stack_cap);
+    if (l->undo_stack == NULL) {
+        l->undo_stack = ln_malloc(sizeof(undo_entry_t) * LINENOISE_UNDO_MAX);
+        if (l->undo_stack == NULL) return;
+        memset(l->undo_stack, 0, sizeof(undo_entry_t) * LINENOISE_UNDO_MAX);
     }
 
     /* Discard any redo entries after current position. */
-    while (undo_stack_len > undo_stack_idx) {
-        undo_stack_len--;
-        ln_free(undo_stack[undo_stack_len].buf);
-        undo_stack[undo_stack_len].buf = NULL;
+    while (l->undo_len > l->undo_idx) {
+        l->undo_len--;
+        ln_free(l->undo_stack[l->undo_len].buf);
+        l->undo_stack[l->undo_len].buf = NULL;
     }
 
     /* If stack is full, remove oldest entry. */
-    if (undo_stack_len >= undo_stack_cap) {
-        ln_free(undo_stack[0].buf);
-        memmove(undo_stack, undo_stack + 1, sizeof(undo_entry_t) * (undo_stack_cap - 1));
-        undo_stack_len--;
-        undo_stack_idx--;
+    if (l->undo_len >= LINENOISE_UNDO_MAX) {
+        ln_free(l->undo_stack[0].buf);
+        memmove(l->undo_stack, l->undo_stack + 1, sizeof(undo_entry_t) * (LINENOISE_UNDO_MAX - 1));
+        l->undo_len--;
+        l->undo_idx--;
     }
 
     /* Save current state. */
-    entry = &undo_stack[undo_stack_len];
+    entry = &l->undo_stack[l->undo_len];
     entry->buf = ln_malloc(l->len + 1);
     if (entry->buf == NULL) return;
     memcpy(entry->buf, l->buf, l->len + 1);
     entry->len = l->len;
     entry->pos = l->pos;
-    undo_stack_len++;
-    undo_stack_idx = undo_stack_len;
+    l->undo_len++;
+    l->undo_idx = l->undo_len;
 }
 
 /* Undo: restore previous state. */
 void linenoise_edit_undo(linenoise_state_t *l) {
     undo_entry_t *entry;
 
-    if (undo_stack == NULL || undo_stack_idx <= 0) {
+    if (l->undo_stack == NULL || l->undo_idx <= 0) {
         linenoise_beep();
         return;
     }
 
     /* Save current state for redo if we're at the top. */
-    if (undo_stack_idx == undo_stack_len) {
+    if (l->undo_idx == l->undo_len) {
         undo_save(l);
-        undo_stack_idx--;  /* Move back one more since undo_save incremented */
+        l->undo_idx--;  /* Move back one more since undo_save incremented */
     }
 
-    undo_stack_idx--;
-    entry = &undo_stack[undo_stack_idx];
+    l->undo_idx--;
+    entry = &l->undo_stack[l->undo_idx];
 
     /* Restore state. */
     if (entry->len <= l->buflen) {
         memcpy(l->buf, entry->buf, entry->len + 1);
         l->len = entry->len;
         l->pos = entry->pos;
+        fold_clear(l);
         refresh_line(l);
     }
 }
@@ -1622,60 +2111,52 @@ void linenoise_edit_undo(linenoise_state_t *l) {
 void linenoise_edit_redo(linenoise_state_t *l) {
     undo_entry_t *entry;
 
-    if (undo_stack == NULL || undo_stack_idx >= undo_stack_len - 1) {
+    if (l->undo_stack == NULL || l->undo_idx >= l->undo_len - 1) {
         linenoise_beep();
         return;
     }
 
-    undo_stack_idx++;
-    entry = &undo_stack[undo_stack_idx];
+    l->undo_idx++;
+    entry = &l->undo_stack[l->undo_idx];
 
     /* Restore state. */
     if (entry->len <= l->buflen) {
         memcpy(l->buf, entry->buf, entry->len + 1);
         l->len = entry->len;
         l->pos = entry->pos;
+        fold_clear(l);
         refresh_line(l);
     }
 }
 
-/* Clear undo stack (call when starting new edit session). */
-static void undo_clear(void) {
-    if (undo_stack != NULL) {
-        for (int i = 0; i < undo_stack_len; i++) {
-            ln_free(undo_stack[i].buf);
+/* Free the session's undo stack. */
+static void undo_free(linenoise_state_t *l) {
+    if (l->undo_stack != NULL) {
+        for (int i = 0; i < l->undo_len; i++) {
+            ln_free(l->undo_stack[i].buf);
         }
-        ln_free(undo_stack);
-        undo_stack = NULL;
+        ln_free(l->undo_stack);
+        l->undo_stack = NULL;
     }
-    undo_stack_len = 0;
-    undo_stack_idx = 0;
-    undo_stack_cap = 0;
+    l->undo_len = 0;
+    l->undo_idx = 0;
 }
 
-/* Saved state for non-blocking API context swapping. */
-static struct {
-    int active;
-    int maskmode;
-    int mlmode;
-    int mousemode;
-    linenoise_completion_cb_t *completion_callback;
-    linenoise_hints_cb_t *hints_callback;
-    linenoise_free_hints_cb_t *free_hints_callback;
-    linenoise_highlight_cb_t *highlight_callback;
-    int history_len;
-    int history_max_len;
-    char **history;
-    linenoise_context_t *ctx;  /* Remember the context to update history */
-} edit_saved_state = {0};
+static void edit_stop(linenoise_state_t *l);
 
-/* Internal: Start editing (operates on global state). */
-static int edit_start(linenoise_state_t *l, int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt) {
-    /* Clear undo stack for new edit session. */
-    undo_clear();
+/* Internal: Start a session of 'ctx' on the state 'l'. */
+static int edit_start(linenoise_context_t *ctx, linenoise_state_t *l, int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt) {
+    if (ctx->session != NULL) {
+        set_error(LINENOISE_ERR_INVALID);
+        return -1;
+    }
 
     /* Populate the linenoise state that we pass to functions implementing
      * specific editing functionalities. */
+    l->ctx = ctx;
+    l->undo_stack = NULL;
+    l->undo_len = 0;
+    l->undo_idx = 0;
     l->in_completion = 0;
     l->ifd = stdin_fd != -1 ? stdin_fd : STDIN_FILENO;
     l->ofd = stdout_fd != -1 ? stdout_fd : STDOUT_FILENO;
@@ -1686,16 +2167,22 @@ static int edit_start(linenoise_state_t *l, int stdin_fd, int stdout_fd, char *b
     l->plen = strlen(prompt);
     l->oldpos = l->pos = 0;
     l->len = 0;
+    fold_clear(l);
 
     /* Enter raw mode. */
-    if (enable_raw_mode(l->ifd) == -1) return -1;
+    if (enable_raw_mode(ctx, l->ifd) == -1) return -1;
+    ctx->session = l;
 
     /* Enable mouse tracking if requested. */
-    if (mousemode) {
+    if (ctx->mousemode) {
         enable_mouse_tracking(l->ofd);
     }
 
-    l->cols = get_columns(stdin_fd, stdout_fd);
+    /* Enable bracketed paste, so that large or multi line pastes can be
+     * detected and folded on screen. */
+    enable_bracketed_paste(l->ofd);
+
+    l->cols = get_columns(l->ifd, l->ofd);
     l->oldrows = 0;
     l->oldrpos = 1;  /* Cursor starts on row 1. */
     l->history_index = 0;
@@ -1711,9 +2198,17 @@ static int edit_start(linenoise_state_t *l, int stdin_fd, int stdout_fd, char *b
 
     /* The latest history entry is always our current buffer, that
      * initially is just an empty string. */
-    history_add("");
+    if (history_push(ctx, "") == 0) {
+        set_error(LINENOISE_ERR_MEMORY);
+        edit_stop(l);
+        return -1;
+    }
+    ctx->placeholder = 1;
 
-    if (write(l->ofd,prompt,l->plen) == -1) return -1;
+    if (write(l->ofd,prompt,l->plen) == -1) {
+        edit_stop(l);
+        return -1;
+    }
     return 0;
 }
 
@@ -1725,35 +2220,11 @@ static int edit_start(linenoise_state_t *l, int stdin_fd, int stdout_fd, char *b
 int linenoise_edit_start(linenoise_context_t *ctx, linenoise_state_t *l,
                          int stdin_fd, int stdout_fd,
                          char *buf, size_t buflen, const char *prompt) {
-    if (!ctx) return -1;
-
-    /* Save current global state. */
-    edit_saved_state.active = 1;
-    edit_saved_state.maskmode = maskmode;
-    edit_saved_state.mlmode = mlmode;
-    edit_saved_state.mousemode = mousemode;
-    edit_saved_state.completion_callback = completion_callback;
-    edit_saved_state.hints_callback = hints_callback;
-    edit_saved_state.free_hints_callback = free_hints_callback;
-    edit_saved_state.highlight_callback = highlight_callback;
-    edit_saved_state.history_len = history_len;
-    edit_saved_state.history_max_len = history_max_len;
-    edit_saved_state.history = history;
-    edit_saved_state.ctx = ctx;
-
-    /* Set global state from context. */
-    maskmode = ctx->maskmode;
-    mlmode = ctx->mlmode;
-    mousemode = ctx->mousemode;
-    completion_callback = ctx->completion_callback;
-    hints_callback = ctx->hints_callback;
-    free_hints_callback = ctx->free_hints_callback;
-    highlight_callback = ctx->highlight_callback;
-    history_len = ctx->history_len;
-    history_max_len = ctx->history_max_len;
-    history = ctx->history;
-
-    return edit_start(l, stdin_fd, stdout_fd, buf, buflen, prompt);
+    if (!ctx) {
+        set_error(LINENOISE_ERR_INVALID);
+        return -1;
+    }
+    return edit_start(ctx, l, stdin_fd, stdout_fd, buf, buflen, prompt);
 }
 
 /* Start editing with a dynamically-sized buffer.
@@ -1796,6 +2267,135 @@ int linenoise_edit_start_dynamic(linenoise_context_t *ctx, linenoise_state_t *l,
     return 0;
 }
 
+/* Make sure the temporary paste buffer can hold len+need bytes. Return -1 on
+ * allocation failure or if the requested size is over PASTE_MAX_BYTES. */
+static int paste_buffer_reserve(char **buf, size_t *cap, size_t len, size_t need) {
+    size_t want;
+    char *nb;
+
+    /* Nothing to do if the current paste buffer already has room for the
+     * bytes collected so far plus the new bytes we want to append. */
+    if (*cap >= len + need) return 0;
+
+    /* Start small, then double like the line buffer. The cap avoids turning a
+     * huge paste into an unbounded allocation attempt. */
+    want = *cap ? *cap : 64;
+    while (want < len + need) {
+        size_t doubled = want*2;
+        if (doubled <= want || doubled > PASTE_MAX_BYTES) {
+            want = PASTE_MAX_BYTES;
+            break;
+        }
+        want = doubled;
+    }
+    if (want < len + need) return -1;
+
+    /* ln_realloc(NULL, want) handles the first allocation too. */
+    nb = ln_realloc(*buf, want);
+    if (nb == NULL) return -1;
+    *buf = nb;
+    *cap = want;
+    return 0;
+}
+
+/* Append bytes to the temporary paste buffer, growing both it and l->buf as
+ * needed. Return -1 if the paste is too large or allocation fails. */
+static int paste_buffer_append(linenoise_state_t *l, char **buf, size_t *cap,
+                               size_t *len, const char *s, size_t slen, size_t maxlen) {
+    size_t needed;
+
+    if (*len > maxlen || slen > maxlen-*len) return -1;
+    if (*len > SIZE_MAX-slen) return -1;
+    needed = *len+slen;
+    if (l->len > SIZE_MAX-needed) return -1;
+    if (edit_grow(l,l->len+needed) == -1) return -1;
+    if (paste_buffer_reserve(buf,cap,*len,slen) == -1) return -1;
+    memcpy(*buf+*len,s,slen);
+    *len = needed;
+    return 0;
+}
+
+/* Read a bracketed paste until ESC[201~ and insert the real bytes. If folding
+ * is needed, remember the inserted range so that only the rendering is
+ * shortened, while the edit buffer keeps the pasted text. */
+static void edit_paste(linenoise_state_t *l) {
+    static const char END[] = "\x1b[201~";
+    const size_t ENDLEN = sizeof(END)-1;
+    char *buf = NULL;
+    size_t cap = 0, len = 0, match = 0;
+    size_t maxlen = l->buf_dynamic ? PASTE_MAX_BYTES : l->buflen;
+    int overflowed = 0;
+
+    maxlen = maxlen > l->len ? maxlen - l->len : 0;
+    /* Once all fold slots are used, consume later pastes without storing them. */
+    if (l->fold_count == LINENOISE_MAX_FOLDS) maxlen = 0;
+
+    while (1) {
+        char c;
+        if (read(l->ifd, &c, 1) != 1) break;
+
+        /* Track a possible ESC[201~ terminator without copying it into the
+         * paste. If it turns out to be ordinary input, flush the partial
+         * match below. */
+        if (c == END[match]) {
+            match++;
+            if (match == ENDLEN) break;
+            continue;
+        }
+
+        if (match > 0) {
+            if (!overflowed &&
+                paste_buffer_append(l,&buf,&cap,&len,END,match,maxlen) == -1)
+                overflowed = 1;
+            match = 0;
+            if (c == END[0]) {
+                match = 1;
+                continue;
+            }
+        }
+
+        if (!overflowed &&
+            paste_buffer_append(l,&buf,&cap,&len,&c,1,maxlen) == -1)
+            overflowed = 1;
+    }
+
+    if (overflowed) {
+        ln_free(buf);
+        linenoise_beep();
+        return;
+    }
+    if (buf == NULL) return;
+
+    {
+        /* Normalize pasted CR and CRLF to LF, so the edit buffer uses one
+         * internal newline representation. */
+        size_t r = 0, w = 0;
+        while (r < len) {
+            if (buf[r] == '\r') {
+                buf[w++] = '\n';
+                r += (r+1 < len && buf[r+1] == '\n') ? 2 : 1;
+            } else {
+                buf[w++] = buf[r++];
+            }
+        }
+        len = w;
+    }
+
+    if (!l->ctx->maskmode && should_fold_text(buf,len)) {
+        size_t start = l->pos;
+        if (edit_insert_no_refresh(l,buf,len) == -1) {
+            ln_free(buf);
+            linenoise_beep();
+            return;
+        }
+        fold_add(l,start,start+len);
+        refresh_line(l);
+    } else {
+        linenoise_edit_insert(l,buf,len);
+    }
+    ln_free(buf);
+}
+
 char *linenoise_edit_more = "If you see this, you are misusing the API: when linenoise_edit_feed() is called, if it returns linenoise_edit_more the user is yet editing the line. See the README file for more information.";
 
 /* This function is part of the multiplexed API of linenoise, see the top
@@ -1832,6 +2432,10 @@ char *linenoise_edit_feed(linenoise_state_t *l) {
         return NULL;
     }
 
+    /* Pick up a terminal resize. Only the side-effect free query runs here:
+     * the escape sequence fallback would read the user's input. */
+    set_columns(l, query_columns(l->ofd));
+
     /* Handle Tab key: on continuation lines insert spaces for indentation,
      * otherwise trigger completion if callback is set. */
     if (c == 9 && !l->in_completion) {
@@ -1851,32 +2455,33 @@ char *linenoise_edit_feed(linenoise_state_t *l) {
         }
     }
 
-    /* Autocomplete when the callback is set. It returns < 0 when
-     * there was an error reading from fd. Otherwise it will return the
-     * character that should be handled next. */
-    if ((l->in_completion || c == 9) && completion_callback != NULL) {
-        c = complete_line(l,c);
-        /* Return on errors */
-        if (c < 0) return NULL;
+    /* Autocomplete when the callback is set. complete_line() returns the
+     * character to be handled next, or zero when the key was consumed to
+     * navigate the completions (or because there was nothing to complete). */
+    if ((l->in_completion || c == 9) && c != ESC &&
+        l->ctx->completion_callback != NULL) {
+        int retval = complete_line(l,c);
         /* Read next character when 0 */
-        if (c == 0) return linenoise_edit_more;
+        if (retval == 0) return linenoise_edit_more;
+        c = (char)retval;
     }
 
     switch(c) {
     case ENTER:    /* enter */
-        history_len--;
-        ln_free(history[history_len]);
-        if (mlmode) linenoise_edit_move_end(l);
-        if (hints_callback) {
+    case CTRL_J:   /* typeahead queued in cooked mode, where ICRNL made Enter \n */
+        history_drop_placeholder(l);
+        if (l->ctx->mlmode) linenoise_edit_move_end(l);
+        if (l->ctx->hints_callback) {
             /* Force a refresh without hints to leave the previous
              * line as the user typed it after a newline. */
-            linenoise_hints_cb_t *hc = hints_callback;
-            hints_callback = NULL;
+            linenoise_hints_cb_t *hc = l->ctx->hints_callback;
+            l->ctx->hints_callback = NULL;
             refresh_line(l);
-            hints_callback = hc;
+            l->ctx->hints_callback = hc;
         }
         return ln_strdup(l->buf);
     case CTRL_C:     /* ctrl-c */
+        history_drop_placeholder(l);
         errno = EAGAIN;
         set_error(LINENOISE_ERR_INTERRUPTED);
         return NULL;
@@ -1891,8 +2496,7 @@ char *linenoise_edit_feed(linenoise_state_t *l) {
             undo_save(l);
             linenoise_edit_delete(l);
         } else {
-            history_len--;
-            ln_free(history[history_len]);
+            history_drop_placeholder(l);
             errno = ENOENT;
             set_error(LINENOISE_ERR_EOF);
             return NULL;
@@ -1902,9 +2506,14 @@ char *linenoise_edit_feed(linenoise_state_t *l) {
         /* Handle UTF-8: swap the two UTF-8 characters around cursor. */
         if (l->pos > 0 && l->pos < l->len) {
             char tmp[32];
-            size_t prevlen = utf8PrevCharLen(l->buf, l->pos);
-            size_t currlen = utf8NextCharLen(l->buf, l->pos, l->len);
+            size_t prevlen = edit_prev_len(l, l->pos);
+            size_t currlen = edit_next_len(l, l->pos);
             size_t prevstart = l->pos - prevlen;
+            if (prevlen > sizeof(tmp) || currlen > sizeof(tmp)) break;
+            if (range_overlaps_fold(l,prevstart,prevlen+currlen)) {
+                linenoise_beep();
+                break;
+            }
             undo_save(l);
             /* Copy current char to tmp, move previous char right, paste tmp. */
             memcpy(tmp, l->buf + l->pos, currlen);
@@ -1929,14 +2538,27 @@ char *linenoise_edit_feed(linenoise_state_t *l) {
     case ESC:    /* escape sequence */
         /* Read the next two bytes representing the escape sequence.
          * Use timeout to avoid hanging on partial sequences (e.g., user
-         * pressing ESC alone). 100ms is enough for terminal responses. */
-        if (read_byte_with_timeout(l->ifd,seq,100) != 1) break;
-        if (read_byte_with_timeout(l->ifd,seq+1,100) != 1) break;
+         * pressing ESC alone). 100ms is enough for terminal responses.
+         * Alt+key is only ESC plus one byte, so read a second byte only
+         * after ESC [ or ESC O. */
+        if (read_byte_with_timeout(l->ifd,seq,100) != 1) {
+            complete_line_end(l,0);
+            break;
+        }
+        seq[1] = 0;
+        if ((seq[0] == '[' || seq[0] == 'O') &&
+            read_byte_with_timeout(l->ifd,seq+1,100) != 1) {
+            complete_line_end(l,0);
+            break;
+        }
+        /* Up and Down leave the completion; other keys accept it first. */
+        complete_line_end(l,!((seq[0] == '[' || seq[0] == 'O') &&
+                              (seq[1] == 'A' || seq[1] == 'B')));
 
         /* ESC [ sequences. */
         if (seq[0] == '[') {
             /* SGR mouse event: ESC [ < button ; x ; y M/m */
-            if (seq[1] == '<' && mousemode) {
+            if (seq[1] == '<' && l->ctx->mousemode) {
                 /* Read the rest of the mouse sequence. */
                 char mouse_seq[32];
                 int mi = 0;
@@ -1975,22 +2597,45 @@ char *linenoise_edit_feed(linenoise_state_t *l) {
                 }
             }
             else if (seq[1] >= '0' && seq[1] <= '9') {
-                /* Extended escape, read additional byte. */
-                if (read_byte_with_timeout(l->ifd,seq+2,100) != 1) break;
-                if (seq[2] == '~') {
-                    switch(seq[1]) {
-                    case '3': /* Delete key. */
-                        undo_save(l);
-                        linenoise_edit_delete(l);
-                        break;
-                    case '5': /* Page Up - treat as history prev for now */
-                        linenoise_edit_history_next(l, LINENOISE_HISTORY_PREV);
-                        break;
-                    case '6': /* Page Down - treat as history next for now */
-                        linenoise_edit_history_next(l, LINENOISE_HISTORY_NEXT);
+                /* Extended escape: read the numeric parameter, that can be
+                 * more than one digit long (as in the bracketed paste start
+                 * sequence ESC [ 200 ~), then the final byte. */
+                char param[8];
+                size_t plen = 1;
+                char final = 0;
+
+                param[0] = seq[1];
+                while (plen < sizeof(param)) {
+                    char pc;
+                    if (read_byte_with_timeout(l->ifd,&pc,100) != 1) break;
+                    if (pc >= '0' && pc <= '9') {
+                        param[plen++] = pc;
+                    } else {
+                        final = pc;
                         break;
                     }
-                } else if (seq[2] == ';') {
+                }
+                seq[2] = final;
+                if (final == '~') {
+                    if (plen == 1) {
+                        switch(param[0]) {
+                        case '3': /* Delete key. */
+                            undo_save(l);
+                            linenoise_edit_delete(l);
+                            break;
+                        case '5': /* Page Up - treat as history prev for now */
+                            linenoise_edit_history_next(l, LINENOISE_HISTORY_PREV);
+                            break;
+                        case '6': /* Page Down - treat as history next for now */
+                            linenoise_edit_history_next(l, LINENOISE_HISTORY_NEXT);
+                            break;
+                        }
+                    } else if (plen == 3 && memcmp(param,"200",3) == 0) {
+                        /* Start of a bracketed paste. */
+                        undo_save(l);
+                        edit_paste(l);
+                    }
+                } else if (final == ';') {
                     /* Modified key sequence: ESC [ 1 ; <mod> <key> */
                     if (read_byte_with_timeout(l->ifd,seq+3,100) != 1) break;
                     if (read_byte_with_timeout(l->ifd,seq+4,100) != 1) break;
@@ -2085,10 +2730,12 @@ char *linenoise_edit_feed(linenoise_state_t *l) {
         undo_save(l);
         l->buf[0] = '\0';
         l->pos = l->len = 0;
+        fold_clear(l);
         refresh_line(l);
         break;
     case CTRL_K: /* Ctrl+k, delete from current to end of line. */
         undo_save(l);
+        adjust_folds_after_delete(l,l->pos,l->len-l->pos);
         l->buf[l->pos] = '\0';
         l->len = l->pos;
         refresh_line(l);
@@ -2117,14 +2764,21 @@ char *linenoise_edit_feed(linenoise_state_t *l) {
     return linenoise_edit_more;
 }
 
-/* Internal: Stop editing (restores terminal). */
+/* Internal: End the session and restore the terminal. */
 static void edit_stop(linenoise_state_t *l) {
+    linenoise_context_t *ctx = l->ctx;
+
+    history_drop_placeholder(l);
+    undo_free(l);
+    if (ctx->session == l) ctx->session = NULL;
+
     if (!isatty(l->ifd) && !getenv("LINENOISE_ASSUME_TTY")) return;
     /* Disable mouse tracking before restoring terminal. */
-    if (mousemode) {
+    if (ctx->mousemode) {
         disable_mouse_tracking(l->ofd);
     }
-    disable_raw_mode(l->ifd);
+    disable_bracketed_paste(l->ofd);
+    disable_raw_mode(ctx);
     printf("\n");
 }
 
@@ -2140,49 +2794,34 @@ void linenoise_edit_stop(linenoise_state_t *l) {
         l->buf = NULL;
         l->buf_dynamic = 0;
     }
-
-    /* Restore global state if we're in an active edit session. */
-    if (edit_saved_state.active) {
-        /* Update context history from global state. */
-        if (edit_saved_state.ctx) {
-            edit_saved_state.ctx->history_len = history_len;
-            edit_saved_state.ctx->history = history;
-        }
-
-        /* Restore previous global state. */
-        maskmode = edit_saved_state.maskmode;
-        mlmode = edit_saved_state.mlmode;
-        mousemode = edit_saved_state.mousemode;
-        completion_callback = edit_saved_state.completion_callback;
-        hints_callback = edit_saved_state.hints_callback;
-        free_hints_callback = edit_saved_state.free_hints_callback;
-        highlight_callback = edit_saved_state.highlight_callback;
-        history_len = edit_saved_state.history_len;
-        history_max_len = edit_saved_state.history_max_len;
-        history = edit_saved_state.history;
-        edit_saved_state.active = 0;
-        edit_saved_state.ctx = NULL;
-    }
 }
 
 /* This just implements a blocking loop for the multiplexed API.
  * In many applications that are not event-drivern, we can just call
  * the blocking linenoise API, wait for the user to complete the editing
  * and return the buffer. */
-static char *blocking_edit(int stdin_fd, int stdout_fd, char *buf, size_t buflen, const char *prompt)
+static char *blocking_edit(linenoise_context_t *ctx, int stdin_fd, int stdout_fd, const char *prompt)
 {
     linenoise_state_t l;
+    char *buf = ln_malloc(LINENOISE_MAX_LINE);
+    char *res;
 
-    /* Editing without a buffer is invalid. */
-    if (buflen == 0) {
-        errno = EINVAL;
+    if (buf == NULL) {
+        errno = ENOMEM;
+        set_error(LINENOISE_ERR_MEMORY);
         return NULL;
     }
 
-    edit_start(&l,stdin_fd,stdout_fd,buf,buflen,prompt);
-    char *res;
+    if (edit_start(ctx,&l,stdin_fd,stdout_fd,buf,LINENOISE_MAX_LINE,prompt) == -1) {
+        ln_free(buf);
+        return NULL;
+    }
+    /* This wrapper owns l.buf, so the edit state is free to grow it in order
+     * to hold large pasted input. */
+    l.buf_dynamic = 1;
     while((res = linenoise_edit_feed(&l)) == linenoise_edit_more);
     edit_stop(&l);
+    ln_free(l.buf);
     return res;
 }
 
@@ -2190,11 +2829,14 @@ static char *blocking_edit(int stdin_fd, int stdout_fd, char *buf, size_t buflen
  * on screen for debugging / development purposes. It is implemented
  * by the linenoise_example program using the --keycodes option. */
 void linenoise_print_key_codes(void) {
+    linenoise_context_t kc;
     char quit[4];
+
+    memset(&kc, 0, sizeof(kc));
 
     printf("Linenoise key codes debugging mode.\n"
             "Press keys to see scan codes. Type 'quit' at any time to exit.\n");
-    if (enable_raw_mode(STDIN_FILENO) == -1) return;
+    if (enable_raw_mode(&kc, STDIN_FILENO) == -1) return;
     memset(quit,' ',4);
     while(1) {
         char c;
@@ -2211,7 +2853,7 @@ void linenoise_print_key_codes(void) {
         printf("\r"); /* Go left edge manually, we are in raw mode. */
         fflush(stdout);
     }
-    disable_raw_mode(STDIN_FILENO);
+    disable_raw_mode(&kc);
 }
 
 /* This function is called when linenoise() is called with the standard
@@ -2219,22 +2861,36 @@ void linenoise_print_key_codes(void) {
  * program using linenoise is called in pipe or with a file redirected
  * to its standard input. In this case, we want to be able to return the
  * line regardless of its length (by default we are limited to 4k). */
-static char *linenoise_no_tty(void) {
+/* Read a newline terminated record from fp with no fixed-size buffer, so
+ * that there is no limit to the length of the returned line. Used for non-tty
+ * input, unsupported terminals, and history loading.
+ *
+ * Returns NULL at EOF (with nothing read) or on error: in the latter case
+ * *err, when not NULL, is set to 1. */
+static char *read_file_line(FILE *fp, int *err) {
     char *line = NULL;
-    size_t len = 0, maxlen = 0;
+    size_t len = 0, cap = 0;
 
+    if (err) *err = 0;
     while(1) {
-        if (len == maxlen) {
-            if (maxlen == 0) maxlen = 16;
-            maxlen *= 2;
+        if (len+1 >= cap) {
+            size_t newcap = cap ? cap*2 : 16;
             char *oldval = line;
-            line = ln_realloc(line,maxlen);
-            if (line == NULL) {
-                if (oldval) ln_free(oldval);
+            if (newcap <= cap) {
+                ln_free(line);
+                if (err) *err = 1;
+                errno = ENOMEM;
                 return NULL;
             }
+            line = ln_realloc(line,newcap);
+            if (line == NULL) {
+                if (oldval) ln_free(oldval);
+                if (err) *err = 1;
+                return NULL;
+            }
+            cap = newcap;
         }
-        int c = fgetc(stdin);
+        int c = fgetc(fp);
         if (c == EOF || c == '\n') {
             if (c == EOF && len == 0) {
                 ln_free(line);
@@ -2251,36 +2907,39 @@ static char *linenoise_no_tty(void) {
     }
 }
 
-/* Internal: The high level line reading function using global state.
+static char *linenoise_no_tty(void) {
+    return read_file_line(stdin,NULL);
+}
+
+/* Internal: The high level line reading function.
  * This function checks if the terminal has basic capabilities, just checking
  * for a blacklist of stupid terminals, and later either calls the line
  * editing function or uses dummy fgets() so that you will be able to type
  * something even in the most desperate of the conditions. */
-static char *read_line(const char *prompt) {
-    char buf[LINENOISE_MAX_LINE];
-
+static char *read_line(linenoise_context_t *ctx, const char *prompt) {
     if (!isatty(STDIN_FILENO) && !getenv("LINENOISE_ASSUME_TTY")) {
         /* Not a tty: read from file / pipe. In this mode we don't want any
          * limit to the line size, so we call a function to handle that. */
         return linenoise_no_tty();
     } else if (is_unsupported_term()) {
+        char *retval;
         size_t len;
 
         printf("%s",prompt);
         fflush(stdout);
-        if (fgets(buf,LINENOISE_MAX_LINE,stdin) == NULL) {
+        retval = linenoise_no_tty();
+        if (retval == NULL) {
             set_error(LINENOISE_ERR_EOF);
             return NULL;
         }
-        len = strlen(buf);
-        while(len && (buf[len-1] == '\n' || buf[len-1] == '\r')) {
+        len = strlen(retval);
+        while(len && retval[len-1] == '\r') {
             len--;
-            buf[len] = '\0';
+            retval[len] = '\0';
         }
-        return ln_strdup(buf);
-    } else {
-        char *retval = blocking_edit(STDIN_FILENO,STDOUT_FILENO,buf,LINENOISE_MAX_LINE,prompt);
         return retval;
+    } else {
+        return blocking_edit(ctx,STDIN_FILENO,STDOUT_FILENO,prompt);
     }
 }
 
@@ -2295,58 +2954,65 @@ void linenoise_free(void *ptr) {
 
 /* ================================ History ================================= */
 
-/* Free the history, but does not reset it. Only used when we have to
- * exit() to avoid memory leaks are reported by valgrind & co. */
-static void free_history(void) {
-    if (history) {
-        int j;
-
-        for (j = 0; j < history_len; j++)
-            ln_free(history[j]);
-        ln_free(history);
-    }
-}
-
 /* At exit we'll try to fix the terminal to the initial conditions. */
 static void linenoise_at_exit(void) {
-    disable_raw_mode(STDIN_FILENO);
-    free_history();
+    if (raw_ctx) disable_raw_mode(raw_ctx);
 }
 
-/* Internal: Add a new entry to the global history.
+/* Internal: Append a copy of 'line' to the context history, without the
+ * duplicate check. While a session is active its own line stays last, so
+ * the new entry goes right before it.
  * It uses a fixed array of char pointers that are shifted (memmoved)
  * when the history max length is reached in order to remove the older
  * entry and make room for the new one, so it is not exactly suitable for huge
- * histories, but will work well for a few hundred of entries.
- *
- * Using a circular buffer is smarter, but a bit more complex to handle. */
-static int history_add(const char *line) {
+ * histories, but will work well for a few hundred of entries. */
+static int history_push(linenoise_context_t *ctx, const char *line) {
+    int pinned = ctx->placeholder;
     char *linecopy;
+    int pos;
 
-    if (history_max_len == 0) return 0;
+    if (ctx->history_max_len == 0) return 0;
 
     /* Initialization on first call. */
-    if (history == NULL) {
-        history = ln_malloc(sizeof(char*)*history_max_len);
-        if (history == NULL) return 0;
-        memset(history,0,(sizeof(char*)*history_max_len));
+    if (ctx->history == NULL) {
+        ctx->history = ln_malloc(sizeof(char*)*ctx->history_max_len);
+        if (ctx->history == NULL) return 0;
+        memset(ctx->history,0,(sizeof(char*)*ctx->history_max_len));
     }
 
-    /* Don't add duplicated lines. */
-    if (history_len && !strcmp(history[history_len-1], line)) return 0;
-
-    /* Add an heap allocated copy of the line in the history.
-     * If we reached the max length, remove the older line. */
+    /* No room if the session's own line fills the history. */
+    if (ctx->history_max_len <= pinned) return 0;
     linecopy = ln_strdup(line);
     if (!linecopy) return 0;
-    if (history_len == history_max_len) {
-        ln_free(history[0]);
-        memmove(history,history+1,sizeof(char*)*(history_max_len-1));
-        history_len--;
+
+    /* If we reached the max length, remove the older line. */
+    if (ctx->history_len == ctx->history_max_len) {
+        ln_free(ctx->history[0]);
+        memmove(ctx->history,ctx->history+1,sizeof(char*)*(ctx->history_max_len-1));
+        ctx->history_len--;
     }
-    history[history_len] = linecopy;
-    history_len++;
+    pos = ctx->history_len - pinned;
+    memmove(ctx->history+pos+1,ctx->history+pos,sizeof(char*)*pinned);
+    ctx->history[pos] = linecopy;
+    ctx->history_len++;
+
+    /* Keep a session that is browsing history on the same entry. */
+    if (pinned && ctx->session->history_index > 0) {
+        ctx->session->history_index++;
+        if (ctx->session->history_index >= ctx->history_len)
+            ctx->session->history_index = ctx->history_len-1;
+    }
     return 1;
+}
+
+/* Internal: Remove the session's own line from the context history. */
+static void history_drop_placeholder(linenoise_state_t *l) {
+    linenoise_context_t *ctx = l->ctx;
+
+    if (!ctx->placeholder) return;
+    ctx->history_len--;
+    ln_free(ctx->history[ctx->history_len]);
+    ctx->placeholder = 0;
 }
 
 /* ========================= Context-based API ============================== */
@@ -2356,30 +3022,18 @@ linenoise_context_t *linenoise_context_create(void) {
     linenoise_context_t *ctx = ln_malloc(sizeof(linenoise_context_t));
     if (!ctx) return NULL;
 
-#ifdef _WIN32
-    ctx->orig_console_mode = 0;
-#else
-    memset(&ctx->orig_termios, 0, sizeof(ctx->orig_termios));
-#endif
-    ctx->rawmode = 0;
-    ctx->atexit_registered = 0;
-    ctx->maskmode = 0;
-    ctx->mlmode = 0;
-    ctx->mousemode = 0;
+    memset(ctx, 0, sizeof(*ctx));
+    ctx->raw_fd = -1;
     ctx->history_max_len = LINENOISE_DEFAULT_HISTORY_MAX_LEN;
-    ctx->history_len = 0;
-    ctx->history = NULL;
-    ctx->completion_callback = NULL;
-    ctx->hints_callback = NULL;
-    ctx->free_hints_callback = NULL;
-    ctx->highlight_callback = NULL;
-
     return ctx;
 }
 
 /* Destroy a linenoise context and free all associated resources. */
 void linenoise_context_destroy(linenoise_context_t *ctx) {
     if (!ctx) return;
+
+    /* Restore the terminal and drop the at-exit reference to ctx. */
+    disable_raw_mode(ctx);
 
     /* Free history. */
     if (ctx->history) {
@@ -2404,17 +3058,29 @@ void linenoise_set_mask_mode(linenoise_context_t *ctx, int enable) {
 
 /* Set mouse mode for a context (click to position cursor). */
 void linenoise_set_mouse_mode(linenoise_context_t *ctx, int enable) {
-    if (ctx) ctx->mousemode = enable;
+    if (!ctx) return;
+    /* Apply the change to an active session's terminal right away. */
+    if (ctx->session && ctx->mousemode != enable) {
+        if (enable) enable_mouse_tracking(ctx->session->ofd);
+        else disable_mouse_tracking(ctx->session->ofd);
+    }
+    ctx->mousemode = enable;
 }
 
 /* Set completion callback for a context. */
-void linenoise_set_completion_callback(linenoise_context_t *ctx, linenoise_completion_cb_t *fn) {
-    if (ctx) ctx->completion_callback = fn;
+void linenoise_set_completion_callback(linenoise_context_t *ctx, linenoise_completion_cb_t *fn, void *udata) {
+    if (ctx) {
+        ctx->completion_callback = fn;
+        ctx->completion_udata = udata;
+    }
 }
 
 /* Set hints callback for a context. */
-void linenoise_set_hints_callback(linenoise_context_t *ctx, linenoise_hints_cb_t *fn) {
-    if (ctx) ctx->hints_callback = fn;
+void linenoise_set_hints_callback(linenoise_context_t *ctx, linenoise_hints_cb_t *fn, void *udata) {
+    if (ctx) {
+        ctx->hints_callback = fn;
+        ctx->hints_udata = udata;
+    }
 }
 
 /* Set free hints callback for a context. */
@@ -2423,41 +3089,23 @@ void linenoise_set_free_hints_callback(linenoise_context_t *ctx, linenoise_free_
 }
 
 /* Set syntax highlighting callback for a context. */
-void linenoise_set_highlight_callback(linenoise_context_t *ctx, linenoise_highlight_cb_t *fn) {
-    if (ctx) ctx->highlight_callback = fn;
+void linenoise_set_highlight_callback(linenoise_context_t *ctx, linenoise_highlight_cb_t *fn, void *udata) {
+    if (ctx) {
+        ctx->highlight_callback = fn;
+        ctx->highlight_udata = udata;
+    }
 }
 
 /* Add a line to history for a context. */
 int linenoise_history_add(linenoise_context_t *ctx, const char *line) {
-    char *linecopy;
+    int last;
 
     if (!ctx) return 0;
-    if (ctx->history_max_len == 0) return 0;
 
     /* Don't add duplicates of the previous line. */
-    if (ctx->history_len && !strcmp(ctx->history[ctx->history_len-1], line))
-        return 0;
-
-    linecopy = ln_strdup(line);
-    if (!linecopy) return 0;
-
-    if (ctx->history == NULL) {
-        ctx->history = ln_malloc(sizeof(char*) * ctx->history_max_len);
-        if (ctx->history == NULL) {
-            ln_free(linecopy);
-            return 0;
-        }
-        memset(ctx->history, 0, sizeof(char*) * ctx->history_max_len);
-    }
-
-    if (ctx->history_len == ctx->history_max_len) {
-        ln_free(ctx->history[0]);
-        memmove(ctx->history, ctx->history + 1, sizeof(char*) * (ctx->history_max_len - 1));
-        ctx->history_len--;
-    }
-    ctx->history[ctx->history_len] = linecopy;
-    ctx->history_len++;
-    return 1;
+    last = ctx->history_len - ctx->placeholder - 1;
+    if (last >= 0 && !strcmp(ctx->history[last], line)) return 0;
+    return history_push(ctx, line);
 }
 
 /* Set maximum history length for a context. */
@@ -2487,6 +3135,8 @@ int linenoise_history_set_max_len(linenoise_context_t *ctx, int len) {
     ctx->history_max_len = len;
     if (ctx->history_len > ctx->history_max_len)
         ctx->history_len = ctx->history_max_len;
+    if (ctx->session && ctx->session->history_index >= ctx->history_len)
+        ctx->session->history_index = ctx->history_len > 0 ? ctx->history_len-1 : 0;
     return 1;
 }
 
@@ -2505,8 +3155,17 @@ int linenoise_history_save(linenoise_context_t *ctx, const char *filename) {
         close(fd);
         return -1;
     }
-    for (int j = 0; j < ctx->history_len; j++)
-        fprintf(fp, "%s\n", ctx->history[j]);
+    for (int j = 0; j < ctx->history_len; j++) {
+        /* Keep the history file newline separated: embedded newlines in an
+         * entry are stored as CR and converted back by
+         * linenoise_history_load(). */
+        const char *p = ctx->history[j];
+        while (*p) {
+            fputc(*p == '\n' ? '\r' : *p, fp);
+            p++;
+        }
+        fputc('\n', fp);
+    }
     fclose(fp);
     return 0;
 }
@@ -2514,77 +3173,38 @@ int linenoise_history_save(linenoise_context_t *ctx, const char *filename) {
 /* Load history from file for a context. */
 int linenoise_history_load(linenoise_context_t *ctx, const char *filename) {
     FILE *fp;
-    char buf[LINENOISE_MAX_LINE];
+    char *buf;
+    int err = 0;
 
     if (!ctx) return -1;
 
     fp = fopen(filename, "r");
     if (fp == NULL) return -1;
 
-    while (fgets(buf, LINENOISE_MAX_LINE, fp) != NULL) {
-        char *p;
-        p = strchr(buf, '\r');
-        if (!p) p = strchr(buf, '\n');
-        if (p) *p = '\0';
+    while ((buf = read_file_line(fp, &err)) != NULL) {
+        size_t j;
+        /* Rebuild embedded newlines that were saved as CR. */
+        for (j = 0; buf[j]; j++) {
+            if (buf[j] == '\r') buf[j] = '\n';
+        }
         linenoise_history_add(ctx, buf);
+        ln_free(buf);
+    }
+    if (err || ferror(fp)) {
+        fclose(fp);
+        return -1;
     }
     fclose(fp);
     return 0;
 }
 
-/* Main line editing function using a context.
- * Note: This is a simplified version that uses the global state internally
- * but respects the context's settings. A full implementation would require
- * threading the context through all internal functions. */
+/* Main line editing function using a context. */
 char *linenoise_read(linenoise_context_t *ctx, const char *prompt) {
-    if (!ctx) return NULL;
-
-    /* Temporarily set global state from context for backward compatibility
-     * with internal functions. This is a transitional approach. */
-    int saved_maskmode = maskmode;
-    int saved_mlmode = mlmode;
-    int saved_mousemode = mousemode;
-    linenoise_completion_cb_t *saved_completion = completion_callback;
-    linenoise_hints_cb_t *saved_hints = hints_callback;
-    linenoise_free_hints_cb_t *saved_freehints = free_hints_callback;
-    linenoise_highlight_cb_t *saved_highlight = highlight_callback;
-
-    maskmode = ctx->maskmode;
-    mlmode = ctx->mlmode;
-    mousemode = ctx->mousemode;
-    completion_callback = ctx->completion_callback;
-    hints_callback = ctx->hints_callback;
-    free_hints_callback = ctx->free_hints_callback;
-    highlight_callback = ctx->highlight_callback;
-
-    /* Also temporarily swap history. */
-    int saved_history_len = history_len;
-    int saved_history_max_len = history_max_len;
-    char **saved_history = history;
-    history_len = ctx->history_len;
-    history_max_len = ctx->history_max_len;
-    history = ctx->history;
-
-    /* Call the internal line reading function. */
-    char *result = read_line(prompt);
-
-    /* Copy back any history changes. */
-    ctx->history_len = history_len;
-    ctx->history = history;
-
-    /* Restore global state. */
-    maskmode = saved_maskmode;
-    mlmode = saved_mlmode;
-    mousemode = saved_mousemode;
-    completion_callback = saved_completion;
-    hints_callback = saved_hints;
-    free_hints_callback = saved_freehints;
-    highlight_callback = saved_highlight;
-    history_len = saved_history_len;
-    history_max_len = saved_history_max_len;
-    history = saved_history;
-
-    return result;
+    if (!ctx || ctx->session) {
+        set_error(LINENOISE_ERR_INVALID);
+        return NULL;
+    }
+    return read_line(ctx, prompt);
 }
 
 /* Clear the screen using the context's output (currently just uses stdout). */

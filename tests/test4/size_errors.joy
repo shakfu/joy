@@ -1,0 +1,16 @@
+(*
+    Oversized dimensions raise a runtime error instead of overflowing into an
+    undersized buffer. Run with ALLOW_ERRORS=1. The error leaves the
+    arguments on the stack, so each check shows that no result was produced.
+*)
+newstack 3037000500 meye.
+stack [3037000500] equal.
+newstack 5000000000 vzeros.
+stack [5000000000] equal.
+newstack 0 maxint vrange.
+stack [9223372036854775807 0] equal.
+newstack 3037000500 3037000500 nmzeros.
+stack [3037000500 3037000500] equal.
+newstack 100000 1 nmones 1 100000 nmones nmm.
+stack size 2 =.
+newstack 3 meye [[1.0 0.0 0.0] [0.0 1.0 0.0] [0.0 0.0 1.0]] equal.

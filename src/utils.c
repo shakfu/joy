@@ -82,6 +82,21 @@ void *check_malloc(size_t leng)
 }
 
 /*
+ * Nodes hold pointers to payloads (vectors, matrices, lazy data, dictionaries)
+ * owned by the conservative GC, which does not scan the calloc'd node arenas.
+ * Without this root, it frees payloads that live nodes still reference.
+ */
+static void mark_node_arenas(GC_Context* ctx, void* arg)
+{
+    pEnv env = arg;
+
+    gc_ctx_mark_range(ctx, env->memory, env->memoryindex * sizeof(Node));
+    if (env->old_memory)
+        gc_ctx_mark_range(ctx, env->old_memory,
+                          env->old_memoryindex * sizeof(Node));
+}
+
+/*
  * Initialize memory at the start and before reading a definition.
  * Definitions clear all other memory; they are themselves permanent.
  * Memory is initialized with 1 node, acting as a null pointer.
@@ -99,6 +114,8 @@ void inimem1(pEnv env, int status)
         if (!env->memory)
             fatal("memory exhausted");
 #endif
+        gc_ctx_set_root_fn(env->gc_ctx ? env->gc_ctx : gc_get_default_context(),
+                           mark_node_arenas, env);
     } else if (status) {
         env->stck = env->inits; /* reset the stack to initial */
         env->memoryindex = env->mem_low;  /* retain only definitions */
@@ -335,8 +352,8 @@ static void scan_roots(pEnv env)
             ent.u.body = copy(env, ent.u.body);
             vec_at(env->symtab, i) = ent;
         }
-        if (ent.is_last) /* stop at the last variable */
-            break;
+        /* No early stop at is_last: that marks the first variable assigned,
+           not the lowest index, and let/match bindings are roots too. */
     }
 }
 
@@ -369,6 +386,7 @@ static void gc1(pEnv env, Index *l, Index *r)
     if (r)
         COP1(*r, "next");
 #endif
+    env->old_memoryindex = env->memoryindex;
     env->old_memory = env->memory; /* backup original memory */
     /*
      * Allocate new memory with at least the same capacity as the original.

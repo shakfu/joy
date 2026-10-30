@@ -42,8 +42,8 @@ static const char* SCHEMA_SQL =
     "CREATE INDEX IF NOT EXISTS idx_snapshots_name ON snapshots(name);";
 
 /* Forward declarations */
-static void ensure_schema(Session* s);
-static void prepare_statements(Session* s);
+static int ensure_schema(Session* s);
+static int prepare_statements(Session* s);
 static void load_symbols_from_db(pEnv env);
 static char* serialize_value(pEnv env, Index body);
 static Index deserialize_value(pEnv env, const char* str);
@@ -51,38 +51,85 @@ static void session_close_internal(pEnv env);
 static void invalidate_cache(Session* s, const char* name);
 static Index reverse_list(pEnv env, Index head);
 
-/* Helper: initialize schema */
-static void ensure_schema(Session* s)
+/*
+ * Raise a runtime error for the last failure on db. If a database is
+ * attached, detach it first: it would make the next ATTACH fail.
+ */
+static void raise_sql(pEnv env, sqlite3* db, const char* detach, char* op)
 {
-    char* errmsg = NULL;
-    /* Enable WAL mode for better concurrency */
-    sqlite3_exec(s->db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
-    /* Create tables */
-    if (sqlite3_exec(s->db, SCHEMA_SQL, NULL, NULL, &errmsg) != SQLITE_OK) {
-        fprintf(stderr, "session: schema error: %s\n", errmsg);
-        sqlite3_free(errmsg);
-    }
+    char msg[256];
+
+    snprintf(msg, sizeof(msg), "working session database (%s)",
+             sqlite3_errmsg(db));
+    if (detach)
+        sqlite3_exec(db, detach, NULL, NULL, NULL);
+    execerror(env, msg, op);
 }
 
-/* Helper: prepare cached statements */
-static void prepare_statements(Session* s)
+/* sqlite3_exec that raises a runtime error on failure */
+static void exec_sql(pEnv env, sqlite3* db, const char* sql,
+                     const char* detach, char* op)
 {
-    sqlite3_prepare_v2(s->db,
+    if (sqlite3_exec(db, sql, NULL, NULL, NULL) != SQLITE_OK)
+        raise_sql(env, db, detach, op);
+}
+
+/* sqlite3_prepare_v2 that raises a runtime error on failure */
+static sqlite3_stmt* prepare_sql(pEnv env, sqlite3* db, const char* sql,
+                                 const char* detach, char* op)
+{
+    sqlite3_stmt* stmt = NULL;
+
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK)
+        raise_sql(env, db, detach, op);
+    return stmt;
+}
+
+/* Finalize a statement whose step loop ended with rc; raise unless DONE */
+static void finish_sql(pEnv env, sqlite3* db, sqlite3_stmt* stmt, int rc,
+                       const char* detach, char* op)
+{
+    if (rc != SQLITE_DONE) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "%s", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        if (detach)
+            sqlite3_exec(db, detach, NULL, NULL, NULL);
+        execerror(env, msg, op);
+    }
+    sqlite3_finalize(stmt);
+}
+
+/* Helper: initialize schema; returns an SQLite result code */
+static int ensure_schema(Session* s)
+{
+    /* WAL improves concurrency; a database that refuses it still works */
+    sqlite3_exec(s->db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
+    return sqlite3_exec(s->db, SCHEMA_SQL, NULL, NULL, NULL);
+}
+
+/* Helper: prepare cached statements; returns an SQLite result code */
+static int prepare_statements(Session* s)
+{
+    int rc;
+
+    rc = sqlite3_prepare_v2(s->db,
         "INSERT OR REPLACE INTO symbols (name, body, modified_at, created_at) "
         "VALUES (?, ?, ?, COALESCE((SELECT created_at FROM symbols WHERE name = ?), ?))",
         -1, &s->insert_symbol, NULL);
-
-    sqlite3_prepare_v2(s->db,
-        "SELECT body FROM symbols WHERE name = ?",
-        -1, &s->select_symbol, NULL);
-
-    sqlite3_prepare_v2(s->db,
-        "DELETE FROM symbols WHERE name = ?",
-        -1, &s->delete_symbol, NULL);
-
-    sqlite3_prepare_v2(s->db,
-        "SELECT name, body FROM symbols ORDER BY name",
-        -1, &s->list_symbols, NULL);
+    if (rc == SQLITE_OK)
+        rc = sqlite3_prepare_v2(s->db,
+            "SELECT body FROM symbols WHERE name = ?",
+            -1, &s->select_symbol, NULL);
+    if (rc == SQLITE_OK)
+        rc = sqlite3_prepare_v2(s->db,
+            "DELETE FROM symbols WHERE name = ?",
+            -1, &s->delete_symbol, NULL);
+    if (rc == SQLITE_OK)
+        rc = sqlite3_prepare_v2(s->db,
+            "SELECT name, body FROM symbols ORDER BY name",
+            -1, &s->list_symbols, NULL);
+    return rc;
 }
 
 /* Helper: serialize a Joy value to a string using writeterm */
@@ -272,9 +319,11 @@ static void load_symbols_from_db(pEnv env)
     if (!s || !s->db)
         return;
 
+    int rc;
+
     sqlite3_reset(s->list_symbols);
 
-    while (sqlite3_step(s->list_symbols) == SQLITE_ROW) {
+    while ((rc = sqlite3_step(s->list_symbols)) == SQLITE_ROW) {
         const char* name = (const char*)sqlite3_column_text(s->list_symbols, 0);
         const char* body_str = (const char*)sqlite3_column_text(s->list_symbols, 1);
 
@@ -293,6 +342,8 @@ static void load_symbols_from_db(pEnv env)
             vec_at(env->symtab, index) = ent;
         }
     }
+    if (rc != SQLITE_DONE)
+        raise_sql(env, s->db, NULL, "session");
 }
 
 /* Persist a symbol to the database - called from symbol.c */
@@ -360,14 +411,17 @@ void session_(pEnv env)
     snprintf(path, sizeof(path), "%s.joy.db", name);
     env->session->path = GC_strdup(path);
 
-    if (sqlite3_open(path, &env->session->db) != SQLITE_OK) {
-        execerror(env, "cannot open session database", name);
-        return;
+    /* On failure leave no half-open session behind */
+    if (sqlite3_open(path, &env->session->db) != SQLITE_OK
+        || ensure_schema(env->session) != SQLITE_OK
+        || prepare_statements(env->session) != SQLITE_OK) {
+        char msg[256];
+        snprintf(msg, sizeof(msg), "usable session database (%s)",
+                 env->session->db ? sqlite3_errmsg(env->session->db)
+                                  : "out of memory");
+        session_close_internal(env);
+        execerror(env, msg, "session");
     }
-
-    /* Initialize schema */
-    ensure_schema(env->session);
-    prepare_statements(env->session);
 
     /* Load existing definitions */
     load_symbols_from_db(env);
@@ -452,6 +506,7 @@ void snapshot_(pEnv env)
     char* name;
     Session* s = env->session;
     char* sql;
+    int rc;
 
     ONEPARAM("snapshot");
     STRING("snapshot");
@@ -463,18 +518,18 @@ void snapshot_(pEnv env)
         return;
     }
 
-    /* Delete existing snapshot with same name */
-    sql = sqlite3_mprintf("DELETE FROM snapshots WHERE name = %Q", name);
-    sqlite3_exec(s->db, sql, NULL, NULL, NULL);
-    sqlite3_free(sql);
-
-    /* Copy current symbols into snapshot */
+    /* Replace any snapshot with the same name, atomically */
     sql = sqlite3_mprintf(
+        "BEGIN;"
+        "DELETE FROM snapshots WHERE name = %Q;"
         "INSERT INTO snapshots (name, symbol_name, body, created_at) "
-        "SELECT %Q, name, body, %lld FROM symbols",
-        name, (long long)time(NULL));
-    sqlite3_exec(s->db, sql, NULL, NULL, NULL);
+        "SELECT %Q, name, body, %lld FROM symbols;"
+        "COMMIT;",
+        name, name, (long long)time(NULL));
+    rc = sqlite3_exec(s->db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
+    if (rc != SQLITE_OK)
+        raise_sql(env, s->db, "ROLLBACK", "snapshot");
 
     printf("session: snapshot '%s' created\n", name);
 }
@@ -490,7 +545,7 @@ void restore_(pEnv env)
     Session* s = env->session;
     char* sql;
     sqlite3_stmt* stmt;
-    int count = 0;
+    int count = 0, rc;
 
     ONEPARAM("restore");
     STRING("restore");
@@ -505,28 +560,35 @@ void restore_(pEnv env)
     /* Check snapshot exists */
     sql = sqlite3_mprintf(
         "SELECT COUNT(*) FROM snapshots WHERE name = %Q", name);
-    sqlite3_prepare_v2(s->db, sql, -1, &stmt, NULL);
+    rc = sqlite3_prepare_v2(s->db, sql, -1, &stmt, NULL);
     sqlite3_free(sql);
+    if (rc != SQLITE_OK)
+        raise_sql(env, s->db, NULL, "restore");
 
-    if (sqlite3_step(stmt) == SQLITE_ROW)
+    if ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         count = sqlite3_column_int(stmt, 0);
-    sqlite3_finalize(stmt);
+        rc = SQLITE_DONE;
+    }
+    finish_sql(env, s->db, stmt, rc, NULL, "restore");
 
     if (count == 0) {
         execerror(env, "snapshot not found", name);
         return;
     }
 
-    /* Clear current symbols */
-    sqlite3_exec(s->db, "DELETE FROM symbols", NULL, NULL, NULL);
-
-    /* Restore from snapshot */
+    /* Replace the symbols in one transaction: a failed insert after the
+       delete would otherwise lose every definition */
     sql = sqlite3_mprintf(
+        "BEGIN;"
+        "DELETE FROM symbols;"
         "INSERT INTO symbols (name, body, modified_at, created_at) "
-        "SELECT symbol_name, body, %lld, %lld FROM snapshots WHERE name = %Q",
+        "SELECT symbol_name, body, %lld, %lld FROM snapshots WHERE name = %Q;"
+        "COMMIT;",
         (long long)time(NULL), (long long)time(NULL), name);
-    sqlite3_exec(s->db, sql, NULL, NULL, NULL);
+    rc = sqlite3_exec(s->db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
+    if (rc != SQLITE_OK)
+        raise_sql(env, s->db, "ROLLBACK", "restore");
 
     /* Clear cache and reload */
     kh_clear(Cache, s->cache);
@@ -546,7 +608,7 @@ void snapshots_(pEnv env)
     Session* s = env->session;
     Index result = 0;
     sqlite3_stmt* stmt;
-    int count = 0;
+    int count = 0, rc;
 
     if (!s || !s->persistent) {
         NULLARY(LIST_NEWNODE, 0);
@@ -554,12 +616,13 @@ void snapshots_(pEnv env)
     }
 
     /* First pass: count entries */
-    sqlite3_prepare_v2(s->db,
-        "SELECT COUNT(DISTINCT name) FROM snapshots",
-        -1, &stmt, NULL);
-    if (sqlite3_step(stmt) == SQLITE_ROW)
+    stmt = prepare_sql(env, s->db, "SELECT COUNT(DISTINCT name) FROM snapshots",
+                       NULL, "snapshots");
+    if ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         count = sqlite3_column_int(stmt, 0);
-    sqlite3_finalize(stmt);
+        rc = SQLITE_DONE;
+    }
+    finish_sql(env, s->db, stmt, rc, NULL, "snapshots");
 
 #ifdef NOBDW
     if (count > 0)
@@ -567,15 +630,15 @@ void snapshots_(pEnv env)
 #endif
 
     /* Collect snapshot names */
-    sqlite3_prepare_v2(s->db,
+    stmt = prepare_sql(env, s->db,
         "SELECT DISTINCT name FROM snapshots ORDER BY created_at DESC",
-        -1, &stmt, NULL);
+        NULL, "snapshots");
 
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         const char* name = (const char*)sqlite3_column_text(stmt, 0);
         result = STRING_NEWNODE(GC_strdup(name), result);
     }
-    sqlite3_finalize(stmt);
+    finish_sql(env, s->db, stmt, rc, NULL, "snapshots");
 
     result = reverse_list(env, result);
     NULLARY(LIST_NEWNODE, result);
@@ -594,7 +657,7 @@ void session_merge_(pEnv env)
     char* attach_sql;
     sqlite3_stmt* stmt;
     Index conflicts = 0;
-    int conflict_count = 0;
+    int conflict_count = 0, rc;
 
     ONEPARAM("session-merge");
     STRING("session-merge");
@@ -617,18 +680,18 @@ void session_merge_(pEnv env)
     sqlite3_free(attach_sql);
 
     /* Find conflicts: same name, different body */
-    sqlite3_prepare_v2(target->db,
+    stmt = prepare_sql(env, target->db,
         "SELECT s.name FROM source.symbols s "
         "JOIN symbols t ON s.name = t.name "
         "WHERE s.body != t.body",
-        -1, &stmt, NULL);
+        "DETACH DATABASE source", "session-merge");
 
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         const char* name = (const char*)sqlite3_column_text(stmt, 0);
         conflicts = STRING_NEWNODE(GC_strdup(name), conflicts);
         conflict_count++;
     }
-    sqlite3_finalize(stmt);
+    finish_sql(env, target->db, stmt, rc, "DETACH DATABASE source", "session-merge");
 
     if (conflict_count > 0) {
         /* Report conflicts, return false */
@@ -643,15 +706,15 @@ void session_merge_(pEnv env)
     }
 
     /* No conflicts - merge symbols that only exist in source */
-    sqlite3_exec(target->db,
+    exec_sql(env, target->db,
         "INSERT INTO symbols (name, body, type, size, created_at, modified_at) "
         "SELECT s.name, s.body, s.type, s.size, s.created_at, s.modified_at "
         "FROM source.symbols s "
         "WHERE s.name NOT IN (SELECT name FROM symbols)",
-        NULL, NULL, NULL);
+        "DETACH DATABASE source", "session-merge");
 
     /* Detach source */
-    sqlite3_exec(target->db, "DETACH DATABASE source", NULL, NULL, NULL);
+    exec_sql(env, target->db, "DETACH DATABASE source", NULL, "session-merge");
 
     /* Reload symbols */
     load_symbols_from_db(env);
@@ -676,7 +739,7 @@ void session_diff_(pEnv env)
     Index added = 0, modified = 0, removed = 0;
     khash_t(Dict)* dict;
     khint_t k;
-    int ret;
+    int ret, rc;
 
     ONEPARAM("session-diff");
     STRING("session-diff");
@@ -699,34 +762,34 @@ void session_diff_(pEnv env)
     sqlite3_free(attach_sql);
 
     /* Added: in other but not in current */
-    sqlite3_prepare_v2(current->db,
+    stmt = prepare_sql(env, current->db,
         "SELECT name FROM other.symbols WHERE name NOT IN (SELECT name FROM symbols)",
-        -1, &stmt, NULL);
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        "DETACH DATABASE other", "session-diff");
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         added = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), added);
     }
-    sqlite3_finalize(stmt);
+    finish_sql(env, current->db, stmt, rc, "DETACH DATABASE other", "session-diff");
 
     /* Modified: in both but different */
-    sqlite3_prepare_v2(current->db,
+    stmt = prepare_sql(env, current->db,
         "SELECT o.name FROM other.symbols o "
         "JOIN symbols s ON o.name = s.name WHERE o.body != s.body",
-        -1, &stmt, NULL);
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        "DETACH DATABASE other", "session-diff");
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         modified = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), modified);
     }
-    sqlite3_finalize(stmt);
+    finish_sql(env, current->db, stmt, rc, "DETACH DATABASE other", "session-diff");
 
     /* Removed: in current but not in other */
-    sqlite3_prepare_v2(current->db,
+    stmt = prepare_sql(env, current->db,
         "SELECT name FROM symbols WHERE name NOT IN (SELECT name FROM other.symbols)",
-        -1, &stmt, NULL);
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        "DETACH DATABASE other", "session-diff");
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         removed = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), removed);
     }
-    sqlite3_finalize(stmt);
+    finish_sql(env, current->db, stmt, rc, "DETACH DATABASE other", "session-diff");
 
-    sqlite3_exec(current->db, "DETACH DATABASE other", NULL, NULL, NULL);
+    exec_sql(env, current->db, "DETACH DATABASE other", NULL, "session-diff");
 
     /* Build result dict */
     dict = kh_init(Dict);
@@ -756,6 +819,7 @@ void session_take_(pEnv env)
     char path[PATH_MAX];
     char* attach_sql;
     char* sql;
+    int rc;
 
     TWOPARAMS("session-take");
     STRING("session-take");
@@ -786,22 +850,22 @@ void session_take_(pEnv env)
         "INSERT OR REPLACE INTO symbols (name, body, type, size, created_at, modified_at) "
         "SELECT name, body, type, size, created_at, %lld FROM source.symbols WHERE name = %Q",
         (long long)time(NULL), symbol_name);
-    sqlite3_exec(current->db, sql, NULL, NULL, NULL);
+    rc = sqlite3_exec(current->db, sql, NULL, NULL, NULL);
     sqlite3_free(sql);
+    if (rc != SQLITE_OK)
+        raise_sql(env, current->db, "DETACH DATABASE source", "session-take");
 
-    sqlite3_exec(current->db, "DETACH DATABASE source", NULL, NULL, NULL);
+    exec_sql(env, current->db, "DETACH DATABASE source", NULL, "session-take");
 
     /* Reload that symbol */
     invalidate_cache(current, symbol_name);
 
     /* Reload the symbol from database */
-    sqlite3_stmt* stmt;
-    sqlite3_prepare_v2(current->db,
-        "SELECT body FROM symbols WHERE name = ?",
-        -1, &stmt, NULL);
+    sqlite3_stmt* stmt = prepare_sql(env, current->db,
+        "SELECT body FROM symbols WHERE name = ?", NULL, "session-take");
     sqlite3_bind_text(stmt, 1, symbol_name, -1, SQLITE_STATIC);
 
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
+    if ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         const char* body_str = (const char*)sqlite3_column_text(stmt, 0);
         Index body = deserialize_value(env, body_str);
         int index = lookup(env, symbol_name);
@@ -811,8 +875,9 @@ void session_take_(pEnv env)
             ent.u.body = body;
             vec_at(env->symtab, index) = ent;
         }
+        rc = SQLITE_DONE;
     }
-    sqlite3_finalize(stmt);
+    finish_sql(env, current->db, stmt, rc, NULL, "session-take");
 
     printf("session-take: took '%s' from '%s'\n", symbol_name, source_name);
 }
@@ -831,7 +896,7 @@ void sql_(pEnv env)
     sqlite3_stmt* stmt;
     Index results = 0;
     int col_count;
-    int param_idx;
+    int param_idx, rc;
     Index p;
 
     TWOPARAMS("sql");
@@ -882,7 +947,7 @@ void sql_(pEnv env)
     /* Collect results */
     col_count = sqlite3_column_count(stmt);
 
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
+    while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         /* Each row becomes a dict */
         khash_t(Dict)* dict = kh_init(Dict);
         int c;
@@ -920,7 +985,7 @@ void sql_(pEnv env)
 
         results = DICT_NEWNODE(dict, results);
     }
-    sqlite3_finalize(stmt);
+    finish_sql(env, s->db, stmt, rc, NULL, "sql");
 
     results = reverse_list(env, results);
     NULLARY(LIST_NEWNODE, results);

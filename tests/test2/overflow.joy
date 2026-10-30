@@ -1,0 +1,17 @@
+(*
+    module  : overflow.joy
+    Integer arithmetic wraps (two's complement) instead of overflowing.
+    INT64_MIN / -1 would trap on x86.
+*)
+maxint 1 + maxint neg 1 - =.
+maxint succ maxint 1 + =.
+maxint 1 + pred maxint =.
+maxint 1 + abs maxint 1 + =.
+maxint 1 + neg maxint 1 + =.
+maxint 2 * -2 =.
+maxint 1 + -1 / maxint 1 + =.
+maxint 1 + -1 rem 0 =.
+maxint 1 + -1 div 0 = swap maxint 1 + = and.
+7 -2 div 1 = swap -3 = and.
+maxint trunc maxint =.
+-9.2233720368547758e18 trunc maxint 1 + =.

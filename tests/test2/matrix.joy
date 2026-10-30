@@ -40,8 +40,8 @@
 [[1 0] [0 1]] det 1.0 equal.
 [[2 0 0] [0 3 0] [0 0 4]] det 24.0 equal.
 
-(* Inverse *)
-[[1 2] [3 4]] inv [[-2.0 1.0] [1.5 -0.5]] equal.
+(* Inverse: rounding error (~4e-16) is expected, so compare within 1e-12 *)
+[[1 2] [3 4]] inv [[-2.0 1.0] [1.5 -0.5]] m- [[abs 1.0e-12 <] all] all.
 [[1 0] [0 1]] inv [[1.0 0.0] [0.0 1.0]] equal.
 
 (* Identity matrix meye *)
@@ -50,7 +50,7 @@
 0 meye [] equal.
 
 (* Verify inverse: M * inv(M) = I *)
-[[1 2] [3 4]] dup inv mm 2 meye equal.
+[[1 2] [3 4]] dup inv mm 2 meye m- [[abs 1.0e-12 <] all] all.
 
 (* Verify transpose of transpose *)
 [[1 2 3] [4 5 6]] dup transpose transpose equal.

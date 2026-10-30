@@ -68,3 +68,7 @@ m[[1 2][3 4]] >mat matrix? true equal.
 (* Test >list on regular list - should pass through *)
 [1 2 3] >list [1 2 3] equal.
 
+
+(* >list on a matrix large enough to trigger GC while the rows are built *)
+10000 3 nmones >list size 10000 =.
+2000 10 nmones >list [size 10 =] all.

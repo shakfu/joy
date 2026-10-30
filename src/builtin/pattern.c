@@ -22,7 +22,6 @@
 typedef struct {
     int sym_index;      /* Index into symtab */
     Index value;        /* Value to bind */
-    Entry saved_entry;  /* Original entry for restoration */
 } Binding;
 
 /* Forward declarations */
@@ -75,10 +74,8 @@ static void add_binding(pEnv env, Index pattern_var, Index value,
         execerror(env, "match", "too many pattern variables");
         return;
     }
-    int idx = nodevalue(pattern_var).ent;
-    bindings[*num_bindings].sym_index = idx;
+    bindings[*num_bindings].sym_index = nodevalue(pattern_var).ent;
     bindings[*num_bindings].value = value;
-    bindings[*num_bindings].saved_entry = vec_at(env->symtab, idx);
     (*num_bindings)++;
 }
 
@@ -233,26 +230,46 @@ static int pattern_match(pEnv env, Index pattern, Index value,
 }
 
 /*
- * Apply bindings to symbol table
+ * Count the nodes of a pattern, including nested lists.
  */
-static void apply_bindings(pEnv env, Binding* bindings, int num_bindings)
+static int pattern_nodes(pEnv env, Index p)
 {
-    for (int i = 0; i < num_bindings; i++) {
-        Entry ent = bindings[i].saved_entry;
-        ent.is_user = 1;
-        ent.u.body = newnode2(env, bindings[i].value, 0);
-        vec_at(env->symtab, bindings[i].sym_index) = ent;
+    int n = 0;
+
+    for (; p; p = nextnode1(p)) {
+        n++;
+        if (nodetype(p) == LIST_)
+            n += pattern_nodes(env, nodevalue(p).lis);
     }
+    return n;
 }
 
 /*
- * Restore original symbol table entries
+ * Nodes to reserve before matching patterns of p nodes: each pattern node
+ * creates at most one tail list and one binding, which is pushed and bound.
  */
-static void restore_bindings(pEnv env, Binding* bindings, int num_bindings)
+#define MATCH_NODES(p) (2 * (p) + BIND_NODES(p) + 1)
+
+/*
+ * Push the matched values, then bind them for the duration of action.
+ */
+static void exec_matched(pEnv env, Binding* bindings, int num_bindings,
+                         Index action)
 {
-    for (int i = 0; i < num_bindings; i++) {
-        vec_at(env->symtab, bindings[i].sym_index) = bindings[i].saved_entry;
+    int* syms;
+    int i;
+
+    if (num_bindings == 0) {
+        exec_term(env, action);
+        return;
     }
+    if ((syms = malloc(num_bindings * sizeof(int))) == 0)
+        execerror(env, "memory", "match");
+    for (i = 0; i < num_bindings; i++) {
+        syms[i] = bindings[i].sym_index;
+        env->stck = newnode2(env, bindings[i].value, env->stck);
+    }
+    exec_with_bindings(env, syms, num_bindings, action);
 }
 
 /**
@@ -280,6 +297,10 @@ void match_(pEnv env)
     THREEPARAMS("match");
     TWOQUOTES("match");
 
+    /* Reserve nodes first: a GC would move the indices read below */
+    ensure_capacity(env, MATCH_NODES(pattern_nodes(env,
+                                     nodevalue(nextnode1(env->stck)).lis)));
+
     /* Get action and pattern quotations */
     action = nodevalue(env->stck).lis;
     pattern = nodevalue(nextnode1(env->stck)).lis;
@@ -297,10 +318,7 @@ void match_(pEnv env)
 
     /* Attempt pattern match */
     if (pattern_match(env, pat, value, bindings, &num_bindings)) {
-        /* Match succeeded: apply bindings, execute action, restore */
-        apply_bindings(env, bindings, num_bindings);
-        exec_term(env, action);
-        restore_bindings(env, bindings, num_bindings);
+        exec_matched(env, bindings, num_bindings, action);
     } else {
         /* Match failed: push false */
         NULLARY(BOOLEAN_NEWNODE, 0);
@@ -328,6 +346,9 @@ void cases_(pEnv env)
 
     TWOPARAMS("cases");
     ONEQUOTE("cases");
+
+    /* Reserve nodes first: a GC would move the indices read below */
+    ensure_capacity(env, MATCH_NODES(pattern_nodes(env, nodevalue(env->stck).lis)));
 
     /* Get cases list */
     cases_list = nodevalue(env->stck).lis;
@@ -370,10 +391,7 @@ void cases_(pEnv env)
 
         /* Attempt pattern match */
         if (pattern_match(env, pattern, value, bindings, &num_bindings)) {
-            /* Match succeeded */
-            apply_bindings(env, bindings, num_bindings);
-            exec_term(env, action);
-            restore_bindings(env, bindings, num_bindings);
+            exec_matched(env, bindings, num_bindings, action);
             return;
         }
     }

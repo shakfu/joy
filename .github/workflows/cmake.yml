@@ -1,11 +1,11 @@
 name: CI
 
-on: [workflow_dispatch]
-  # push:
-  #   branches: [ "master" ]
-  # pull_request:
-  #   branches: [ "master" ]
-  # workflow_dispatch:
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
 
 env:
   BUILD_TYPE: Release
@@ -37,7 +37,7 @@ jobs:
           ${{ runner.os }}-cmake-${{ matrix.build_type }}-
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} ${{ matrix.cmake_flags }}
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DRUN_TESTS=ON ${{ matrix.cmake_flags }}
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }}
@@ -55,6 +55,58 @@ jobs:
           build/joy
           build/libjoycore*
         retention-days: 7
+
+  # Optional features, each in its own build
+  features:
+    name: ubuntu-latest (${{ matrix.feature }})
+    runs-on: ubuntu-latest
+    # JOY_PARALLEL does not compile yet (see TODO.md); report it without blocking
+    continue-on-error: ${{ matrix.feature == 'JOY_PARALLEL' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - feature: JOY_SESSION
+            packages: libsqlite3-dev
+          - feature: JOY_BLAS
+            packages: libopenblas-dev
+          - feature: JOY_PARALLEL
+            packages: ""
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install dependencies
+      if: matrix.packages != ''
+      run: sudo apt-get update && sudo apt-get install -y ${{ matrix.packages }}
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DRUN_TESTS=ON -D${{ matrix.feature }}=ON
+
+    - name: Build
+      run: cmake --build build
+
+    - name: Test
+      working-directory: build
+      run: ctest --output-on-failure
+
+  # joy-lsp under AddressSanitizer: memory errors in the server only show
+  # up reliably with a sanitizer. (The interpreter's conservative GC scans
+  # the C stack, which ASan rejects, so only the LSP is built this way.)
+  lsp-asan:
+    name: ubuntu-latest (joy-lsp, ASan)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+
+    - name: Build
+      run: cmake --build build --target joy-lsp
+
+    - name: Test
+      run: python3 tests/lsp/test_lsp.py build/joy-lsp
 
   # Windows build (separate due to different setup)
   build-windows:
@@ -77,7 +129,7 @@ jobs:
           Windows-cmake-${{ matrix.build_type }}-
 
     - name: Configure CMake
-      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+      run: cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DRUN_TESTS=ON
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }}
@@ -115,7 +167,7 @@ jobs:
   # Summary job that depends on all others
   ci-success:
     name: CI Success
-    needs: [build, build-windows, lint]
+    needs: [build, features, lsp-asan, build-windows, lint]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -123,6 +175,14 @@ jobs:
       run: |
         if [ "${{ needs.build.result }}" != "success" ]; then
           echo "Build job failed"
+          exit 1
+        fi
+        if [ "${{ needs.features.result }}" != "success" ]; then
+          echo "Feature build job failed"
+          exit 1
+        fi
+        if [ "${{ needs.lsp-asan.result }}" != "success" ]; then
+          echo "LSP sanitizer job failed"
           exit 1
         fi
         echo "All required checks passed!"

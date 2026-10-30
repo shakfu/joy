@@ -10,6 +10,9 @@ build/
 
 generated/
 
+# REPL history, written to the directory joy runs in
+.joy_history
+
 # cache
 .*_cache
 .cache

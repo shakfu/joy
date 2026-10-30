@@ -208,13 +208,6 @@ if(NOT MSVC)
 endif()
 add_dependencies(joy-lsp lsp_generated)
 
-if(RUN_TESTS)
-  enable_testing()
-  add_subdirectory(lib)
-  add_subdirectory(tests/test2)
-  add_subdirectory(tests/test4)
-endif()
-
 # Optional: Build embedding examples
 option(BUILD_EXAMPLES "Build embedding examples" OFF)
 if(BUILD_EXAMPLES)
@@ -324,4 +317,12 @@ if(JOY_PARALLEL)
       message(WARNING "OpenMP not found - parallel combinators will run sequentially")
     endif()
   endif()
+endif()
+
+# Tests come last: they read the feature options above
+if(RUN_TESTS)
+  enable_testing()
+  add_subdirectory(lib)
+  add_subdirectory(tests/test2)
+  add_subdirectory(tests/test4)
 endif()

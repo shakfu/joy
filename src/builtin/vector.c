@@ -27,6 +27,49 @@
 #include "globals.h"
 #include <math.h>
 
+/*
+ * Element count a * b for user-supplied dimensions. Counts are stored as int,
+ * and an unchecked product overflowed into undersized buffers.
+ */
+static int checked_count(pEnv env, int64_t a, int64_t b, char* name)
+{
+    if (a < 0 || b < 0 || (a && b > INT_MAX / a))
+        execerror(env, "size in range", name);
+    return (int)(a * b);
+}
+
+/* malloc(n * size), raising a runtime error on overflow or exhaustion */
+static void* checked_malloc(pEnv env, size_t n, size_t size, char* name)
+{
+    void* p = 0;
+
+    if (!n || size <= SIZE_MAX / n)
+        p = malloc(n ? n * size : 1);
+    if (!p)
+        execerror(env, "memory", name);
+    return p;
+}
+
+/* calloc(n, size), raising a runtime error on exhaustion */
+static void* checked_calloc(pEnv env, size_t n, size_t size, char* name)
+{
+    void* p = calloc(n ? n : 1, size);
+
+    if (!p)
+        execerror(env, "memory", name);
+    return p;
+}
+
+/* GC-owned native payload of hdr + n doubles, raising on exhaustion */
+static void* checked_payload(pEnv env, size_t hdr, int n, char* name)
+{
+    void* p = GC_CTX_MALLOC_ATOMIC(env, hdr + (size_t)n * sizeof(double));
+
+    if (!p)
+        execerror(env, "memory", name);
+    return p;
+}
+
 #ifdef JOY_BLAS
 #ifdef __APPLE__
 #include <Accelerate/Accelerate.h>
@@ -193,9 +236,9 @@ void vplus_(pEnv env)
         return;
     }
 
-    a = malloc(len1 * sizeof(double));
-    b = malloc(len1 * sizeof(double));
-    result = malloc(len1 * sizeof(double));
+    a = checked_malloc(env, len1, sizeof(double), "v+");
+    b = checked_malloc(env, len1, sizeof(double), "v+");
+    result = checked_malloc(env, len1, sizeof(double), "v+");
 
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
@@ -245,9 +288,9 @@ void vminus_(pEnv env)
         return;
     }
 
-    a = malloc(len1 * sizeof(double));
-    b = malloc(len1 * sizeof(double));
-    result = malloc(len1 * sizeof(double));
+    a = checked_malloc(env, len1, sizeof(double), "v-");
+    b = checked_malloc(env, len1, sizeof(double), "v-");
+    result = checked_malloc(env, len1, sizeof(double), "v-");
 
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
@@ -297,9 +340,9 @@ void vmul_(pEnv env)
         return;
     }
 
-    a = malloc(len1 * sizeof(double));
-    b = malloc(len1 * sizeof(double));
-    result = malloc(len1 * sizeof(double));
+    a = checked_malloc(env, len1, sizeof(double), "v*");
+    b = checked_malloc(env, len1, sizeof(double), "v*");
+    result = checked_malloc(env, len1, sizeof(double), "v*");
 
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
@@ -349,9 +392,9 @@ void vdiv_(pEnv env)
         return;
     }
 
-    a = malloc(len1 * sizeof(double));
-    b = malloc(len1 * sizeof(double));
-    result = malloc(len1 * sizeof(double));
+    a = checked_malloc(env, len1, sizeof(double), "v/");
+    b = checked_malloc(env, len1, sizeof(double), "v/");
+    result = checked_malloc(env, len1, sizeof(double), "v/");
 
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
@@ -402,8 +445,8 @@ void vscale_(pEnv env)
         return;
     }
 
-    values = malloc(len * sizeof(double));
-    result = malloc(len * sizeof(double));
+    values = checked_malloc(env, len, sizeof(double), "vscale");
+    result = checked_malloc(env, len, sizeof(double), "vscale");
 
     extract_values(env, list, values, len);
 
@@ -454,8 +497,8 @@ void dot_(pEnv env)
         return;
     }
 
-    a = malloc(len1 * sizeof(double));
-    b = malloc(len1 * sizeof(double));
+    a = checked_malloc(env, len1, sizeof(double), "dot");
+    b = checked_malloc(env, len1, sizeof(double), "dot");
 
     extract_values(env, list1, a, len1);
     extract_values(env, list2, b, len1);
@@ -611,14 +654,14 @@ void vzeros_(pEnv env)
     ONEPARAM("vzeros");
     POSITIVEINDEX(env->stck, "vzeros");
 
-    n = nodevalue(env->stck).num;
+    n = checked_count(env, nodevalue(env->stck).num, 1, "vzeros");
 
     if (n == 0) {
         UNARY(LIST_NEWNODE, 0);
         return;
     }
 
-    values = malloc(n * sizeof(int64_t));
+    values = checked_malloc(env, n, sizeof(int64_t), "vzeros");
     for (i = 0; i < n; i++) {
         values[i] = 0;
     }
@@ -640,14 +683,14 @@ void vones_(pEnv env)
     ONEPARAM("vones");
     POSITIVEINDEX(env->stck, "vones");
 
-    n = nodevalue(env->stck).num;
+    n = checked_count(env, nodevalue(env->stck).num, 1, "vones");
 
     if (n == 0) {
         UNARY(LIST_NEWNODE, 0);
         return;
     }
 
-    values = malloc(n * sizeof(int64_t));
+    values = checked_malloc(env, n, sizeof(int64_t), "vones");
     for (i = 0; i < n; i++) {
         values[i] = 1;
     }
@@ -678,8 +721,11 @@ void vrange_(pEnv env)
         return;
     }
 
+    /* b - a + 1 overflows for wide ranges */
+    if ((uint64_t)b - (uint64_t)a >= INT_MAX)
+        execerror(env, "size in range", "vrange");
     len = b - a + 1;
-    values = malloc(len * sizeof(int64_t));
+    values = checked_malloc(env, len, sizeof(int64_t), "vrange");
     for (i = 0; i < len; i++) {
         values[i] = a + i;
     }
@@ -742,8 +788,8 @@ void vnormalize_(pEnv env)
         return;
     }
 
-    values = malloc(len * sizeof(double));
-    result = malloc(len * sizeof(double));
+    values = checked_malloc(env, len, sizeof(double), "vnormalize");
+    result = checked_malloc(env, len, sizeof(double), "vnormalize");
 
     extract_values(env, list, values, len);
 
@@ -859,7 +905,7 @@ void vlinspace_(pEnv env)
     THREEPARAMS("vlinspace");
     POSITIVEINDEX(env->stck, "vlinspace");
 
-    n = nodevalue(env->stck).num;
+    n = checked_count(env, nodevalue(env->stck).num, 1, "vlinspace");
     POP(env->stck);
 
     b = get_numeric(env, env->stck, &ok);
@@ -881,14 +927,14 @@ void vlinspace_(pEnv env)
     }
 
     if (n == 1) {
-        result = malloc(sizeof(double));
+        result = checked_malloc(env, 1, sizeof(double), "vlinspace");
         result[0] = a;
         UNARY(LIST_NEWNODE, build_float_list(env, result, 1));
         free(result);
         return;
     }
 
-    result = malloc(n * sizeof(double));
+    result = checked_malloc(env, n, sizeof(double), "vlinspace");
     step = (b - a) / (n - 1);
 
     for (i = 0; i < n; i++) {
@@ -975,6 +1021,9 @@ static Index build_matrix(pEnv env, double* values, int rows, int cols)
     Index tail = 0;
     int r;
 
+    /* Reserve all rows at once: a per-row GC would move head and tail */
+    ensure_capacity(env, rows * (cols + 1));
+
     for (r = 0; r < rows; r++) {
         Index row = build_float_list(env, values + r * cols, cols);
         Index row_node = LIST_NEWNODE(row, 0);
@@ -1025,9 +1074,9 @@ void mplus_(pEnv env)
     }
 
     size = rows1 * cols1;
-    a = malloc(size * sizeof(double));
-    b = malloc(size * sizeof(double));
-    result = malloc(size * sizeof(double));
+    a = checked_malloc(env, size, sizeof(double), "m+");
+    b = checked_malloc(env, size, sizeof(double), "m+");
+    result = checked_malloc(env, size, sizeof(double), "m+");
 
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
@@ -1076,9 +1125,9 @@ void mminus_(pEnv env)
     }
 
     size = rows1 * cols1;
-    a = malloc(size * sizeof(double));
-    b = malloc(size * sizeof(double));
-    result = malloc(size * sizeof(double));
+    a = checked_malloc(env, size, sizeof(double), "m-");
+    b = checked_malloc(env, size, sizeof(double), "m-");
+    result = checked_malloc(env, size, sizeof(double), "m-");
 
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
@@ -1127,9 +1176,9 @@ void mmul_(pEnv env)
     }
 
     size = rows1 * cols1;
-    a = malloc(size * sizeof(double));
-    b = malloc(size * sizeof(double));
-    result = malloc(size * sizeof(double));
+    a = checked_malloc(env, size, sizeof(double), "m*");
+    b = checked_malloc(env, size, sizeof(double), "m*");
+    result = checked_malloc(env, size, sizeof(double), "m*");
 
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
@@ -1178,9 +1227,9 @@ void mdiv_(pEnv env)
     }
 
     size = rows1 * cols1;
-    a = malloc(size * sizeof(double));
-    b = malloc(size * sizeof(double));
-    result = malloc(size * sizeof(double));
+    a = checked_malloc(env, size, sizeof(double), "m/");
+    b = checked_malloc(env, size, sizeof(double), "m/");
+    result = checked_malloc(env, size, sizeof(double), "m/");
 
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
@@ -1229,8 +1278,8 @@ void mscale_(pEnv env)
     }
 
     size = rows * cols;
-    values = malloc(size * sizeof(double));
-    result = malloc(size * sizeof(double));
+    values = checked_malloc(env, size, sizeof(double), "mscale");
+    result = checked_malloc(env, size, sizeof(double), "mscale");
 
     extract_matrix(env, mat, values, rows, cols);
 
@@ -1279,9 +1328,9 @@ void mm_(pEnv env)
         return;
     }
 
-    a = malloc(rows1 * cols1 * sizeof(double));
-    b = malloc(rows2 * cols2 * sizeof(double));
-    result = calloc(rows1 * cols2, sizeof(double));
+    a = checked_malloc(env, rows1 * cols1, sizeof(double), "mm");
+    b = checked_malloc(env, rows2 * cols2, sizeof(double), "mm");
+    result = checked_calloc(env, rows1 * cols2, sizeof(double), "mm");
 
     extract_matrix(env, mat1, a, rows1, cols1);
     extract_matrix(env, mat2, b, rows2, cols2);
@@ -1350,9 +1399,9 @@ void mv_(pEnv env)
         return;
     }
 
-    m = malloc(rows * cols * sizeof(double));
-    v = malloc(vec_len * sizeof(double));
-    result = calloc(rows, sizeof(double));
+    m = checked_malloc(env, rows * cols, sizeof(double), "mv");
+    v = checked_malloc(env, vec_len, sizeof(double), "mv");
+    result = checked_calloc(env, rows, sizeof(double), "mv");
 
     extract_matrix(env, mat, m, rows, cols);
     extract_values(env, vec, v, vec_len);
@@ -1396,8 +1445,8 @@ void transpose_(pEnv env)
         return;
     }
 
-    m = malloc(rows * cols * sizeof(double));
-    result = malloc(cols * rows * sizeof(double));
+    m = checked_malloc(env, rows * cols, sizeof(double), "transpose");
+    result = checked_malloc(env, cols * rows, sizeof(double), "transpose");
 
     extract_matrix(env, mat, m, rows, cols);
 
@@ -1443,7 +1492,7 @@ void trace_(pEnv env)
         return;
     }
 
-    m = malloc(rows * cols * sizeof(double));
+    m = checked_malloc(env, rows * cols, sizeof(double), "trace");
     extract_matrix(env, mat, m, rows, cols);
 
     for (i = 0; i < rows; i++) {
@@ -1532,7 +1581,7 @@ void det_(pEnv env)
     }
 
     size = rows * cols;
-    m = malloc(size * sizeof(double));
+    m = checked_malloc(env, size, sizeof(double), "det");
     extract_matrix(env, mat, m, rows, cols);
 
     result = compute_determinant(m, rows);
@@ -1636,8 +1685,8 @@ void inv_(pEnv env)
     }
 
     size = rows * cols;
-    m = malloc(size * sizeof(double));
-    result = malloc(size * sizeof(double));
+    m = checked_malloc(env, size, sizeof(double), "inv");
+    result = checked_malloc(env, size, sizeof(double), "inv");
 
     extract_matrix(env, mat, m, rows, cols);
 
@@ -1676,8 +1725,8 @@ void meye_(pEnv env)
         return;
     }
 
-    size = (int)(n * n);
-    result = calloc(size, sizeof(double));
+    size = checked_count(env, n, n, "meye");
+    result = checked_calloc(env, size, sizeof(double), "meye");
 
     for (i = 0; i < n; i++) {
         result[i * n + i] = 1.0;
@@ -1736,7 +1785,7 @@ void tovec_(pEnv env)
     if (len < 0) return;
 
     /* Allocate VectorData with flexible array */
-    vec = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData) + len * sizeof(double));
+    vec = checked_payload(env, sizeof(VectorData), len, ">vec");
     vec->len = len;
 
     /* Extract values */
@@ -1772,7 +1821,8 @@ void tomat_(pEnv env)
     if (check_matrix(env, mat, &rows, &cols, ">mat") < 0) return;
 
     /* Allocate MatrixData with flexible array */
-    result = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + rows * cols * sizeof(double));
+    result = checked_payload(env, sizeof(MatrixData),
+                             checked_count(env, rows, cols, ">mat"), ">mat");
     result->rows = rows;
     result->cols = cols;
 
@@ -1796,6 +1846,13 @@ Q0  OK  3760  >list\0tolist  :  X  ->  L
 void tolist_(pEnv env)
 {
     ONEPARAM(">list");
+
+    /* Reserve before taking payload pointers: a GC copies the payload */
+    if (nodetype(env->stck) == VECTOR_ && nodevalue(env->stck).vec)
+        ensure_capacity(env, nodevalue(env->stck).vec->len + 1);
+    if (nodetype(env->stck) == MATRIX_ && nodevalue(env->stck).mat)
+        ensure_capacity(env, nodevalue(env->stck).mat->rows
+                                 * (nodevalue(env->stck).mat->cols + 1) + 1);
 
     if (nodetype(env->stck) == VECTOR_) {
         VectorData* vec = nodevalue(env->stck).vec;
@@ -1901,13 +1958,13 @@ void nmv_(pEnv env)
     }
 
     if (mat->rows == 0) {
-        result = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData));
+        result = checked_payload(env, sizeof(VectorData), 0, "nmv");
         result->len = 0;
         BINARY(VECTOR_NEWNODE, result);
         return;
     }
 
-    result = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData) + mat->rows * sizeof(double));
+    result = checked_payload(env, sizeof(VectorData), mat->rows, "nmv");
     result->len = mat->rows;
 
 #ifdef JOY_BLAS
@@ -1956,14 +2013,15 @@ void nmm_(pEnv env)
     }
 
     if (m1->rows == 0 || m2->cols == 0) {
-        result = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData));
+        result = checked_payload(env, sizeof(MatrixData), 0, "nmm");
         result->rows = m1->rows;
         result->cols = m2->cols;
         BINARY(MATRIX_NEWNODE, result);
         return;
     }
 
-    result = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + m1->rows * m2->cols * sizeof(double));
+    result = checked_payload(env, sizeof(MatrixData),
+                             checked_count(env, m1->rows, m2->cols, "nmm"), "nmm");
     result->rows = m1->rows;
     result->cols = m2->cols;
 
@@ -2009,9 +2067,9 @@ void nvzeros_(pEnv env)
     ONEPARAM("nvzeros");
     POSITIVEINDEX(env->stck, "nvzeros");
 
-    n = nodevalue(env->stck).num;
+    n = checked_count(env, nodevalue(env->stck).num, 1, "nvzeros");
 
-    vec = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData) + n * sizeof(double));
+    vec = checked_payload(env, sizeof(VectorData), (int)n, "nvzeros");
     vec->len = (int)n;
 
     for (i = 0; i < n; i++) {
@@ -2034,9 +2092,9 @@ void nvones_(pEnv env)
     ONEPARAM("nvones");
     POSITIVEINDEX(env->stck, "nvones");
 
-    n = nodevalue(env->stck).num;
+    n = checked_count(env, nodevalue(env->stck).num, 1, "nvones");
 
-    vec = GC_CTX_MALLOC_ATOMIC(env, sizeof(VectorData) + n * sizeof(double));
+    vec = checked_payload(env, sizeof(VectorData), (int)n, "nvones");
     vec->len = (int)n;
 
     for (i = 0; i < n; i++) {
@@ -2063,8 +2121,8 @@ void nmzeros_(pEnv env)
     c = nodevalue(env->stck).num;
     r = nodevalue(nextnode1(env->stck)).num;
 
-    size = (int)(r * c);
-    mat = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + size * sizeof(double));
+    size = checked_count(env, r, c, "nmzeros");
+    mat = checked_payload(env, sizeof(MatrixData), size, "nmzeros");
     mat->rows = (int)r;
     mat->cols = (int)c;
 
@@ -2092,8 +2150,8 @@ void nmones_(pEnv env)
     c = nodevalue(env->stck).num;
     r = nodevalue(nextnode1(env->stck)).num;
 
-    size = (int)(r * c);
-    mat = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + size * sizeof(double));
+    size = checked_count(env, r, c, "nmones");
+    mat = checked_payload(env, sizeof(MatrixData), size, "nmones");
     mat->rows = (int)r;
     mat->cols = (int)c;
 
@@ -2119,8 +2177,8 @@ void nmeye_(pEnv env)
 
     n = nodevalue(env->stck).num;
 
-    size = (int)(n * n);
-    mat = GC_CTX_MALLOC_ATOMIC(env, sizeof(MatrixData) + size * sizeof(double));
+    size = checked_count(env, n, n, "nmeye");
+    mat = checked_payload(env, sizeof(MatrixData), size, "nmeye");
     mat->rows = (int)n;
     mat->cols = (int)n;
 

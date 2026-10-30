@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-JOY="$PROJECT_DIR/build/joy"
+JOY="${JOY:-$PROJECT_DIR/build/joy}"
 TESTDIR="/tmp/joy_session_test_$$"
 DBFILE="$TESTDIR/test_persist.joy.db"
 

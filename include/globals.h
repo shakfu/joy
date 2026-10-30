@@ -154,6 +154,15 @@
 
 /* installation dependent	*/
 #define SETSIZE (int)(CHAR_BIT * sizeof(uint64_t)) /* from limits.h */
+
+/* Two's-complement wrapping integer arithmetic: signed overflow is UB in C */
+#define WRAP_ADD(a, b) ((int64_t)((uint64_t)(a) + (uint64_t)(b)))
+#define WRAP_SUB(a, b) ((int64_t)((uint64_t)(a) - (uint64_t)(b)))
+#define WRAP_MUL(a, b) ((int64_t)((uint64_t)(a) * (uint64_t)(b)))
+#define WRAP_NEG(a) ((int64_t)(0 - (uint64_t)(a)))
+/* INT64_MIN / -1 overflows, and traps on x86; b must be nonzero */
+#define WRAP_DIV(a, b) ((b) == -1 ? WRAP_NEG(a) : (a) / (b))
+#define WRAP_REM(a, b) ((b) == -1 ? 0 : (a) % (b))
 #define MAXINT_ INT64_MAX                          /* from stdint.h */
 
 /* symbols from getsym		*/
@@ -187,7 +196,8 @@ enum {
     CONST_
 #ifdef JOY_NATIVE_TYPES
     ,VBRACKET,  /* v[ vector literal */
-    MBRACKET   /* m[[ matrix literal */
+    MBRACKET,  /* m[[ matrix literal */
+    MEMPTY     /* m[] empty matrix literal */
 #endif
 };
 
@@ -350,6 +360,7 @@ typedef struct EnvError {
     char message[256];  /* last error message */
     int line;           /* line number of error */
     int column;         /* column of error */
+    int count;          /* errors reported so far */
 } EnvError;
 
 /* EnvStats - Runtime statistics */
@@ -447,6 +458,7 @@ typedef struct Env {
     clock_t gc_clock;
     Node* memory;       /* dynamic memory */
     Node* old_memory;   /* backup during GC (was static in utils.c) */
+    Index old_memoryindex; /* nodes in use in old_memory */
     Node* parent_memory; /* parent's memory for symbol body lookup in parallel contexts */
     Index conts, dump, dump1, dump2, dump3, dump4, dump5, inits;
     Index mem_low;      /* start of definition space (was global in utils.c) */
@@ -577,6 +589,8 @@ void fatal(char* str);
 void abortexecution_(pEnv env, int num);
 /* interp.c */
 void exec_term(pEnv env, Index n);
+void exec_term_protected(pEnv env, Index n, void (*cleanup)(pEnv, void*),
+                         void* arg);
 /* scan.c */
 void inilinebuffer(pEnv env);
 int getch(pEnv env);
@@ -631,6 +645,9 @@ void SetNormal(void);
 /* symbol.c */
 int lookup(pEnv env, char* name);
 int enteratom(pEnv env, char* name);
+/* Nodes exec_with_bindings allocates; reserve them with ensure_capacity */
+#define BIND_NODES(n) (2 * (n) + 1)
+void exec_with_bindings(pEnv env, int* syms, int n, Index body);
 int compound_def(pEnv env, int ch);
 /* undefs.c */
 void hide_inner_modules(pEnv env, int flag);
