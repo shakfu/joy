@@ -1,17 +1,355 @@
 /*
  *  module  : parallel.c
- *  version : 1.1
- *  date    : 01/22/26
+ *  version : 2.0
+ *  date    : 11/01/26
  *
  *  Grouped parallel builtins: pfork, pmap, pfilter, preduce
  */
 #include "globals.h"
+#include "parallel.h"
+
+/* Strings are inline: bytes past the NUL still hold part of a stale pointer. */
+static int pfilter_keeps(Node* memory, Index node)
+{
+    Operator op = memory[node].op;
+
+    if (op == STRING_ || op == BIGNUM_)
+        return *(char*)&memory[node].u != 0;
+    return memory[node].u.num != 0;
+}
+
+#ifdef JOY_PARALLEL
+/*
+ * Each *_parallel function returns 1 with the combinator finished, or 0 with
+ * the stack and dump untouched, so that the sequential code runs instead. A
+ * task that errors or needs a shared side effect makes it return 0: results,
+ * errors and output then come from one sequential run. See doc/parallel.md.
+ *
+ * Index values into the parent's memory stay valid only while the tasks run.
+ * Allocating in the parent afterwards may move everything not rooted.
+ */
+enum { PARALLEL_MIN_ITEMS = 4 }; /* below this, thread overhead dominates */
+
+static void silent_error(void* user_data, int code, const char* msg,
+                         const char* filename, int line, int column)
+{
+    (void)user_data, (void)code, (void)msg;
+    (void)filename, (void)line, (void)column;
+}
+
+static void task_init(ParallelTask* task, pEnv parent)
+{
+    pEnv child = &task->child_env;
+    Node* root = parent->parent_memory ? parent->parent_memory : parent->memory;
+
+    task->parent_env = parent;
+    memset(child, 0, sizeof(Env));
+    child->config.autoput = parent->config.autoput;
+    child->config.echoflag = parent->config.echoflag;
+    child->config.tracegc = parent->config.tracegc;
+    child->config.undeferror = parent->config.undeferror;
+    child->config.overwrite = parent->config.overwrite;
+    child->ignore = parent->ignore;
+    child->symtab = parent->symtab; /* read-only: see PARALLEL_UNSAFE */
+    child->hash = parent->hash;
+    child->prim = parent->prim;
+    child->g_argc = parent->g_argc;
+    child->g_argv = parent->g_argv;
+    child->parent_memory = root;
+    child->io.on_error = silent_error;
+    child->gc_ctx = gc_ctx_create();
+    if (child->gc_ctx) {
+        inimem1(child, 0);
+        inimem2(child);
+    }
+}
+
+static void task_destroy(ParallelTask* task)
+{
+    free(task->child_env.memory);
+    gc_ctx_destroy(task->child_env.gc_ctx);
+}
+
+static void tasks_destroy(ParallelTask* tasks, int count)
+{
+    for (int i = 0; i < count; i++)
+        task_destroy(&tasks[i]);
+    free(tasks);
+}
+
+/* Combinators build lists from results, so check them while a task can stop. */
+static int is_portable(pEnv child, Index node)
+{
+    switch (child->memory[node].op) {
+    case FILE_:
+    case LAZY_:
+    case DICT_:
+        return 0;
+    case LIST_:
+        for (Index n = child->memory[node].u.lis; n; n = child->memory[n].next)
+            if (!is_portable(child, n))
+                return 0;
+        return 1;
+    default:
+        return 1;
+    }
+}
+
+static void task_body(ParallelTask* task)
+{
+    pEnv child = &task->child_env;
+    Node* src = task->parent_env->memory;
+
+    if (task->whole_stack) {
+        child->stck = parallel_copy_chain(child, src, task->inputs[0]);
+    } else {
+        for (int i = 0; i < task->ninputs; i++) {
+            Index value = parallel_copy_value(child, src, task->inputs[i]);
+            child->memory[value].next = child->stck;
+            child->stck = value;
+        }
+    }
+    exec_term(child, parallel_copy_chain(child, src, task->quotation));
+    if (!child->stck || child->error.count
+        || !is_portable(child, child->stck))
+        abortexecution_(child, ABORT_RETRY);
+    task->result = child->stck;
+}
+
+static void task_run(ParallelTask* task)
+{
+    pEnv child = &task->child_env;
+    char stack_bottom;
+    GC_Context* previous = gc_set_task_context(child->gc_ctx);
+
+    child->gc_ctx->stack_bottom = &stack_bottom;
+    if (setjmp(child->error_jmp) == 0)
+        task_body(task);
+    else
+        task->failed = 1;
+    gc_set_task_context(previous);
+}
+
+/*
+ * Run all tasks. On any failure, destroy them and return 0. On success the
+ * caller owns them.
+ */
+static int tasks_run(ParallelTask* tasks, int count)
+{
+    int failed = 0;
+
+    #pragma omp parallel for schedule(dynamic)
+    for (int i = 0; i < count; i++)
+        task_run(&tasks[i]);
+    for (int i = 0; i < count; i++)
+        failed |= tasks[i].failed;
+    if (failed)
+        tasks_destroy(tasks, count);
+    return !failed;
+}
+
+/* calloc and clone count tasks, or return NULL. */
+static ParallelTask* tasks_create(pEnv env, int count)
+{
+    ParallelTask* tasks = calloc(count, sizeof(ParallelTask));
+
+    if (!tasks)
+        return NULL;
+    for (int i = 0; i < count; i++) {
+        task_init(&tasks[i], env);
+        if (!tasks[i].child_env.memory) {
+            tasks_destroy(tasks, i + 1);
+            return NULL;
+        }
+    }
+    return tasks;
+}
+
+/* Debuggers and profilers observe one execution order, in one environment. */
+static int can_parallelize(pEnv env)
+{
+    return !env->config.debugging && !env->config.stepping
+        && !env->config.breakpoints && !env->profiler.enabled;
+}
+
+static int list_length(pEnv env, Index n)
+{
+    int count = 0;
+
+    for (; n; n = nextnode1(n))
+        count++;
+    return count;
+}
+
+static int pfork_parallel(pEnv env)
+{
+    ParallelTask* tasks;
+    Index value;
+
+    if (!can_parallelize(env) || !(tasks = tasks_create(env, 2)))
+        return 0;
+    for (int i = 0; i < 2; i++) {
+        tasks[i].quotation = nodevalue(i ? SAVED1 : SAVED2).lis;
+        tasks[i].inputs[0] = SAVED3; /* X and everything below it */
+        tasks[i].whole_stack = 1;
+    }
+    if (!tasks_run(tasks, 2))
+        return 0;
+    env->stck = SAVED4;
+    for (int i = 0; i < 2; i++) {
+        value = parallel_copy_value(env, tasks[i].child_env.memory,
+                                    tasks[i].result);
+        nextnode1(value) = env->stck;
+        env->stck = value;
+    }
+    tasks_destroy(tasks, 2);
+    POP(env->dump);
+    return 1;
+}
+
+static ParallelTask* tasks_over_list(pEnv env, int count)
+{
+    ParallelTask* tasks = tasks_create(env, count);
+    Index n = nodevalue(SAVED2).lis;
+
+    if (!tasks)
+        return NULL;
+    for (int i = 0; i < count; i++, n = nextnode1(n)) {
+        tasks[i].quotation = nodevalue(SAVED1).lis;
+        tasks[i].inputs[0] = n;
+        tasks[i].ninputs = 1;
+    }
+    return tasks;
+}
+
+static int pmap_parallel(pEnv env)
+{
+    int count = list_length(env, nodevalue(SAVED2).lis);
+    ParallelTask* tasks;
+    Index value;
+
+    if (count < PARALLEL_MIN_ITEMS || !can_parallelize(env)
+        || !(tasks = tasks_over_list(env, count)) || !tasks_run(tasks, count))
+        return 0;
+    env->dump1 = LIST_NEWNODE(0, env->dump1);
+    for (int i = count - 1; i >= 0; i--) {
+        value = parallel_copy_value(env, tasks[i].child_env.memory,
+                                    tasks[i].result);
+        nextnode1(value) = DMP1;
+        DMP1 = value;
+    }
+    env->stck = LIST_NEWNODE(DMP1, SAVED3);
+    POP(env->dump1);
+    tasks_destroy(tasks, count);
+    POP(env->dump);
+    return 1;
+}
+
+static int pfilter_parallel(pEnv env)
+{
+    int count = list_length(env, nodevalue(SAVED2).lis);
+    ParallelTask* tasks;
+    char* keep;
+    Index temp;
+    int i = 0;
+
+    if (count < PARALLEL_MIN_ITEMS || !can_parallelize(env)
+        || !(keep = malloc(count)))
+        return 0;
+    if (!(tasks = tasks_over_list(env, count)) || !tasks_run(tasks, count)) {
+        free(keep);
+        return 0;
+    }
+    for (i = 0; i < count; i++)
+        keep[i] = pfilter_keeps(tasks[i].child_env.memory, tasks[i].result);
+    tasks_destroy(tasks, count);
+
+    env->dump1 = LIST_NEWNODE(nodevalue(SAVED2).lis, env->dump1);
+    env->dump2 = LIST_NEWNODE(0, env->dump2); /* head of new list */
+    env->dump3 = LIST_NEWNODE(0, env->dump3); /* tail of new list */
+    for (i = 0; DMP1; DMP1 = nextnode1(DMP1), i++) {
+        if (!keep[i])
+            continue;
+        temp = newnode2(env, DMP1, 0);
+        if (DMP2)
+            nextnode1(DMP3) = temp;
+        else
+            DMP2 = temp;
+        DMP3 = temp;
+    }
+    free(keep);
+    env->stck = LIST_NEWNODE(DMP2, SAVED3);
+    POP(env->dump3);
+    POP(env->dump2);
+    POP(env->dump1);
+    POP(env->dump);
+    return 1;
+}
+
+/* One tree level: DMP1 holds the values, and receives the reduced values. */
+static int preduce_level(pEnv env, int count)
+{
+    int pairs = count / 2;
+    ParallelTask* tasks = tasks_create(env, pairs);
+    Index n = DMP1, value;
+
+    if (!tasks)
+        return 0;
+    for (int i = 0; i < pairs; i++) {
+        tasks[i].quotation = nodevalue(SAVED1).lis;
+        tasks[i].ninputs = 2;
+        tasks[i].inputs[0] = n; /* the right operand ends on top, as in fold */
+        n = nextnode1(n);
+        tasks[i].inputs[1] = n;
+        n = nextnode1(n);
+    }
+    if (!tasks_run(tasks, pairs))
+        return 0;
+    env->dump2 = LIST_NEWNODE(0, env->dump2);
+    if (count % 2) { /* carry the last value over; the GC above moved it */
+        n = DMP1;
+        for (int i = 0; i < pairs * 2; i++)
+            n = nextnode1(n);
+        value = newnode2(env, n, 0);
+        DMP2 = value;
+    }
+    for (int i = pairs - 1; i >= 0; i--) {
+        value = parallel_copy_value(env, tasks[i].child_env.memory,
+                                    tasks[i].result);
+        nextnode1(value) = DMP2;
+        DMP2 = value;
+    }
+    DMP1 = DMP2;
+    POP(env->dump2);
+    tasks_destroy(tasks, pairs);
+    return 1;
+}
+
+static int preduce_parallel(pEnv env)
+{
+    int count = list_length(env, nodevalue(SAVED2).lis);
+
+    if (count < PARALLEL_MIN_ITEMS || !can_parallelize(env))
+        return 0;
+    env->dump1 = LIST_NEWNODE(nodevalue(SAVED2).lis, env->dump1);
+    for (; count > 1; count = count / 2 + count % 2) {
+        if (!preduce_level(env, count)) {
+            POP(env->dump1);
+            return 0;
+        }
+    }
+    env->stck = newnode2(env, DMP1, SAVED3);
+    POP(env->dump1);
+    POP(env->dump);
+    return 1;
+}
+#endif /* JOY_PARALLEL */
 
 /* Parallel operations */
 /**
 Q2  OK  3271  pfork  :  X [P1] [P2]  ->  R1 R2
 [PARALLEL] Parallel fork: executes P1 and P2, each with X on top,
-producing two results. With JOY_PARALLEL, both quotations execute
+producing two results. With JOY_PARALLEL, both quotations may execute
 concurrently using OpenMP.
 */
 void pfork_(pEnv env)
@@ -21,152 +359,9 @@ void pfork_(pEnv env)
     SAVESTACK;
 
 #ifdef JOY_PARALLEL
-    /*
-     * Parallel implementation using OpenMP sections.
-     * Both quotations execute concurrently with X on the stack.
-     */
-    Index quot1 = nodevalue(SAVED2).lis;  /* [P1] */
-    Index quot2 = nodevalue(SAVED1).lis;  /* [P2] */
-    Index input = SAVED3;                  /* X */
-
-    /* Two tasks for the two branches */
-    ParallelTask tasks[2];
-    int init_ok = 1;
-
-    /* Initialize both tasks */
-    for (int i = 0; i < 2; i++) {
-        tasks[i].parent_env = env;
-        tasks[i].quotation = (i == 0) ? quot1 : quot2;
-        tasks[i].input = input;
-        tasks[i].result = 0;
-        tasks[i].has_error = 0;
-        tasks[i].error_msg[0] = '\0';
-        env_clone_for_parallel(env, &tasks[i].child_env);
-        if (!tasks[i].child_env.memory) {
-            init_ok = 0;
-            /* Clean up already initialized */
-            for (int j = 0; j < i; j++) {
-                env_destroy_parallel(&tasks[j].child_env);
-            }
-            break;
-        }
-    }
-
-    if (!init_ok) {
-        goto sequential;
-    }
-
-    /* Execute both branches in parallel */
-    #pragma omp parallel sections
-    {
-        #pragma omp section
-        {
-            ParallelTask* task = &tasks[0];
-            pEnv child = &task->child_env;
-
-#ifdef NOBDW
-            char stack_marker;
-            if (child->gc_ctx)
-                child->gc_ctx->stack_bottom = &stack_marker;
-
-            /* Copy input X to child context */
-            Index copied_input = copy_node_to_parent(child, env, task->input);
-            child->stck = copied_input;
-
-            /* Copy quotation to child context */
-            Index child_quot = copy_node_to_parent(child, env, task->quotation);
-#else
-            child->stck = task->input;
-            Index child_quot = task->quotation;
+    if (pfork_parallel(env))
+        return;
 #endif
-
-            if (setjmp(child->error_jmp) == 0) {
-                exec_term(child, child_quot);
-                task->result = child->stck;
-                task->has_error = 0;
-            } else {
-                task->has_error = 1;
-                strncpy(task->error_msg, child->error.message, 255);
-                task->error_msg[255] = '\0';
-                task->result = 0;
-            }
-        }
-
-        #pragma omp section
-        {
-            ParallelTask* task = &tasks[1];
-            pEnv child = &task->child_env;
-
-#ifdef NOBDW
-            char stack_marker;
-            if (child->gc_ctx)
-                child->gc_ctx->stack_bottom = &stack_marker;
-
-            /* Copy input X to child context */
-            Index copied_input = copy_node_to_parent(child, env, task->input);
-            child->stck = copied_input;
-
-            /* Copy quotation to child context */
-            Index child_quot = copy_node_to_parent(child, env, task->quotation);
-#else
-            child->stck = task->input;
-            Index child_quot = task->quotation;
-#endif
-
-            if (setjmp(child->error_jmp) == 0) {
-                exec_term(child, child_quot);
-                task->result = child->stck;
-                task->has_error = 0;
-            } else {
-                task->has_error = 1;
-                strncpy(task->error_msg, child->error.message, 255);
-                task->error_msg[255] = '\0';
-                task->result = 0;
-            }
-        }
-    }
-
-    /* Check for errors */
-    for (int i = 0; i < 2; i++) {
-        if (tasks[i].has_error) {
-            char error_copy[256];
-            strncpy(error_copy, tasks[i].error_msg, 255);
-            error_copy[255] = '\0';
-
-            for (int j = 0; j < 2; j++) {
-                env_destroy_parallel(&tasks[j].child_env);
-            }
-            POP(env->dump);
-            execerror(env, error_copy, "pfork");
-            return;
-        }
-    }
-
-    /* Copy results back and build stack */
-    /* R1 from P1, R2 from P2 - stack should have R2 on top, R1 below */
-#ifdef NOBDW
-    Index r1 = copy_node_to_parent(env, &tasks[0].child_env, tasks[0].result);
-    Index r2 = copy_node_to_parent(env, &tasks[1].child_env, tasks[1].result);
-#else
-    Index r1 = tasks[0].result;
-    Index r2 = tasks[1].result;
-#endif
-
-    /* Clean up tasks */
-    for (int i = 0; i < 2; i++) {
-        env_destroy_parallel(&tasks[i].child_env);
-    }
-
-    /* Build result stack: R1 R2 (R2 on top) */
-    env->stck = SAVED4;  /* restore stack below X [P1] [P2] */
-    env->stck = newnode2(env, r1, env->stck);
-    env->stck = newnode2(env, r2, env->stck);
-
-    POP(env->dump);
-    return;
-
-sequential:
-#endif /* JOY_PARALLEL */
 
     /*
      * Sequential implementation (fallback or when JOY_PARALLEL not defined).
@@ -199,176 +394,9 @@ void pmap_(pEnv env)
         BADAGGREGATE("pmap");
 
 #ifdef JOY_PARALLEL
-    /*
-     * Parallel implementation using OpenMP.
-     * Each list element is processed by a separate task with its own
-     * cloned environment and GC context.
-     */
-    Index list = nodevalue(SAVED2).lis;
-    Index quotation = nodevalue(SAVED1).lis;
-
-    /* Count elements */
-    int count = 0;
-    for (Index n = list; n; n = nextnode1(n))
-        count++;
-
-    if (count == 0) {
-        /* Empty list -> empty result */
-        env->stck = LIST_NEWNODE(0, SAVED3);
-        POP(env->dump);
+    if (pmap_parallel(env))
         return;
-    }
-
-    /* For small lists, use sequential execution (overhead not worth it) */
-    if (count < 4) {
-        goto sequential;
-    }
-
-    /* Allocate task array */
-    ParallelTask* tasks = (ParallelTask*)malloc(count * sizeof(ParallelTask));
-    if (!tasks) {
-        goto sequential;  /* Fall back to sequential on allocation failure */
-    }
-
-    /* Build array of input nodes for indexed access */
-    Index* inputs = (Index*)malloc(count * sizeof(Index));
-    if (!inputs) {
-        free(tasks);
-        goto sequential;
-    }
-
-    Index n = list;
-    for (int i = 0; i < count; i++, n = nextnode1(n)) {
-        inputs[i] = n;
-    }
-
-    /* Initialize all tasks */
-    int init_failed = 0;
-    for (int i = 0; i < count; i++) {
-        tasks[i].parent_env = env;
-        tasks[i].quotation = quotation;
-        tasks[i].input = inputs[i];
-        tasks[i].result = 0;
-        tasks[i].has_error = 0;
-        tasks[i].error_msg[0] = '\0';
-        env_clone_for_parallel(env, &tasks[i].child_env);
-        if (!tasks[i].child_env.memory) {
-            init_failed = 1;
-            /* Clean up already initialized tasks */
-            for (int j = 0; j < i; j++) {
-                env_destroy_parallel(&tasks[j].child_env);
-            }
-            break;
-        }
-    }
-
-    if (init_failed) {
-        free(inputs);
-        free(tasks);
-        goto sequential;
-    }
-
-    /* Execute tasks in parallel */
-    #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < count; i++) {
-        ParallelTask* task = &tasks[i];
-        pEnv child = &task->child_env;
-
-#ifdef NOBDW
-        /* Set up stack scanning for this thread */
-        char stack_marker;
-        if (child->gc_ctx)
-            child->gc_ctx->stack_bottom = &stack_marker;
-
-        /* Copy input from parent to child context */
-        Operator input_op = env->memory[task->input].op;
-        Types input_u = env->memory[task->input].u;
-
-        /* For complex types, deep copy */
-        if (input_op == STRING_ || input_op == BIGNUM_) {
-            input_u.str = GC_CTX_STRDUP(child, (char*)&env->memory[task->input].u);
-        } else if (input_op == LIST_) {
-            input_u.lis = copy_node_to_parent(child, env, env->memory[task->input].u.lis);
-        }
-
-        child->stck = newnode(child, input_op, input_u, 0);
-
-        /* Copy quotation to child context */
-        Index child_quot = copy_node_to_parent(child, env, task->quotation);
-#else
-        child->stck = task->input;
-        Index child_quot = task->quotation;
 #endif
-
-        /* Execute with error handling */
-        if (setjmp(child->error_jmp) == 0) {
-            exec_term(child, child_quot);
-            task->result = child->stck;
-            task->has_error = 0;
-        } else {
-            task->has_error = 1;
-            strncpy(task->error_msg, child->error.message, 255);
-            task->error_msg[255] = '\0';
-            task->result = 0;
-        }
-    }
-
-    /* Check for errors and collect results */
-    int first_error = -1;
-    for (int i = 0; i < count; i++) {
-        if (tasks[i].has_error) {
-            first_error = i;
-            break;
-        }
-    }
-
-    if (first_error >= 0) {
-        /* Clean up all tasks */
-        char error_copy[256];
-        strncpy(error_copy, tasks[first_error].error_msg, 255);
-        error_copy[255] = '\0';
-
-        for (int i = 0; i < count; i++) {
-            env_destroy_parallel(&tasks[i].child_env);
-        }
-        free(inputs);
-        free(tasks);
-        POP(env->dump);
-        execerror(env, error_copy, "pmap");
-        return;
-    }
-
-    /* Build result list (in reverse order, then it's correct) */
-    /* Root the result list in dump4 to protect from GC during construction */
-    env->dump4 = LIST_NEWNODE(0, env->dump4);
-    for (int i = count - 1; i >= 0; i--) {
-        /* Copy result from child to parent context */
-        Index child_result = tasks[i].result;
-        if (child_result) {
-#ifdef NOBDW
-            Index copied = copy_node_to_parent(env, &tasks[i].child_env, child_result);
-            nodevalue(env->dump4).lis = newnode2(env, copied, nodevalue(env->dump4).lis);
-#else
-            nodevalue(env->dump4).lis = newnode2(env, child_result, nodevalue(env->dump4).lis);
-#endif
-        }
-    }
-    Index result_list = nodevalue(env->dump4).lis;
-    POP(env->dump4);
-
-    /* Clean up tasks */
-    for (int i = 0; i < count; i++) {
-        env_destroy_parallel(&tasks[i].child_env);
-    }
-    free(inputs);
-    free(tasks);
-
-    env->stck = LIST_NEWNODE(result_list, SAVED3);
-    POP(env->dump);
-    return;
-
-sequential:
-#endif /* JOY_PARALLEL */
 
     /*
      * Sequential implementation (fallback or when JOY_PARALLEL not defined).
@@ -415,211 +443,9 @@ void pfilter_(pEnv env)
         BADAGGREGATE("pfilter");
 
 #ifdef JOY_PARALLEL
-    /*
-     * Parallel implementation using OpenMP.
-     * Each predicate is evaluated in parallel, then results are collected.
-     */
-    Index list = nodevalue(SAVED2).lis;
-    Index quotation = nodevalue(SAVED1).lis;
-
-    /* Count elements */
-    int count = 0;
-    for (Index n = list; n; n = nextnode1(n))
-        count++;
-
-    if (count == 0) {
-        /* Empty list -> empty result */
-        env->stck = LIST_NEWNODE(0, SAVED3);
-        POP(env->dump);
+    if (pfilter_parallel(env))
         return;
-    }
-
-    /* For small lists, use sequential execution */
-    if (count < 4) {
-        goto sequential;
-    }
-
-    /* Allocate task array */
-    ParallelTask* tasks = (ParallelTask*)malloc(count * sizeof(ParallelTask));
-    if (!tasks) {
-        goto sequential;
-    }
-
-    /* Build array of input nodes */
-    Index* inputs = (Index*)malloc(count * sizeof(Index));
-    if (!inputs) {
-        free(tasks);
-        goto sequential;
-    }
-
-    /* Array to store predicate results (1 = keep, 0 = filter out) */
-    int* keep = (int*)malloc(count * sizeof(int));
-    if (!keep) {
-        free(inputs);
-        free(tasks);
-        goto sequential;
-    }
-
-    Index n = list;
-    for (int i = 0; i < count; i++, n = nextnode1(n)) {
-        inputs[i] = n;
-        keep[i] = 0;
-    }
-
-    /* Initialize all tasks */
-    int init_failed = 0;
-    for (int i = 0; i < count; i++) {
-        tasks[i].parent_env = env;
-        tasks[i].quotation = quotation;
-        tasks[i].input = inputs[i];
-        tasks[i].result = 0;
-        tasks[i].has_error = 0;
-        tasks[i].error_msg[0] = '\0';
-        env_clone_for_parallel(env, &tasks[i].child_env);
-        if (!tasks[i].child_env.memory) {
-            init_failed = 1;
-            for (int j = 0; j < i; j++) {
-                env_destroy_parallel(&tasks[j].child_env);
-            }
-            break;
-        }
-    }
-
-    if (init_failed) {
-        free(keep);
-        free(inputs);
-        free(tasks);
-        goto sequential;
-    }
-
-    /* Execute predicates in parallel */
-    #pragma omp parallel for schedule(dynamic)
-    for (int i = 0; i < count; i++) {
-        ParallelTask* task = &tasks[i];
-        pEnv child = &task->child_env;
-
-#ifdef NOBDW
-        char stack_marker;
-        if (child->gc_ctx)
-            child->gc_ctx->stack_bottom = &stack_marker;
-
-        /* Copy input from parent to child context */
-        Operator input_op = env->memory[task->input].op;
-        Types input_u = env->memory[task->input].u;
-
-        if (input_op == STRING_ || input_op == BIGNUM_) {
-            input_u.str = GC_CTX_STRDUP(child, (char*)&env->memory[task->input].u);
-        } else if (input_op == LIST_) {
-            input_u.lis = copy_node_to_parent(child, env, env->memory[task->input].u.lis);
-        }
-
-        child->stck = newnode(child, input_op, input_u, 0);
-
-        /* Copy quotation to child context */
-        Index child_quot = copy_node_to_parent(child, env, task->quotation);
-#else
-        child->stck = task->input;
-        Index child_quot = task->quotation;
 #endif
-
-        if (setjmp(child->error_jmp) == 0) {
-            exec_term(child, child_quot);
-            task->result = child->stck;
-            task->has_error = 0;
-        } else {
-            task->has_error = 1;
-            strncpy(task->error_msg, child->error.message, 255);
-            task->error_msg[255] = '\0';
-            task->result = 0;
-        }
-    }
-
-    /* Check for errors */
-    int first_error = -1;
-    for (int i = 0; i < count; i++) {
-        if (tasks[i].has_error) {
-            first_error = i;
-            break;
-        }
-    }
-
-    if (first_error >= 0) {
-        char error_copy[256];
-        strncpy(error_copy, tasks[first_error].error_msg, 255);
-        error_copy[255] = '\0';
-
-        for (int i = 0; i < count; i++) {
-            env_destroy_parallel(&tasks[i].child_env);
-        }
-        free(keep);
-        free(inputs);
-        free(tasks);
-        POP(env->dump);
-        execerror(env, error_copy, "pfilter");
-        return;
-    }
-
-    /* Evaluate which elements to keep */
-    for (int i = 0; i < count; i++) {
-        Index result = tasks[i].result;
-        if (result) {
-            /* Check if result is truthy */
-            Operator op = tasks[i].child_env.memory[result].op;
-            Types u = tasks[i].child_env.memory[result].u;
-            if (op == BOOLEAN_ || op == CHAR_ || op == INTEGER_) {
-                keep[i] = (u.num != 0);
-            } else if (op == FLOAT_) {
-                keep[i] = (u.dbl != 0.0);
-            } else if (op == LIST_) {
-                keep[i] = (u.lis != 0);  /* non-empty list is truthy */
-            } else if (op == STRING_) {
-                keep[i] = (u.str != NULL && u.str[0] != '\0');
-            } else {
-                keep[i] = 1;  /* other types are truthy */
-            }
-        }
-    }
-
-    /* Build result list with elements where keep[i] is true */
-    env->dump4 = LIST_NEWNODE(0, env->dump4);
-    for (int i = count - 1; i >= 0; i--) {
-        if (keep[i]) {
-            /* Copy original input element (not predicate result) */
-#ifdef NOBDW
-            Index copied = copy_node_to_parent(env, &tasks[i].child_env,
-                copy_node_to_parent(&tasks[i].child_env, env, inputs[i]));
-            /* Actually, we should copy from parent directly since inputs[i] is in parent */
-            Operator input_op = env->memory[inputs[i]].op;
-            Types input_u = env->memory[inputs[i]].u;
-            copied = newnode(env, input_op, input_u, 0);
-            if (input_op == STRING_ || input_op == BIGNUM_) {
-                /* String already in parent, just reference */
-            } else if (input_op == LIST_) {
-                /* Deep copy not needed, it's already in parent */
-            }
-            nodevalue(env->dump4).lis = newnode2(env, copied, nodevalue(env->dump4).lis);
-#else
-            nodevalue(env->dump4).lis = newnode2(env, inputs[i], nodevalue(env->dump4).lis);
-#endif
-        }
-    }
-    Index result_list = nodevalue(env->dump4).lis;
-    POP(env->dump4);
-
-    /* Clean up */
-    for (int i = 0; i < count; i++) {
-        env_destroy_parallel(&tasks[i].child_env);
-    }
-    free(keep);
-    free(inputs);
-    free(tasks);
-
-    env->stck = LIST_NEWNODE(result_list, SAVED3);
-    POP(env->dump);
-    return;
-
-sequential:
-#endif /* JOY_PARALLEL */
 
     /*
      * Sequential implementation (fallback or when JOY_PARALLEL not defined).
@@ -634,7 +460,7 @@ sequential:
             env->stck = newnode2(env, DMP1, SAVED3);
             exec_term(env, nodevalue(SAVED1).lis);
             CHECKSTACK("pfilter");
-            if (nodevalue(env->stck).num) {  /* truthy? */
+            if (pfilter_keeps(env->memory, env->stck)) {
                 temp = newnode2(env, DMP1, 0);
                 if (!DMP2) {
                     DMP2 = temp;
@@ -684,186 +510,9 @@ void preduce_(pEnv env)
     }
 
 #ifdef JOY_PARALLEL
-    /*
-     * Parallel tree reduction using OpenMP.
-     * Build levels of the tree bottom-up, combining pairs in parallel.
-     */
-    Index quotation = nodevalue(SAVED1).lis;
-
-    /* Count elements */
-    int count = 0;
-    for (Index n = list; n; n = nextnode1(n))
-        count++;
-
-    /* For small lists, use sequential */
-    if (count < 4) {
-        goto sequential;
-    }
-
-    /* Build array of current values */
-    Index* values = (Index*)malloc(count * sizeof(Index));
-    if (!values) {
-        goto sequential;
-    }
-
-    Index n = list;
-    for (int i = 0; i < count; i++, n = nextnode1(n)) {
-        values[i] = n;
-    }
-
-    /* Reduce in parallel levels */
-    int current_count = count;
-    while (current_count > 1) {
-        int pairs = current_count / 2;
-        int has_odd = current_count % 2;
-
-        /* Allocate tasks for this level */
-        ParallelTask* tasks = (ParallelTask*)malloc(pairs * sizeof(ParallelTask));
-        if (!tasks) {
-            free(values);
-            goto sequential;
-        }
-
-        /* Initialize tasks */
-        int init_failed = 0;
-        for (int i = 0; i < pairs; i++) {
-            tasks[i].parent_env = env;
-            tasks[i].quotation = quotation;
-            tasks[i].input = 0;  /* Will use two inputs */
-            tasks[i].result = 0;
-            tasks[i].has_error = 0;
-            tasks[i].error_msg[0] = '\0';
-            env_clone_for_parallel(env, &tasks[i].child_env);
-            if (!tasks[i].child_env.memory) {
-                init_failed = 1;
-                for (int j = 0; j < i; j++) {
-                    env_destroy_parallel(&tasks[j].child_env);
-                }
-                break;
-            }
-        }
-
-        if (init_failed) {
-            free(tasks);
-            free(values);
-            goto sequential;
-        }
-
-        /* Process pairs in parallel */
-        #pragma omp parallel for schedule(dynamic)
-        for (int i = 0; i < pairs; i++) {
-            ParallelTask* task = &tasks[i];
-            pEnv child = &task->child_env;
-            Index left = values[i * 2];
-            Index right = values[i * 2 + 1];
-
-#ifdef NOBDW
-            char stack_marker;
-            if (child->gc_ctx)
-                child->gc_ctx->stack_bottom = &stack_marker;
-
-            /* Copy both values to child - push right first, then left */
-            Operator right_op = env->memory[right].op;
-            Types right_u = env->memory[right].u;
-            if (right_op == LIST_) {
-                right_u.lis = copy_node_to_parent(child, env, env->memory[right].u.lis);
-            }
-            child->stck = newnode(child, right_op, right_u, 0);
-
-            Operator left_op = env->memory[left].op;
-            Types left_u = env->memory[left].u;
-            if (left_op == LIST_) {
-                left_u.lis = copy_node_to_parent(child, env, env->memory[left].u.lis);
-            }
-            child->stck = newnode(child, left_op, left_u, child->stck);
-
-            Index child_quot = copy_node_to_parent(child, env, task->quotation);
-#else
-            /* Push right, then left (so left is on top) */
-            child->stck = newnode2(env, right, 0);
-            child->stck = newnode2(env, left, child->stck);
-            Index child_quot = task->quotation;
+    if (preduce_parallel(env))
+        return;
 #endif
-
-            if (setjmp(child->error_jmp) == 0) {
-                exec_term(child, child_quot);
-                task->result = child->stck;
-                task->has_error = 0;
-            } else {
-                task->has_error = 1;
-                strncpy(task->error_msg, child->error.message, 255);
-                task->error_msg[255] = '\0';
-                task->result = 0;
-            }
-        }
-
-        /* Check for errors */
-        int first_error = -1;
-        for (int i = 0; i < pairs; i++) {
-            if (tasks[i].has_error) {
-                first_error = i;
-                break;
-            }
-        }
-
-        if (first_error >= 0) {
-            char error_copy[256];
-            strncpy(error_copy, tasks[first_error].error_msg, 255);
-            error_copy[255] = '\0';
-
-            for (int i = 0; i < pairs; i++) {
-                env_destroy_parallel(&tasks[i].child_env);
-            }
-            free(tasks);
-            free(values);
-            POP(env->dump);
-            execerror(env, error_copy, "preduce");
-            return;
-        }
-
-        /* Collect results for next level */
-        Index* new_values = (Index*)malloc((pairs + has_odd) * sizeof(Index));
-        if (!new_values) {
-            for (int i = 0; i < pairs; i++) {
-                env_destroy_parallel(&tasks[i].child_env);
-            }
-            free(tasks);
-            free(values);
-            goto sequential;
-        }
-
-        for (int i = 0; i < pairs; i++) {
-#ifdef NOBDW
-            new_values[i] = copy_node_to_parent(env, &tasks[i].child_env, tasks[i].result);
-#else
-            new_values[i] = tasks[i].result;
-#endif
-        }
-
-        /* If odd count, carry over the last element */
-        if (has_odd) {
-            new_values[pairs] = values[current_count - 1];
-        }
-
-        /* Clean up this level */
-        for (int i = 0; i < pairs; i++) {
-            env_destroy_parallel(&tasks[i].child_env);
-        }
-        free(tasks);
-        free(values);
-
-        values = new_values;
-        current_count = pairs + has_odd;
-    }
-
-    /* Final result */
-    env->stck = newnode2(env, values[0], SAVED3);
-    free(values);
-    POP(env->dump);
-    return;
-
-sequential:
-#endif /* JOY_PARALLEL */
 
     /*
      * Sequential implementation (fallback or when JOY_PARALLEL not defined).

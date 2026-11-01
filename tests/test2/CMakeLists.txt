@@ -435,6 +435,8 @@ joy_test(xor)
 joy_test(strinterp)
 joy_test(regex)
 joy_test(lazy)
+joy_test(gc_cases)
+joy_test(dict_gc)
 joy_test(debugger)
 joy_test(overflow)
 

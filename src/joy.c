@@ -15,6 +15,7 @@ struct JoyContext {
     JoyIO* io;           /* custom I/O callbacks */
     JoyResult last_result;
     size_t gc_count;
+    int eval_depth;      /* nested eval calls, from I/O callbacks */
 };
 
 /* Version string - uses macro from joy.h */
@@ -74,8 +75,6 @@ JoyContext* joy_create(const JoyConfig* config)
      */
     static int gc_initialized = 0;
     if (!gc_initialized) {
-        static char gc_root_anchor;
-        bottom_of_stack = &gc_root_anchor;
         GC_INIT();
         gc_initialized = 1;
     }
@@ -87,8 +86,6 @@ JoyContext* joy_create(const JoyConfig* config)
         free(ctx);
         return NULL;
     }
-    /* Set stack bottom for per-context GC */
-    env->gc_ctx->stack_bottom = bottom_of_stack;
 #endif
 
     /* Initialize scanner state */
@@ -189,7 +186,7 @@ void joy_destroy(JoyContext* ctx)
 /*
  * Evaluate a string of Joy code.
  */
-JoyResult joy_eval_string(JoyContext* ctx, const char* source)
+static JoyResult eval_string(JoyContext* ctx, const char* source)
 {
     if (!ctx || !source)
         return JOY_ERROR_RUNTIME;
@@ -254,7 +251,7 @@ JoyResult joy_eval_string(JoyContext* ctx, const char* source)
 /*
  * Evaluate Joy code from a file.
  */
-JoyResult joy_eval_file(JoyContext* ctx, FILE* fp, const char* filename)
+static JoyResult eval_file(JoyContext* ctx, FILE* fp, const char* filename)
 {
     if (!ctx || !fp)
         return JOY_ERROR_IO;
@@ -290,7 +287,7 @@ JoyResult joy_eval_file(JoyContext* ctx, FILE* fp, const char* filename)
 /*
  * Load the standard library.
  */
-JoyResult joy_load_stdlib(JoyContext* ctx, const char* lib_path)
+static JoyResult load_stdlib(JoyContext* ctx, const char* lib_path)
 {
     if (!ctx)
         return JOY_ERROR_RUNTIME;
@@ -313,6 +310,73 @@ JoyResult joy_load_stdlib(JoyContext* ctx, const char* lib_path)
 
     ctx->last_result = JOY_OK;
     return JOY_OK;
+}
+
+/*
+ * The embedder's stack is unknown at joy_create, and calls may come from any
+ * frame. So each outermost call scans the stack from its own frame: GC-owned
+ * pointers exist in C locals only during a call. A nested call must keep the
+ * outer bound, which covers it.
+ */
+static void enter_eval(JoyContext* ctx, char* frame)
+{
+    if (ctx->eval_depth++ == 0) {
+        bottom_of_stack = frame; /* read by GC_gcollect */
+        gc_ctx_set_stack_bottom(gc_get_default_context(), frame);
+#ifdef NOBDW
+        gc_ctx_set_stack_bottom(ctx->env.gc_ctx, frame);
+#endif
+    }
+}
+
+static void leave_eval(JoyContext* ctx)
+{
+    if (--ctx->eval_depth == 0) {
+        bottom_of_stack = NULL;
+        gc_ctx_set_stack_bottom(gc_get_default_context(), NULL);
+#ifdef NOBDW
+        gc_ctx_set_stack_bottom(ctx->env.gc_ctx, NULL);
+#endif
+    }
+}
+
+JoyResult joy_eval_string(JoyContext* ctx, const char* source)
+{
+    char frame;
+    JoyResult result;
+
+    if (!ctx || !source)
+        return JOY_ERROR_RUNTIME;
+    enter_eval(ctx, &frame);
+    result = eval_string(ctx, source);
+    leave_eval(ctx);
+    return result;
+}
+
+JoyResult joy_eval_file(JoyContext* ctx, FILE* fp, const char* filename)
+{
+    char frame;
+    JoyResult result;
+
+    if (!ctx || !fp)
+        return JOY_ERROR_IO;
+    enter_eval(ctx, &frame);
+    result = eval_file(ctx, fp, filename);
+    leave_eval(ctx);
+    return result;
+}
+
+JoyResult joy_load_stdlib(JoyContext* ctx, const char* lib_path)
+{
+    char frame;
+    JoyResult result;
+
+    if (!ctx)
+        return JOY_ERROR_RUNTIME;
+    enter_eval(ctx, &frame);
+    result = load_stdlib(ctx, lib_path);
+    leave_eval(ctx);
+    return result;
 }
 
 /*

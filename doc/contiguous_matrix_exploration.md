@@ -215,6 +215,9 @@ arr >list                     (* Convert to list-of-lists *)
 
 ### Option D: External Library Integration
 
+(`ffi-call` now exists: see [ffi.md](ffi.md). It has no memory access through
+pointers, so it does not provide this option by itself.)
+
 Keep Joy's type system unchanged. Provide FFI to external matrix libraries
 (NumPy-style) where matrices live outside Joy's heap.
 

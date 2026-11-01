@@ -16,7 +16,7 @@ This is the NOBDW (No Boehm-Demers-Weiser) version with a custom conservative ga
 
 ## Parallel Execution
 
-**Known defect:** `-DJOY_PARALLEL=ON` does not currently compile. Without it, these combinators run sequentially. See `TODO.md`.
+Parallel execution requires a `-DJOY_PARALLEL=ON` build. Without it, these combinators run sequentially with the same results.
 
 Joy now supports parallel combinators that leverage multiple CPU cores:
 
@@ -350,6 +350,7 @@ mydict dict>.               (* -> [["name" "Bob"] ["score" 100]] *)
 
 | Operator | Signature | Description |
 |----------|-----------|-------------|
+| `{"k": v}`, `{:}` | `-> dict` | Dictionary literals |
 | `dempty` | `-> dict` | Create empty dictionary |
 | `dput` | `dict "key" value -> dict'` | Insert or update key |
 | `dget` | `dict "key" -> value` | Get value (error if missing) |
@@ -948,6 +949,33 @@ For larger matrices (32x32 and above), optional BLAS support provides additional
 
 See [doc/vector_impl.md](doc/vector_impl.md) for implementation details.
 
+## Foreign Function Interface
+
+`ffi-call` calls a C function in a shared library, through libffi. It requires a `-DJOY_FFI=ON` build.
+
+```joy
+(* args  library  symbol  [argument types]  [return type] *)
+"abc" "" "strlen" [string] [size_t] ffi-call.   (* -> 3 *)
+
+(* Name a C function like any other word *)
+DEFINE csin == "" "sin" [double] [double] ffi-call.
+[0.0 1.0] [csin] map.                           (* -> [0.0 0.841471] *)
+
+(* Resolve now, so that a bad name fails here; gives a quotation to run later *)
+"" "sin" [double] [double] ffi.
+```
+
+The last C argument is on top of the stack. An empty library name searches the program and the libraries it has loaded.
+
+| Operator | Stack effect | Description |
+|----------|--------------|-------------|
+| `ffi-call` | `A1..An L S [T1..Tn] [R] -> V` | Call C function `S` in library `L`; `[]` as `[R]` pushes nothing |
+| `ffi` | `L S [T1..Tn] [R] -> [Q]` | Resolve the function; `[Q]` calls it |
+
+Joy cannot check a signature against the C function: a wrong signature or a crash in foreign code ends the process. Callbacks, structs by value, varargs and memory access are not supported.
+
+See [doc/ffi.md](doc/ffi.md) for types and rules.
+
 ## Interactive REPL
 
 Running `joy` with no file on a terminal starts a line editor with syntax highlighting, TAB completion of defined words, and history in `.joy_history` in the current directory. Every statement on a line runs; a pasted multi-line block runs as one entry. Ctrl-C clears the line and Ctrl-D exits.
@@ -986,8 +1014,6 @@ cmake --build .
 
 ### Build with Parallel Support
 
-**Known defect:** `-DJOY_PARALLEL=ON` does not currently compile. Without it, these combinators run sequentially. See `TODO.md`.
-
 Requires OpenMP:
 - **macOS**: `brew install libomp`
 - **Linux**: OpenMP is typically built into GCC/Clang
@@ -1007,6 +1033,20 @@ Requires SQLite3:
 ```bash
 mkdir build && cd build
 cmake -DJOY_SESSION=ON ..
+cmake --build .
+```
+
+### Build with FFI
+
+Requires libffi:
+- **macOS**: `brew install libffi`
+- **Linux**: `apt install libffi-dev`
+
+MSVC builds are not supported. Without `-DJOY_FFI=ON`, `ffi` and `ffi-call` raise an error.
+
+```bash
+mkdir build && cd build
+cmake -DJOY_FFI=ON ..
 cmake --build .
 ```
 
@@ -1071,6 +1111,13 @@ JOY - compiled ...
 cd build
 ctest                    # Run all tests
 ctest -R parallel        # Run parallel tests only
+ctest -R ffi             # Run FFI tests (full coverage needs -DJOY_FFI=ON)
+```
+
+A `-DJOY_GC_STRESS=ON` build collects at every allocation, to expose GC bugs. It is slow, so build only the `joy` target:
+```bash
+cmake --build . --target joy
+ctest -R "test2_(gc_cases|lazy|json)$"
 ```
 
 Or manually:
@@ -1088,6 +1135,7 @@ Or manually:
 ./joy tests/test2/debugger.joy   # Debugger/stepper tests
 ./joy tests/test2/vector_native.joy  # Native vector/matrix tests
 # Session tests require -DJOY_SESSION=ON build
+# tests/ffi/ffi.joy runs under ctest: it needs the test library that ctest builds
 ```
 
 ## Architecture
@@ -1111,8 +1159,6 @@ See [doc/parallel.md](doc/parallel.md) for detailed design documentation.
 ## Development Tools
 
 ### Code Formatter
-
-**Known defect:** the formatter corrupts some valid code. It drops `:` in `match`/`cases` patterns (`[h : t]` becomes `[h t]`) and splits `$"..."` interpolated strings. Do not run it with `-i` on files that use these forms.
 
 Auto-format Joy source files with consistent style:
 
@@ -1162,6 +1208,7 @@ The generator extracts `(* ... *)` comments and associates them with definitions
 | [doc/compile-to-c.md](doc/compile-to-c.md) | Compile Joy to C user guide |
 | [doc/debugger.md](doc/debugger.md) | Debugger and stepper user guide |
 | [doc/parallel.md](doc/parallel.md) | Parallel execution user guide and examples |
+| [doc/ffi.md](doc/ffi.md) | Calling C functions |
 | [doc/parallel_performance.md](doc/parallel_performance.md) | Benchmark results and performance guide |
 | [doc/parallel_fixes.md](doc/parallel_fixes.md) | Technical documentation of parallel fixes |
 | [doc/vector.md](doc/vector.md) | Vector operations design document |

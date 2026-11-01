@@ -5,6 +5,22 @@
  */
 #include "globals.h"
 
+/* Print a string literal, in a form that the scanner reads back. */
+static void write_string(pEnv env, const char* ptr, FILE* fp)
+{
+    joy_putc(env, '"', fp);
+    for (; *ptr; ptr++)
+        if (*ptr == '"')
+            joy_fputs(env, "\\\"", fp);
+        else if (*ptr >= 8 && *ptr <= 13)
+            joy_fprintf(env, fp, "\\%c", "btnvfr"[*ptr - 8]);
+        else if (iscntrl((int)*ptr))
+            joy_fprintf(env, fp, "\\%03d", *ptr);
+        else
+            joy_putc(env, *ptr, fp);
+    joy_putc(env, '"', fp);
+}
+
 /*
  * writefactor - print a factor in readable format to fp.
  * Uses I/O abstraction for stdout output when callbacks are set.
@@ -63,21 +79,11 @@ void writefactor(pEnv env, Index n, FILE* fp)
         break;
 
     case STRING_:
-        joy_putc(env, '"', fp);
 #ifdef NOBDW
-        for (ptr = (char*)&nodevalue(n); *ptr; ptr++)
+        write_string(env, (char*)&nodevalue(n), fp);
 #else
-        for (ptr = nodevalue(n).str; *ptr; ptr++)
+        write_string(env, nodevalue(n).str, fp);
 #endif
-            if (*ptr == '"')
-                joy_fputs(env, "\\\"", fp);
-            else if (*ptr >= 8 && *ptr <= 13)
-                joy_fprintf(env, fp, "\\%c", "btnvfr"[*ptr - 8]);
-            else if (iscntrl((int)*ptr))
-                joy_fprintf(env, fp, "\\%03d", *ptr);
-            else
-                joy_putc(env, *ptr, fp);
-        joy_putc(env, '"', fp);
         break;
 
     case LIST_:
@@ -136,16 +142,13 @@ void writefactor(pEnv env, Index n, FILE* fp)
                     if (!first)
                         joy_fputs(env, " ", fp);
                     first = 0;
-                    /* Print key */
-                    joy_putc(env, '"', fp);
-                    joy_fputs(env, kh_key(d, k), fp);
-                    joy_fputs(env, "\": ", fp);
-                    /* Print value */
+                    write_string(env, kh_key(d, k), fp);
+                    joy_fputs(env, ": ", fp);
                     writefactor(env, kh_value(d, k), fp);
                 }
             }
         }
-        joy_fputs(env, "}", fp);
+        joy_fputs(env, first ? ":}" : "}", fp); /* {} reads as an empty set */
         break;
     }
 

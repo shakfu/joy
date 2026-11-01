@@ -1,0 +1,16 @@
+(*
+    module  : dict_gc.joy
+
+    Dictionary values and keys survive collections.
+*)
+
+DEFINE churn == [] 100000 [0 swons] times pop.
+
+dempty "a" 42 dput churn "a" dget 42 =.
+dempty "a" [1 2 3] dput dup churn "a" dget swap "a" dget equal.
+[["x" [1 2]] ["y" "s"]] >dict churn "y" dget "s" equal.
+{"a": [1 2] "b": {"c": 3}} churn "b" dget "c" dget 3 =.
+{:} dempty equal.
+{1 2} {2 1} equal.
+dempty "key1" 1 dput 200000 ["abcdefgh" rest pop] times "key1" dhas.
+"{\"a\": [1, 2]}" json> churn "a" dget [1 2] equal.

@@ -1,4 +1,4 @@
-# Joy Standard Library
+# Joy Library Reference
 
 Auto-generated documentation from Joy library files.
 
@@ -146,13 +146,6 @@ elements == {} swap [swons] step
 #### `set2string`
 
 ```joy
-set2string == "" swap [chr swons] step
-```
-
-
-#### `set2string`
-
-```joy
 set2string == "" [[chr] dip cons] foldr
 ```
 
@@ -281,8 +274,7 @@ zip == [null2] [pop2 []] [uncons2] [[pairlist] dip cons] linrec
 
 ```joy
 from-to ==
-    (*  lo  hi  agg  *)
-	[] cons  [pop pop] swoncat
+    [] cons  [pop pop] swoncat
 	[>] swap
 	[ [dup succ] dip ]
 	[cons]
@@ -325,9 +317,8 @@ cartesian product -like
 #### `mapr`
 
 ```joy
-mapr ==
-    [ [null] [] [uncons] ] dip		(* P1 P2 P3 *)
-	[dip cons] cons				(* P4 *)
+mapr == [ [null] [] [uncons] ] dip
+	[dip cons] cons
 	linrec
 ```
 
@@ -338,9 +329,9 @@ Right to Left
 
 ```joy
 foldr ==
-    [ [ [null] ] dip			(* P1 *)
-	  [] cons [pop] swoncat			(* P2 *)
-	  [uncons] ] dip			(* P3 *)
+    [ [ [null] ] dip
+	  [] cons [pop] swoncat
+	  [uncons] ] dip
 	linrec
 ```
 
@@ -349,8 +340,8 @@ foldr ==
 
 ```joy
 stepr2 ==
-    [ [null2]  [pop pop] ] dip		(* P1 P2 *)
-	[dip] cons [dip] cons [uncons2] swoncat	(* P3 *)
+    [ [null2]  [pop pop] ] dip
+	[dip] cons [dip] cons [uncons2] swoncat
 	tailrec
 ```
 
@@ -365,10 +356,8 @@ fold2 == rollupd stepr2
 #### `mapr2`
 
 ```joy
-mapr2 ==
-    (* == zipwith  B&W p 57 *)
-	[ [null2] [pop2 []] [uncons2] ] dip	(* P1 P2 P3 *)
-	[dip cons] cons				(* P4 *)
+mapr2 == [ [null2] [pop2 []] [uncons2] ] dip
+	[dip cons] cons
 	linrec
 ```
 
@@ -377,9 +366,9 @@ mapr2 ==
 
 ```joy
 foldr2 ==
-    [ [ [null2] ] dip			(* P1 *)
-	  [] cons [pop2] swoncat		(* P2 *)
-	  [uncons2] ] dip			(* P3 *)
+    [ [ [null2] ] dip
+	  [] cons [pop2] swoncat
+	  [uncons2] ] dip
 	linrec
 ```
 
@@ -416,14 +405,20 @@ average == [sum] [size] cleave /
 
 ```joy
 variance ==
-    (* [..] variance		*)
-	0.0 swap dup		(* 0.0 [..] [..]		*)
-	[sum] [size] cleave dup	(* 0.0 [..] su n n		*)
-	[ /			(* 0.0 [..] av n		*)
-	  [ - dup * + ] cons	(* 0.0 [..] [av - dup * +] n	*)
-	  step ]		(* sumsq n			*)
+    0.0 swap dup
+	[sum] [size] cleave dup
+	[ /
+	  [ - dup * + ] cons
+	  step ]
 	dip
 	pred /
+```
+
+
+#### `AGGLIB`
+
+```joy
+AGGLIB == "agglib.joy - aggregate library\n"
 ```
 
 
@@ -465,11 +460,14 @@ P2 == [[1 2 3] [dup *] map]
 #### `P3`
 
 ```joy
-P3 ==
-    [ [[1 2][3 4][5] []] [[dup *] map] map ]. # double nesting
+P3 == [ [[1 2][3 4][5] []] [[dup *] map] map ]
+```
 
-DEFINE
-    c  ==  concat
+
+#### `c`
+
+```joy
+c == concat
 ```
 
 
@@ -487,30 +485,14 @@ j2f-f ==
 #### `j2f-forwards`
 
 ```joy
-j2f-forwards ==
-    [[]] swap [j2f-f] step.
+j2f-forwards == [[]] swap [j2f-f] step
+```
 
-P0 .
-P0 j2f-forwards .
-P0 j2f-forwards i .
 
-P1 .
-P1 j2f-forwards .
-P1 j2f-forwards i .
-P1 j2f-forwards i i .
+#### `s`
 
-P2 .
-P2 j2f-forwards .
-P2 j2f-forwards i .
-P2 j2f-forwards i i .
-
-P3 .
-P3 j2f-forwards .
-P3 j2f-forwards i .
-P3 j2f-forwards i i .
-
-DEFINE
-    s  ==  swoncat
+```joy
+s == swoncat
 ```
 
 
@@ -522,6 +504,13 @@ j2f-r ==
         [ [[swons] swoncat] dip [j2f-r] step [] swons ]
         [ [] cons [s] cons swoncat ]
         ifte
+```
+
+
+#### `j2f-reverse`
+
+```joy
+j2f-reverse == [] swap [j2f-r] step [] swons
 ```
 
 
@@ -538,15 +527,24 @@ nrows == 30
 ```
 
 
+#### `ncols`
+
+```joy
+ncols == 75
+```
+
+size of output display
+
+
 #### `mandel`
 
 ```joy
 mandel ==
-    -1 nrows ncols *                    (* one loop for rows & cols.  *)
-  	    [ succ dup dup [col] dip row        (* calc. column & row indices *)
-              get_c1 swap get_c2                (* calc. coefficients 1 & 2   *)
-              get_k putpt                       (* calc. k and then print     *)
-              [eol] ['\n putch] [] ifte         (* put newline if appropriate *)
+    -1 nrows ncols *
+  	    [ succ dup dup [col] dip row
+              get_c1 swap get_c2
+              get_k putpt
+              [eol] ['\n putch] [] ifte
             ] times
 ```
 
@@ -583,7 +581,7 @@ I:i -> I:col
 #### `putpt`
 
 ```joy
-putpt == 16 rem " .:,
+putpt == 16 rem " .:,;!/>)|&IH%*#" of putch
 ```
 
 I:i -> B
@@ -593,9 +591,9 @@ I:i -> B
 
 ```joy
 get_k ==
-    pairlist [0 0] swoncat              (* F:c1 F:c2 -> A             *)
-            0 [112 <= [eoloop] dip and]         (* condition                  *)
-            [succ [inc_zs] dip] while           (* if true                    *)
+    pairlist [0 0] swoncat
+            0 [112 <= [eoloop] dip and]
+            [succ [inc_zs] dip] while
             popd 1 -
 ```
 
@@ -641,8 +639,7 @@ A -> I
 #### `inc_z1`
 
 ```joy
-inc_z1 ==
-    dup [sqr_z1] [sqr_z2] cleave -      (* (z1*z1)-(z2*z2)+c2         *)
+inc_z1 == dup [sqr_z1] [sqr_z2] cleave -
             [3 at] dip +
 ```
 
@@ -653,8 +650,8 @@ A -> I
 
 ```joy
 inc_z2 ==
-    3 take reverse uncons uncons        (* (2*z1*z2)+c1               *)
-            uncons pop                          (*                            *)
+    3 take reverse uncons uncons
+            uncons pop
             2 * * +
 ```
 
@@ -674,11 +671,20 @@ A -> I
 
 ```joy
 inc_zs ==
-    dup [inc_z1] [inc_z2] cleave        (*                            *)
+    dup [inc_z1] [inc_z2] cleave
             pairlist swap rest rest concat
 ```
 
 (z1*z1)+(z2*z2)<=10 A -> B
+
+
+#### `FRACLIB`
+
+```joy
+FRACLIB == "fraclib.joy - fractal library\n"
+```
+
+A -> A
 
 
 ---
@@ -764,18 +770,14 @@ show-putchars-sp-step == pop [putchars space] step newline pop
 
 ```joy
 accumulate ==
-    #	"accu: " putchars stack putln
-	pop popd swons
-
+    pop popd swons
 IN
-
-    generate ==	(* length-limit accumulator continuation expression   *)
+    generate ==
       [ pop pop size <= ]
-      [ pop pop pop pop ] (* got enough *)
+      [ pop pop pop pop ]
       [
 	"generate B" gen-trace
 	unswons
-						# binary operators
 	[ [ [[ | ] in]
 	    pop
 	    [ [] cons cons cons dup ] dip
@@ -788,7 +790,6 @@ IN
 	    pop uncons first
 	    [ [generate] cons swons ]
 	    dip generate ]
-						# unary operators
 	  [ [[ ? ] in ]
 	    pop
 	    [ [] cons cons cons dup
@@ -817,11 +818,73 @@ IN
 	    pop first
 	    swap [swons] dip
 	    unswons i ]
-						# operands
 	  [ [[epsilon] in ]
 	    pop pop
 	    unswons i ]
-	  [ # default: an atom
+	  [
+	    popd
+	    swap [swons] dip
+	    unswons i ] ]
+	cond
+	"generate E" gen-trace
+	]
+      ifte
+```
+
+
+#### `generate`
+
+```joy
+generate ==
+    [ pop pop size <= ]
+      [ pop pop pop pop ]
+      [
+	"generate B" gen-trace
+	unswons
+	[ [ [[ | ] in]
+	    pop
+	    [ [] cons cons cons dup ] dip
+	    uncons first
+	    [ swap
+	      [[i] dip generate] dip ]
+	    dip
+	    [i] dip generate ]
+	  [ [[ _ ] in ]
+	    pop uncons first
+	    [ [generate] cons swons ]
+	    dip generate ]
+	  [ [[ ? ] in ]
+	    pop
+	    [ [] cons cons cons dup
+	      [i unswons i] dip ]
+	    dip
+	    [i] dip first generate ]
+	  [ [[ + ] in ]
+	    swons
+	    [] cons cons cons cons dup
+	    [ i second generate ] dip
+	    i dup
+	    [ [generate] cons swons ] dip
+	    second generate ]
+	  [ [[ * ] in ]
+	    swons
+	    [ [] cons cons cons dup
+	      [i unswons i] dip ]
+	    dip
+	    dup
+	    [ [i] dip [generate] cons swons ] dip
+	    second generate ]
+	  [ [[ $ ] in]
+	    pop first i
+	    Min2Tre generate ]
+	  [ [[QUOTE] in ]
+	    pop first
+	    swap [swons] dip
+	    unswons i ]
+	  [ [[epsilon] in ]
+	    pop pop
+	    unswons i ]
+	  [
 	    popd
 	    swap [swons] dip
 	    unswons i ] ]
@@ -851,9 +914,7 @@ gen-trace == pop
 #### `gen-put`
 
 ```joy
-gen-put ==
-    (* count  Min-exp     *)
-	Min2Tre  [ [] [[show-put]] ] dip generate
+gen-put == Min2Tre  [ [] [[show-put]] ] dip generate
 ```
 
 the four basic wrappers
@@ -884,11 +945,7 @@ gen-putchars-sp-step == Min2Tre  [ [] [[show-putchars-sp-step]] ] dip generate
 
 ```joy
 gen-accumulate == Min2Tre  [ [[]] dip [] [[accumulate]] ] dip generate
-
-END
 ```
-
-HIDE, generator
 
 
 ### Parsing
@@ -920,8 +977,7 @@ parse-test == pop pop true or
 #### `parse-count`
 
 ```joy
-parse-count == # "count" put stack putln
-		 pop pop succ
+parse-count == pop pop succ
 ```
 
 
@@ -930,13 +986,10 @@ parse-count == # "count" put stack putln
 ```joy
 parse-tell ==
     "accept\n" putchars pop pop succ
-
 IN
-
-    parse ==	(*  N  list-to-be-parsed   continuation  expression   *)
+    parse ==
 	"parse B" prs-trace
 	unswons
-						# binary operators
 	[ [ [[ | ] in]
 	    pop
 	    [ [] cons cons dup ] dip
@@ -946,10 +999,9 @@ IN
 	    dip
 	    [i] dip parse ]
 	  [ [[ _ ] in ]
-	    pop uncons first swap # in generate there is no swap
+	    pop uncons first swap
 	    [ [parse] cons swons ]
 	    dip parse ]
-						# unary operators
 	  [ [[ ? ] in ]
 	    pop
 	    [ [] cons cons dup
@@ -978,13 +1030,70 @@ IN
 	    pop first
 	    swap [swons] dip
 	    unswons i ]
-						# operands
 	  [ [[epsilon] in ]
 	    pop pop
 	    unswons i ]
-	  [ # default: an atom
-	    # here I need a test that the list is not empty
-	    # otherwise the "first" below will crash
+	  [
+	    popd
+	    [ [pop first] dip = ]
+	    [ pop [rest] dip unswons i ]
+	    [ pop pop pop ]
+	    ifte ] ]
+	cond
+	"parse E" prs-trace
+```
+
+
+#### `parse`
+
+```joy
+parse ==
+    "parse B" prs-trace
+	unswons
+	[ [ [[ | ] in]
+	    pop
+	    [ [] cons cons dup ] dip
+	    uncons first
+	    [ swap
+	      [[i] dip parse] dip ]
+	    dip
+	    [i] dip parse ]
+	  [ [[ _ ] in ]
+	    pop uncons first swap
+	    [ [parse] cons swons ]
+	    dip parse ]
+	  [ [[ ? ] in ]
+	    pop
+	    [ [] cons cons dup
+	      [i unswons i] dip ]
+	    dip
+	    [i] dip first parse ]
+	  [ [[ + ] in ]
+	    swons
+	    [] cons cons cons dup
+	    [ i second parse ] dip
+	    i dup
+	    [ [parse] cons swons ] dip
+	    second parse ]
+	  [ [[ * ] in ]
+	    swons
+	    [ [] cons cons dup
+	      [i unswons i] dip ]
+	    dip
+	    dup
+	    [ [i] dip [parse] cons swons ] dip
+	    second parse ]
+	  [ [[ $ ] in]
+	    pop first i
+	    Min2Tre parse ]
+	  [ [[QUOTE] in ]
+	    pop first
+	    swap [swons] dip
+	    unswons i ]
+	  [ [[epsilon] in ]
+	    pop pop
+	    unswons i ]
+	  [
 	    popd
 	    [ [pop first] dip = ]
 	    [ pop [rest] dip unswons i ]
@@ -1020,11 +1129,18 @@ prs-list-residues == Min2Tre [ [0] dip [[parse-list-residues]] ] dip parse pop
 
 ```joy
 prs-count == Min2Tre [ [0] dip [[parse-count]] ] dip parse
-
-END
 ```
 
-HIDE, parser
+
+### Other Stuff To Go Here
+
+#### `GRMLIB`
+
+```joy
+GRMLIB == "grmlib.joy - grammar (generating/parsing) library\n"
+```
+
+other stuff to go here
 
 
 ---
@@ -1036,17 +1152,15 @@ HIDE, parser
 #### `arith`
 
 ```joy
-arith ==
-    [ "x"  |  "(" _ $ arith _ "+" _ $ arith _ ")" ].
-
-13 [ $ arith ]   gen-putchars-step.    # using no spaces between outputs
-
-# A grammar for arithmetic with precedences, using three productions:
-
-DEFINE expression ==  [ $ term  _  * ["+" _ $ term] ]
+arith == [ "x"  |  "(" _ $ arith _ "+" _ $ arith _ ")" ]
 ```
 
-the grammar has only one production
+
+#### `expression`
+
+```joy
+expression == [ $ term  _  * ["+" _ $ term] ]
+```
 
 
 #### `term`
@@ -1059,112 +1173,73 @@ term == [ $ factor  _  * ["*" _ $ factor] ]
 #### `factor`
 
 ```joy
-factor ==
-    [ "x"  |  "(" _ $ expression _ ")" ].
-
-7 [ $ expression ]  gen-putchars-sp-step. # using spaces between outputs
-
-(* Do not show, but collect into a list (of lists of tokens)	      *)
-
-8 ["The" _ ["cat" | "dog"]  _ "sat" _ "on" _ "the" _ ["mat" | "lawn"]]
-  gen-accumulate.
-
-# just counting the number of expressions, terms, factors of mx length 7
-
-7 [ $ expression ]  gen-accumulate size.
-
-7 [ $ term ]  gen-accumulate size.
-
-7 [ $ factor ]  gen-accumulate size.
-
-# in case the last count seems suspicious, here are the details:
-
-7 [ $ factor ] gen-putchars-sp-step.
-
-(* - - - - -                  P A R S I N G                 - - - - - *)
-
-DEFINE prs-trace == pop.
-
-1 setecho.
-
-DEFINE
-    tree == [ "big" _ "tree" ]
+factor == [ "x"  |  "(" _ $ expression _ ")" ]
 ```
 
 
 ### Parsing
+
+#### `prs-trace`
+
+```joy
+prs-trace == pop
+```
+
+
+#### `tree`
+
+```joy
+tree == [ "big" _ "tree" ]
+```
+
 
 #### `names`
 
 ```joy
 names ==
     [ "peter" _ "smith" | "paul" _ "jones" | "mary" _
-               "robinson" ].
-
-[ "big" "tree" ]  tree prs-test.
-
-[ "peter"  "smith" ]  names  prs-test.
-[ "paul"  "jones" ]  names  prs-test.
-[ "mary"  "robinson" ]  names  prs-test.
+               "robinson" ]
+```
 
 
-[ "fred"  ]  names  prs-test.
+#### `anyname`
 
-DEFINE anyname ==
-    [ ["peter" | "paul" | "mary"] _ ["smith" | "jones" | "robinson" ] ].
+```joy
+anyname ==
+    [ ["peter" | "paul" | "mary"] _ ["smith" | "jones" | "robinson" ] ]
+```
 
-["peter" "robinson"]  anyname prs-test.
 
-["paul" "smith"] anyname prs-test.
+#### `Polish`
 
-[ "paul" "nurks" ] anyname prs-test.
-
-[ "fred" "nurks" ] anyname prs-test.
-
-[ "mary" "robinson" ]  [ $ anyname ]  prs-test.
-
-[ "mary" "robertson" ]  [ $ anyname ]  prs-test.
-
-DEFINE
-  Polish  ==  [  'p
+```joy
+Polish ==
+    [  'p
 	       |  'N _ $ Polish
-	       |  ['A | 'C | 'K] _ $ Polish _ $ Polish ].
-
-[ 'K 'p 'N 'p ]  [ $ Polish ]  prs-test.
-[ 'K 'p 'M 'p ]  [ $ Polish ]  prs-test.
-[ 'K 'p 'N 'q ]  [ $ Polish ]  prs-test.
-
-DEFINE
-    string2charlist ==
-	[null]  [pop []]  [uncons]  [cons]  linrec.
+	       |  ['A | 'C | 'K] _ $ Polish _ $ Polish ]
+```
 
 
-"CNpApKpp"  string2charlist Polish prs-test.
-"CNpBpKpp"  string2charlist Polish prs-test.
+#### `string2charlist`
 
-# testing the unary operators  ? + *
+```joy
+string2charlist == [null]  [pop []]  [uncons]  [cons]  linrec
+```
 
-[ "*" "*" "*" "*" "*" "." ]  [ * "*" ]  prs-count.
-[ "*" "*" "*" "." "*" "*" ]  [ * "*" ]  prs-count.
-[ "*" "*" "*" "." "*" "*" ]  [ + "*" ]  prs-count.
 
-(* The following examples all use test strings of which some
-   initial substrings are accepted by the grammar. Each parse
-   then leaves some unused part of the test string behind. *)
+#### `Rev-Pol`
 
-#  Using the reverse Polish notation for propositional logic:
+```joy
+Rev-Pol == [ 'p _ * [ 'N
+			| $ Rev-Pol _ ['A | 'C | 'K] ] ]
+```
 
-DEFINE
-  Rev-Pol  ==  [ 'p _ * [ 'N
-			| $ Rev-Pol _ ['A | 'C | 'K] ] ].
 
-"pNNpNANNpC " string2charlist  Rev-Pol  prs-string-residues.
-"pNNpNABNpC " string2charlist  Rev-Pol  prs-string-residues.
+#### `sentence`
 
-DEFINE 	# Four productions for a rudimentary fragment of English
-
-sentence  ==
-  [ $ noun-phrase _ $ verb-phrase  _ * [["and" | "or"] _ $ sentence] ]
+```joy
+sentence ==
+    [ $ noun-phrase _ $ verb-phrase  _ * [["and" | "or"] _ $ sentence] ]
 ```
 
 
@@ -1190,6 +1265,13 @@ verb-phrase ==
 
 ```joy
 adjective == [ "brown" | "black" | "rich" ]
+```
+
+
+#### `E`
+
+```joy
+E == sentence prs-list-residues
 ```
 
 
@@ -1224,13 +1306,6 @@ space == '\032 putch
 
 ```joy
 bell == '\007 putch
-```
-
-
-#### `putchars`
-
-```joy
-putchars == [putch] step
 ```
 
 
@@ -1476,13 +1551,6 @@ nullary2 == [nullary] cons dup i2 swapd
 ```
 
 
-#### `unary2`
-
-```joy
-unary2 == [unary  ] cons dup i2
-```
-
-
 #### `repeat`
 
 ```joy
@@ -1547,6 +1615,13 @@ special-libload ==
 
 ```joy
 all-libload == basic-libload special-libload
+```
+
+
+#### `INILIB`
+
+```joy
+INILIB == "inilib.joy - the initial library, assumed everywhere\n"
 ```
 
 
@@ -1709,6 +1784,13 @@ joytut == toc-do-sec0-loop
 ```
 
 
+#### `JOYTUT`
+
+```joy
+JOYTUT == "joytut.joy - " toc-of-tutorial first second concat
+```
+
+
 ---
 
 ## jp-church.joy
@@ -1725,19 +1807,21 @@ C0 == pop
 #### `Csucc`
 
 ```joy
-Csucc ==
-    [dup [i] dip] dip i.
+Csucc == [dup [i] dip] dip i
+```
 
-DEFINE
-    Peano  ==  0 [succ].
 
-Peano C0.
-Peano [C0] Csucc.
-Peano [[C0] Csucc] Csucc.
-Peano [[[C0] Csucc] Csucc] Csucc.
+#### `Peano`
 
-DEFINE
-    C1  ==  [C0] Csucc
+```joy
+Peano == 0 [succ]
+```
+
+
+#### `C1`
+
+```joy
+C1 == [C0] Csucc
 ```
 
 
@@ -1751,37 +1835,28 @@ C2 == [C1] Csucc
 #### `C3`
 
 ```joy
-C3 ==
-    [C2] Csucc.
+C3 == [C2] Csucc
+```
 
-Peano C0.
-Peano C1.
-Peano C2.
-Peano C3.
 
-DEFINE
-    Doublings  ==  1 [2 *]
+#### `Doublings`
+
+```joy
+Doublings == 1 [2 *]
 ```
 
 
 #### `Lists`
 
 ```joy
-Lists ==
-    [] [[i] swoncat].
+Lists == [] [[i] swoncat]
+```
 
-Doublings C0.
-Doublings C1.
-Doublings C2.
-Doublings C3.
 
-Lists C0.
-Lists C1.
-Lists C2.
-Lists C3.
+#### `Cadd`
 
-DEFINE
-    Cadd  ==  [ [[Csucc] cons] ] dip i i
+```joy
+Cadd == [ [[Csucc] cons] ] dip i i
 ```
 
 
@@ -1795,41 +1870,28 @@ Cmul == [ [[C0]] dip  [Cadd] cons [cons] cons ] dip i i
 #### `Cpow`
 
 ```joy
-Cpow ==
-    [ [[C1 ]] dip  [Cmul] cons [cons] cons ] dip i i.
+Cpow == [ [[C1 ]] dip  [Cmul] cons [cons] cons ] dip i i
+```
 
-Peano [C2] [C3] Cadd.
-Peano [C2] [C3] Cmul.
-Peano [C2] [C3] Cpow.
 
-Doublings [C2] [C3] Cadd.
-Doublings [C2] [C3] Cmul.
-Doublings [C2] [C3] Cpow.
+#### `Q0`
 
-Peano [[[[[C3] Csucc] [C2] Cadd] [C3] Cmul] Csucc] [C2] Cadd .
-Peano [[[[[C3] Csucc] [C2] Cadd] [C3] Cmul] Csucc] [C2] Cadd
-            3   succ    2   +      3   *     succ    2   +      = .
-
-Peano [[[[C2] [C3] Cmul] [C2] Cpow] [[C2] [[C1] Csucc] Cmul] Cadd] [C2]
-      Cadd.
-
-DEFINE
-    Q0  ==  [pop]
+```joy
+Q0 == [pop]
 ```
 
 
 #### `Qsucc`
 
 ```joy
-Qsucc ==
-    [ [dup [i] dip] dip i ]  cons.
+Qsucc == [ [dup [i] dip] dip i ]  cons
+```
 
-Peano Q0 i.
-Peano Q0 Qsucc i.
-Peano Q0 Qsucc Qsucc i.
 
-DEFINE
-    Q1  ==  Q0 Qsucc
+#### `Q1`
+
+```joy
+Q1 == Q0 Qsucc
 ```
 
 
@@ -1843,22 +1905,14 @@ Q2 == Q1 Qsucc
 #### `Q3`
 
 ```joy
-Q3 ==
-    Q2 Qsucc.
+Q3 == Q2 Qsucc
+```
 
-Peano Q0 i.
-Peano Q1 i.
-Peano Q2 i.
-Peano Q3 i.
 
-Q0.
-Q1.
-Q2.
-Q3.
+#### `Qadd`
 
-DEFINE
-    Qadd  ==
-      [ [[Qsucc i] cons] swap i i ]  cons cons
+```joy
+Qadd == [ [[Qsucc i] cons] swap i i ]  cons cons
 ```
 
 
@@ -1874,107 +1928,77 @@ Qmul ==
 
 ```joy
 Qpow ==
-    [ [[[Q1 i]] dip [Qmul i] cons [cons] cons] dip i i ] cons cons.
+    [ [[[Q1 i]] dip [Qmul i] cons [cons] cons] dip i i ] cons cons
+```
 
 
-Peano Q2 Q3 Qadd i .
-Peano Q2 Q3 Qmul i .
-Peano Q2 Q3 Qpow i .
+#### `Ctrue`
 
-Q2 Q3 Qadd .
-Q2 Q3 Qmul .
-Q2 Q3 Qpow .
-
-Peano      Q3 Qsucc  Q2 Qadd  Q3 Qmul Qsucc Q2 Qadd i.
-Peano      Q3 Qsucc  Q2 Qadd  Q3 Qmul Qsucc Q2 Qadd i
-            3  succ   2  +     3  *    succ  2  +      = .
-
-
-DEFINE 
-    Ctrue  ==  pop i
+```joy
+Ctrue == pop i
 ```
 
 
 #### `Cfalse`
 
 ```joy
-Cfalse == popd i.
+Cfalse == popd i
+```
 
-DEFINE
-    Boole == ["Yes, yes"] ["No, no"]
+
+#### `Boole`
+
+```joy
+Boole == ["Yes, yes"] ["No, no"]
 ```
 
 
 #### `Comparison`
 
 ```joy
-Comparison ==
-    2 3 [<] [>].
+Comparison == 2 3 [<] [>]
+```
 
-Boole Ctrue.
-Boole Cfalse.
-Comparison Ctrue.
-Comparison Cfalse.
 
-DEFINE
-(*
-    Cnot  ==  [ [Cfalse] [Ctrue] ] dip i.
-*)
-    Cnot  ==  swapd i.
+#### `Cnot`
 
-Boole [Ctrue] Cnot.
-Boole [Cfalse] Cnot.
-Comparison [[Ctrue] Cnot] Cnot.
-Comparison [[Cfalse] Cnot] Cnot.
+```joy
+Cnot == swapd i
+```
 
-DEFINE
-    Cor  ==  [[Ctrue]] dipd i
+
+#### `Cor`
+
+```joy
+Cor == [[Ctrue]] dipd i
 ```
 
 
 #### `Cand`
 
 ```joy
-Cand ==
-    [[Cfalse]] dip i.
+Cand == [[Cfalse]] dip i
+```
 
-Boole [Ctrue ] [Ctrue ] Cor.
-Boole [Ctrue ] [Cfalse] Cor.
-Boole [Cfalse] [Ctrue ] Cor.
-Boole [Cfalse] [Cfalse] Cor.
-Boole [Ctrue ] [Ctrue ] Cand.
-Boole [Ctrue ] [Cfalse] Cand.
-Boole [Cfalse] [Ctrue ] Cand.
-Boole [Cfalse] [Cfalse] Cand.
 
-DEFINE
-    Ceq0  == [ [Ctrue] [pop [Cfalse]] ] dip i i.
+#### `Ceq0`
 
-Boole [C0] Ceq0 .
-Boole [C1] Ceq0 .
-Boole [C2] Ceq0 .
-Boole [[C0] Ceq0] [[[C2] Csucc] Ceq0] Cor.
-Boole [[C0] Ceq0] [[[C2] Csucc] Ceq0] Cand.
+```joy
+Ceq0 == [ [Ctrue] [pop [Cfalse]] ] dip i i
+```
 
-DEFINE
-    Cifte  ==  rolldown i.
 
-Peano  [[C0] Ceq0]  [C2]  [C3]  Cifte.
-Peano  [[C1] Ceq0]  [C2]  [C3]  Cifte.
-Peano  [[[C0] Ceq0] Cnot]  [C2]  [C3]  Cifte.
-Peano  [[[C1] Ceq0] Cnot]  [C2]  [C3]  Cifte.
+#### `Cifte`
 
-Peano [Ctrue ] [[Ctrue ] [C0] [C1] Cifte] [[Ctrue ] [C2] [C3] Cifte]
-      Cifte.
-Peano [Ctrue ] [[Cfalse] [C0] [C1] Cifte] [[Cfalse] [C2] [C3] Cifte]
-      Cifte.
-Peano [Cfalse] [[Ctrue ] [C0] [C1] Cifte] [[Ctrue ] [C2] [C3] Cifte]
-      Cifte.
-Peano [Cfalse] [[Cfalse] [C0] [C1] Cifte] [[Cfalse] [C2] [C3] Cifte]
-      Cifte.
+```joy
+Cifte == rolldown i
+```
 
-DEFINE
-    Ccons  ==  [i]
+
+#### `Ccons`
+
+```joy
+Ccons == [i]
 ```
 
 
@@ -1988,24 +2012,7 @@ Ccar == [Ctrue] swap i
 #### `Ccdr`
 
 ```joy
-Ccdr ==
-    [Cfalse] swap i.
-
-Peano  [C0] [C1] Ccons Ccar.
-Peano  [C0] [C1] Ccons Ccdr.
-
-Peano [[C0] [C1] Ccons Ccar] [[C2] [C3] Ccons Ccar] Ccons Ccar.
-Peano [[C0] [C1] Ccons Ccdr] [[C2] [C3] Ccons Ccdr] Ccons Ccar.
-Peano [[C0] [C1] Ccons Ccar] [[C2] [C3] Ccons Ccar] Ccons Ccdr.
-Peano [[C0] [C1] Ccons Ccdr] [[C2] [C3] Ccons Ccdr] Ccons Ccdr.
-# The definition of Brent Kerby's more elegant Church numerals
-
-# The original definitions, commented away, are given for comparison.
-# The new definitions over-ride the old ones.
-
-DEFINE
-
-#  Csucc ==  [dup [i] dip] dip i
+Ccdr == [Cfalse] swap i
 ```
 
 
@@ -2034,6 +2041,13 @@ sip == dupd dip
 
 ```joy
 Cmul == [cons] dip i
+```
+
+
+#### `Cpow`
+
+```joy
+Cpow == [[cons] cons] dip i i
 ```
 
 
@@ -2109,7 +2123,44 @@ IN
       opcase
       i ]
     step
-END
+```
+
+
+#### `joy`
+
+```joy
+joy ==
+    [ [ [ joy		body	joy	]
+	[ true				]
+	[ 'A				]
+	[ []				]
+	[ ""				]
+	[ {}				]
+	[ 0				]
+	[ dup		pop	dup	]
+	[ swap		pop	swap	]
+	[ pop		pop	pop	]
+	[ +		pop	+	]
+	[ -		pop	-	]
+	[ and		pop	and	]
+	[ cons		pop	cons	]
+	[ i		pop	joy	]
+	[ dip		cr1	dip	]
+	[ step		cr1	step	]
+	[ map		cr1	map	]
+	[ filter	cr1	filter	]
+	[ times		cr1	times	]
+        [ app1          cr1     app1    ]
+        [ app2          cr1     app2    ]
+        [ app3          cr1     app3    ]
+        [ app4          cr1     app4    ]
+	[ ifte		cr3	ifte	]
+	[ linrec	cr4	linrec	]
+	[ binrec	cr4	binrec	]
+	[	      dup put [] cons i ] ]
+      opcase
+      i ]
+    step
 ```
 
 
@@ -2128,13 +2179,14 @@ joy0 ==
 	[		       [] cons	i	 ] ]
       opcase
       i ]
-    step.
+    step
+```
 
-(* some additional versions of joy0 with tracing *)
 
-LIBRA 
+#### `joy0s`
 
-joy0s  ==  (* joy0 with short trace *)
+```joy
+joy0s ==
     newline "joy0s :" putchars newline
     [ [ [ joy0s		body		joy0s	 ]
 	[ []				 	 ]
@@ -2143,6 +2195,27 @@ joy0s  ==  (* joy0 with short trace *)
 	[ opcase	pop		opcase	 ]
 	[ body		pop		body	 ]
 	[ i		pop		joy0s 	 ]
+	[ step		pop [joy0] cons	step 	 ]
+	[		       [] cons	i	 ] ]
+      opcase
+      i ]
+    step
+```
+
+
+#### `joy0l`
+
+```joy
+joy0l ==
+    newline "joy0l :" putchars newline
+    [ dup put space
+      [ [ joy0l		body		joy0l	 ]
+	[ []				 	 ]
+	[ pop		pop		pop	 ]
+	[ cons		pop		cons	 ]
+	[ opcase	pop		opcase	 ]
+	[ body		pop		body	 ]
+	[ i		pop		joy0l 	 ]
 	[ step		pop [joy0] cons	step 	 ]
 	[		       [] cons	i	 ] ]
       opcase
@@ -2164,310 +2237,250 @@ joy0s  ==  (* joy0 with short trace *)
 #### `r-fact`
 
 ```joy
-r-fact ==
-    [ null ]
+r-fact == [ null ]
 	[ pop 1]
 	[ dup pred r-fact *]
-	ifte.
+	ifte
+```
 
-[ 0 1 2 3 4 5 6 ]  [r-fact]  map.
 
-(*
-    mcc91(i) =
-	IF i > 100
-	THEN i - 10
-	ELSE mcc91(mcc91(i + 11))
-*)
-DEFINE
-    r-mcc91 ==
-	[ 100 > ]
+#### `r-mcc91`
+
+```joy
+r-mcc91 == [ 100 > ]
 	[ 10 - ]
 	[ 11 + r-mcc91 r-mcc91 ]
-	ifte.
+	ifte
+```
 
-[ -7 42 99 100 101 102 345 ]  [r-mcc91]  map.
 
-(*
-    ack(m, n) =
-	IF m = 0  THEN n + 1
-	ELSEIF n = 0  THEN ack(m - 1, 1)
-	ELSE ack(m - 1, ack(m, n - 1))
-*)
-DEFINE
-    r-ack ==
-#	stack putln
-	[ [ [pop null]  popd succ ]
+#### `r-ack`
+
+```joy
+r-ack ==
+    [ [ [pop null]  popd succ ]
 	  [ [null]  pop pred 1 r-ack ]
 	  [ [dup pred swap] dip pred r-ack r-ack ] ]
-	cond.
+	cond
+```
 
-[ [0 0] [0 1] [0 2] [0 3] [0 4] [0 5] ]   [i r-ack]  map  putln
-[ [1 0] [1 1] [1 2] [1 3] [1 4] [1 5] ]   [i r-ack]  map  putln
-[ [2 0] [2 1] [2 2] [2 3] [2 4] [2 5] ]   [i r-ack]  map  putln
-[ [3 0] [3 1] [3 2] [3 3] [3 4] [3 5] ]   [i r-ack]  map  putln
-[ [4 0]                               ]   [i r-ack]  map.
 
-# In the Towers of Hanoi puzzle the disks have to be moved
-# in a particular order. Ignoring what the target peg is,
-# for three disks the order is 1 2 1 3 1 2 1.
-# In general for n disks it is a sequence of (2^n)-1 steps.
-# The sequence of steps is also one that performs a
-# Hamiltonian path on an n-dimensional hypercube.
-# The following is the Joy program:
+#### `r-hamilhyp`
 
-DEFINE
-    r-hamilhyp ==   #  [] n  =>  [...]
-	[ null ]
+```joy
+r-hamilhyp ==
+    [ null ]
 	[ pop ]
 	[ dup rollup pred       r-hamilhyp
 	  dupd cons swap pred   r-hamilhyp ]
-	ifte.
+	ifte
+```
 
-[]  3  r-hamilhyp.
-[]  4  r-hamilhyp.
-[]  5  r-hamilhyp.
 
-(* S E L F - A P P L I C A T I O N     Reminder:  x == dup i    *)
+#### `x-fact`
 
-DEFINE
-    x-fact ==
-	[ [ pop null ]
+```joy
+x-fact ==
+    [ [ pop null ]
 	  [ pop pop 1]
 	  [ [dup pred] dip x *]
 	  ifte ]
-	x.
+	x
+```
 
-[ 0 1 2 3 4 5 6 ]  [x-fact]  map.
 
-DEFINE
-    twice-x ==
-	dup [x] dip x.
-DEFINE
-    x-mcc91 ==
-	[ [ pop 100 > ]
+#### `twice-x`
+
+```joy
+twice-x == dup [x] dip x
+```
+
+
+#### `x-mcc91`
+
+```joy
+x-mcc91 ==
+    [ [ pop 100 > ]
 	  [ pop 10 - ]
 	  [ [11 +] dip twice-x ]
 	  ifte ]
-	x.
+	x
+```
 
-[ -7 42 99 100 101 102 345 ]  [x-mcc91]  map.
 
-(*
-    r-ack ==
-#	stack putln
-	[ [ [pop null]  popd succ ]
-	  [ [null]  pop pred 1 r-ack ]
-	  [ [dup pred swap] dip pred r-ack r-ack ] ]
-	cond.
-*)
+#### `x-ack`
 
-DEFINE
-    x-ack ==
-	[ [ [ [pop pop null]  pop popd succ ]
+```joy
+x-ack ==
+    [ [ [ [pop pop null]  pop popd succ ]
 	    [ [pop null]  [pop pred 1] dip x ]
 	    [ [[dup pred swap] dip pred] dip twice-x ] ]
 	cond ]
-	x.
-
-[ [3 0] [3 1] [3 2] [3 3] [3 4] [3 5] ]   [i x-ack]  map.
-
-(* the following is for a non-recursive definition using the
-   y-combinator *)
-DEFINE
-    y ==
-	[dup cons] swoncat dup cons i
+	x
 ```
 
-fact(n) = 	IF n = 0 	THEN 1 	ELSE  n * fact(n-1)
+
+#### `y`
+
+```joy
+y == [dup cons] swoncat dup cons i
+```
 
 
 #### `twice-i`
 
 ```joy
-twice-i ==
-    dup [i] dip i.
-DEFINE
-    y-ack ==
-	[ [ [ [pop pop null]  pop popd succ ]
+twice-i == dup [i] dip i
+```
+
+
+#### `y-ack`
+
+```joy
+y-ack ==
+    [ [ [ [pop pop null]  pop popd succ ]
 	    [ [pop null]  [pop pred 1] dip i ]
 	    [ [[dup pred swap] dip pred] dip twice-i ] ]
 	cond ]
-	y.
+	y
+```
 
-[ [3 0] [3 1] [3 2] [3 3] [3 4] [3 5] ]   [i y-ack]  map.
 
-(*
-DEFINE
-    r-hamilhyp ==   #  [] n  =>  [...]
-	[ null ]
-	[ pop ]
-	[ dup rollup pred       r-hamilhyp
-	  dupd cons swap pred   r-hamilhyp ]
-	ifte.
-*)
+#### `x-hamilhyp`
 
-DEFINE
-    x-hamilhyp ==
-	[ [ pop null ]
+```joy
+x-hamilhyp ==
+    [ [ pop null ]
 	  [ pop pop ]
 	  [ dup [ [dup rollup pred] dip  x ] dip
 	    [dupd cons] dip
 	    [swap pred] dip  x ]
 	  ifte ]
-	x.
+	x
+```
 
-[]  5  x-hamilhyp.
 
-(* P A R T I A L L Y   E X P L I C I T   R E C U R S I O N  *)
+#### `ack`
 
-# Nick Forde suggested writing the Ackermann function by using
-# the linrec combinator to achieve one recursion, and to use
-# explicit recursion for the other. For reasons that do not concern
-# us here, his version computes the _converse_ of the text book
-# definition:
-
-DEFINE ack == (* I:n I:m -> I:a *)
+```joy
+ack ==
     [ [ [0 =] [pop 1 +] ]
       [ [swap 0 =] [popd 1 - 1 swap] [] ]
       [ [dup rollup [1 -] dip] [swap 1 - ack] ] ]
-    condlinrec .
+    condlinrec
+```
 
-[ [0 0] [0 1] [0 2] [0 3] [0 4] [0 5] ]   [i swap ack]  map  putln
-[ [1 0] [1 1] [1 2] [1 3] [1 4] [1 5] ]   [i swap ack]  map  putln
-[ [2 0] [2 1] [2 2] [2 3] [2 4] [2 5] ]   [i swap ack]  map  putln
-[ [3 0] [3 1] [3 2] [3 3] [3 4] [3 5] ]   [i swap ack]  map  putln
-[ [4 0]                               ]   [i swap ack]  map.
 
-(*
-DEFINE
-    r-mcc91 ==
-	[ 100 > ]
-	[ 10 - ]
-	[ 11 + r-mcc91 r-mcc91 ]
-	ifte.
-*)
+#### `l-mcc91`
 
-DEFINE
-    l-mcc91 ==
-	[ 100 > ]
+```joy
+l-mcc91 == [ 100 > ]
 	[ 10 - ]
 	[ 11 + ]
 	[ l-mcc91 ]
-	linrec.
+	linrec
+```
 
 
-[ -7 42 99 100 101 102 345 ]  [l-mcc91]  map.		      (* R.W. *)
+#### `clr-ack`
 
-(*
-    r-ack ==
-#	stack putln
-	[ [ [pop null]  popd succ ]
-	  [ [null]  pop pred 1 r-ack ]
-	  [ [dup pred swap] dip pred r-ack r-ack ] ]
-	cond.
-*)
-
-DEFINE
-    clr-ack ==
-	[ [ [pop null]  [popd succ] ]
+```joy
+clr-ack ==
+    [ [ [pop null]  [popd succ] ]
 	  [ [null]  [pop pred 1]  [] ]
 	  [ [[dup pred swap] dip pred]  [clr-ack] ] ]
-	condlinrec.
+	condlinrec
+```
 
-[ [3 0] [3 1] [3 2] [3 3] [3 4] [3 5] ]   [i clr-ack]  map.
 
-(*
-DEFINE
-    r-hamilhyp ==   #  [] n  =>  [...]
-	[ null ]
-	[ pop ]
-	[ dup rollup pred       r-hamilhyp
-	  dupd cons swap pred   r-hamilhyp ]
-	ifte.
-*)
+#### `lr-hamilhyp`
 
-DEFINE 
-    lr-hamilhyp ==
-	[ null ]
+```joy
+lr-hamilhyp ==
+    [ null ]
 	[ pop ]
 	[ dup rollup pred ]
 	[ dupd cons swap pred lr-hamilhyp ]
-	linrec.
+	linrec
+```
 
-[]  5  lr-hamilhyp.
 
-DEFINE
-    toggle ==   #   {..} i  ->  {..]
-	[has]  [[not] dip swons not]  [swons]  ifte.
+#### `toggle`
 
-{}  4  toggle.
-{1 2 7}  2 toggle.
+```joy
+toggle == [has]  [[not] dip swons not]  [swons]  ifte
+```
 
-DEFINE
-    lr-grayseq ==
-	[ null ]
+
+#### `lr-grayseq`
+
+```joy
+lr-grayseq ==
+    [ null ]
 	[ pop ]
 	[ dup rollup pred ]
 	[ dupd
-	  dup [first swap toggle] dip  # inserted line
+	  dup [first swap toggle] dip
 	  cons swap pred lr-grayseq ]
-	linrec.
+	linrec
+```
 
-[{}]  3  lr-grayseq.
-[{3}]  3  lr-grayseq.
-[{1 2 3}]  3 lr-grayseq.
 
-(* N E S T E D  R E C U R S I O N   C O M B I N A T O R : condnestrec *)
+#### `cnr-hamilhyp`
 
-DEFINE
-    cnr-hamilhyp ==
-	[ [ [null] [pop] ]
+```joy
+cnr-hamilhyp ==
+    [ [ [null] [pop] ]
 	  [ [dup rollup pred]
 	    [dupd cons swap pred]
 	    [] ] ]
-	condnestrec.
+	condnestrec
+```
 
-[] 4 cnr-hamilhyp.
 
+#### `cnr-ack`
 
-DEFINE
-    cnr-ack ==
-	[ [ [pop null]  [popd succ] ]
+```joy
+cnr-ack ==
+    [ [ [pop null]  [popd succ] ]
 	  [ [null]  [pop pred 1]  [] ]
 	  [ [[dup pred swap] dip pred]  []  [] ] ]
-	condnestrec.
+	condnestrec
+```
 
-3 4 cnr-ack.
 
-DEFINE
-    cnr-grayseq ==
-	[ [ [null]  [pop] ]
+#### `cnr-grayseq`
+
+```joy
+cnr-grayseq ==
+    [ [ [null]  [pop] ]
 	  [ [dup rollup pred]
 	    [dupd
-	     dup [first swap toggle] dip # inserted
+	     dup [first swap toggle] dip
 	     cons swap pred]
 	    [] ] ]
-	condnestrec.
+	condnestrec
+```
 
-[{}] 3 cnr-grayseq.
 
-DEFINE
-    cnr-hanoi ==
-	[[rolldown] infra] dip
+#### `cnr-hanoi`
+
+```joy
+cnr-hanoi ==
+    [[rolldown] infra] dip
 	[ [ [null] [pop pop] ]
 	  [ [dup2 [[rotate] infra] dip pred]
 	    [ [dup rest put] dip
 	      [[swap] infra] dip pred ]
 	    [] ] ]
-	condnestrec.
+	condnestrec
+```
 
-[source destination temp]  2  cnr-hanoi.
-		#
-[S D T]  5  cnr-hanoi newline.				      (* R.W. *)
-  
-DEFINE
-    cnr-fact ==
-	[ [ [null] [pop 1] ]
+
+#### `cnr-fact`
+
+```joy
+cnr-fact == [ [ [null] [pop 1] ]
 	  [ [dup pred] [*] ] ]
 	condnestrec
 ```
@@ -2476,20 +2489,27 @@ DEFINE
 #### `cnr-mcc91`
 
 ```joy
-cnr-mcc91 ==
-    [ [ [100 >] [10 -] ]
+cnr-mcc91 == [ [ [100 >] [10 -] ]
 	  [ [11 +] [] [] ] ]
-	condnestrec.
+	condnestrec
+```
 
-[ 0 1 2 3 4 5 6 ]  [cnr-fact]  map.
-[ -7 42 99 100 101 102 345 ]  [cnr-mcc91]  map.
 
-# Using condnestrec for ordinary conditionals:
+#### `cnr-even`
 
-DEFINE
-    cnr-even ==
-	[ [ [2 rem null] [pop true] ]
+```joy
+cnr-even ==
+    [ [ [2 rem null] [pop true] ]
 	  [ [pop false] ] ]
+	condnestrec
+```
+
+
+#### `cnr-abs`
+
+```joy
+cnr-abs == [ [ [0 <] [0 swap -] ]
+	  [ [] ] ]
 	condnestrec
 ```
 
@@ -2504,8 +2524,7 @@ DEFINE
 
 ```joy
 str-maker ==
-    #  n [N]  =>  [n [N(n) [N] str-maker]]
-        dupd dup [i] dip
+    dupd dup [i] dip
         [str-maker] cons cons
         [] cons cons
 ```
@@ -2521,10 +2540,14 @@ str-first == first
 #### `str-rest`
 
 ```joy
-str-rest == second i.
+str-rest == second i
+```
 
-DEFINE
-    str-ints == 0 [succ] str-maker
+
+#### `str-ints`
+
+```joy
+str-ints == 0 [succ] str-maker
 ```
 
 
@@ -2545,15 +2568,14 @@ str-prim == 2 [succ [prime not] [succ] while] str-maker
 #### `str-brak`
 
 ```joy
-str-brak ==
-    [] [[] cons] str-maker.
+str-brak == [] [[] cons] str-maker
+```
 
-str-ints.
 
-str-pows.
+#### `str-uncons`
 
-DEFINE
-    str-uncons ==  [str-first] [str-rest]  cleave
+```joy
+str-uncons == [str-first] [str-rest]  cleave
 ```
 
 
@@ -2588,35 +2610,21 @@ str-n-th == str-drop str-first
 #### `str-take`
 
 ```joy
-str-take ==
-    #  S n  =>  [S1 S2 .. Sn]
-        [null] [pop pop []] [[str-uncons] dip pred] [cons] linrec.
+str-take == [null] [pop pop []] [[str-uncons] dip pred] [cons] linrec
+```
 
-str-brak.
-str-brak  str-third.
 
-str-pows.
-str-pows str-tenth.
+#### `dureco`
 
-str-ints 5 str-take.
-
-str-pows 10 str-take.
-
-str-prim 10 str-drop 10 str-take.
-
-# using replicating
-
-DEFINE
-    dureco == dup rest cons
+```joy
+dureco == dup rest cons
 ```
 
 
 #### `rep-maker`
 
 ```joy
-rep-maker ==
-    # n [N]  => [ [n [N] infra dureco] [N] infra dureco ]
-        [infra dureco] cons cons  dureco
+rep-maker == [infra dureco] cons cons  dureco
 ```
 
 
@@ -2630,10 +2638,14 @@ rep-first == first first
 #### `rep-rest`
 
 ```joy
-rep-rest == i.
+rep-rest == i
+```
 
-DEFINE
-    rep-ints == 0 [succ] rep-maker
+
+#### `rep-ints`
+
+```joy
+rep-ints == 0 [succ] rep-maker
 ```
 
 
@@ -2661,15 +2673,14 @@ rep-prim == 2 [succ [prime not] [succ] while] rep-maker
 #### `rep-brak`
 
 ```joy
-rep-brak ==
-    [] [[] cons] rep-maker.
+rep-brak == [] [[] cons] rep-maker
+```
 
-rep-ints.
 
-rep-pows.
+#### `rep-uncons`
 
-DEFINE
-    rep-uncons ==  [rep-first] [rep-rest]  cleave
+```joy
+rep-uncons == [rep-first] [rep-rest]  cleave
 ```
 
 
@@ -2698,6 +2709,20 @@ rep-drop == [rep-rest] times
 
 ```joy
 rep-n-th == rep-drop rep-first
+```
+
+
+#### `rep-take`
+
+```joy
+rep-take == [null] [pop pop []] [[rep-uncons] dip pred] [cons] linrec
+```
+
+
+#### `rep-n-th-pow`
+
+```joy
+rep-n-th-pow == [0 1] [[succ [2 *] dip] infra] rep-maker
 ```
 
 
@@ -2787,8 +2812,8 @@ Size == 0 swap
 Take ==
     [ Null ]
 	[ pop pop [] ]
-	[ [Uncons] dip  pred ]	(* note: lazy Uncons	*)
-	[ cons ]		(* note: ordinary cons	*)
+	[ [Uncons] dip  pred ]
+	[ cons ]
 	linrec
 ```
 
@@ -2798,10 +2823,8 @@ Take ==
 #### `From`
 
 ```joy
-From ==
-    (*  f			*)
-	dup succ		(*  f  f'		*)
-	[From] cons		(*  f [f' From]		*)
+From == dup succ
+	[From] cons
 	Cons
 ```
 
@@ -2812,12 +2835,11 @@ From ==
 
 ```joy
 From-to ==
-    (*  f   t		*)
-	[ > ]
+    [ > ]
 	[ pop pop [] ]
-	[ [dup succ] dip 	(*  f   f' t		*)
-	  [From-to] cons cons	(*  f  [f' t From-to]	*)
-	  Cons ]		(* [f  [f' t From-to]]	*)
+	[ [dup succ] dip
+	  [From-to] cons cons
+	  Cons ]
 	ifte
 ```
 
@@ -2828,13 +2850,10 @@ From-to ==
 
 ```joy
 From-to-by ==
-    (*  f  t  [B]			*)
-	(* else-part: *)
-	[ dup [From-to-by] cons	(*  f  t  [B] [[B] From-to-by]	*)
-	  swapd cons		(*  f [B]  [t  [B] From-to-by]	*)
-	  [dupd i] dip cons	(*  f [B(f) t  [B] From-to-by]	*)
-	  Cons ]		(* [f  B(f) t  [B] From-to-by]]	*)
-	(* ifpart, else-part: *)
+    [ dup [From-to-by] cons
+	  swapd cons
+	  [dupd i] dip cons
+	  Cons ]
 	[ [pop >]
 	  [pop pop pop] ] dip
 	ifte
@@ -2844,11 +2863,9 @@ From-to-by ==
 #### `From-by`
 
 ```joy
-From-by ==
-    (*  f       [B]			*)
-	dupd			(*  f    f  [B]			*)
-	dup [i] dip		(*  f  B(f) [B]			*)
-	[From-by] cons cons	(*  f [B(f) [B] From-by]	*)
+From-by == dupd
+	dup [i] dip
+	[From-by] cons cons
 	Cons
 ```
 
@@ -2859,14 +2876,13 @@ From-by ==
 
 ```joy
 Map ==
-    (*     s        [F]		*)
-	[pop Null]
-	[[]]			(*     []			*)
-	[ [Uncons] dip		(*     f      r [F]		*)
-	  dup swapd		(*     f [F]  r [F]		*)
-	  [Map] cons cons	(*     f [F] [r [F] Map]	*)
-	  [i] dip		(*   F(f)    [r [F] Map]	*)
-	  Cons ]		(* [ F(f)    [r [F] Map] ]	*)
+    [pop Null]
+	[[]]
+	[ [Uncons] dip
+	  dup swapd
+	  [Map] cons cons
+	  [i] dip
+	  Cons ]
 	ifte
 ```
 
@@ -2875,17 +2891,16 @@ Map ==
 
 ```joy
 Filter ==
-    (*  s   [P]			*)
-	[pop Null]
-	[[]]			(* []				*)
-	[ dup			(*   s   [P]   [P]		*)
+    [pop Null]
+	[[]]
+	[ dup
 	  [ [i not] cons [first] swoncat
 	    [Rest]
 	    while
 	    Uncons ]
 	  dip
-	  [Filter] cons cons	(*   f  [r [P] Filter]		*)
-	  Cons ]		(* [ f  [r [P] Filter] ]	*)
+	  [Filter] cons cons
+	  Cons ]
 	ifte
 ```
 
@@ -2941,6 +2956,13 @@ Squares == Naturals [dup *] Map
 ```
 
 
+#### `LAZLIB`
+
+```joy
+LAZLIB == "lazlib.joy - lazy list library\n"
+```
+
+
 ---
 
 ## laztst.joy
@@ -2955,71 +2977,61 @@ Squares == Naturals [dup *] Map
 
 ```joy
 eval ==
-    (*  env  exp  *)
-(*
-	dup2
-	swap
-	"eval: env = " putchars put newline
-	"      exp = " putchars put newline
-*)
     [ list ]
-
-    [						(*  eval-compound!    *)
-      unswons					(*  env args fun      *)
+    [
+      unswons
       [ [ QUOTE
 	  first ]
 	[ LAMBDA
 	  dupd cons [CLOSURE] swoncat ]
-	[ IF					(* env  [[i] [t] [e]] *)
-	  uncons [eval] dip			(* env  e-i [[t] [e]] *)
-	  swap					(* env  [[t] [e]] e-i *)
+	[ IF
+	  uncons [eval] dip
+	  swap
 	  [ null ]
-	  [ pop second]				(* env  [e]	      *)
-	  [ pop first ]				(* env  [t]	      *)
+	  [ pop second]
+	  [ pop first ]
 	  ifte eval ]
-	[ DEF					(* env    [name body] *)
-	  uncons first swap			(* env    body   name *)
-	  [ eval ]				(* env  e-b	      *)
-	  dip					(* env  e-b	name  *)
-	  dup					(* env  e-b   n    n  *)
-	  [ [[] cons] unary2			(* env [e-b] [n]      *)
-	    swons				(* env [[n] e-b]      *)
-	    swons ]				(* [[[n] e-b] env]    *)
-	  dip ]					(* new-env          n *)
-	[ DEFUN					(* e [name vars body] *)
-	  uncons				(* e     n   [vs b]   *)
-	  [LAMBDA] swoncat			(* e     n [L vs b]   *)
-	  [] cons cons				(* e    [n [L vs b]]  *)
-	  [DEF] swoncat				(* e  [D n [L vs b]]  *)
+	[ DEF
+	  uncons first swap
+	  [ eval ]
+	  dip
+	  dup
+	  [ [[] cons] unary2
+	    swons
+	    swons ]
+	  dip ]
+	[ DEFUN
+	  uncons
+	  [LAMBDA] swoncat
+	  [] cons cons
+	  [DEF] swoncat
 	  eval ]
-	[ (* DEFAULT *)
-	  swons [eval] map unswons		(* env ev-args ev-fun *)
+	[
+	  swons [eval] map unswons
 	  apply ] ]
       case ]
-
-    [						(* eval-atomic	      *)
+    [
       [ [numerical] [string] sequor ]
-	[ ]					(* self-evaluating    *)
-	[					(* lookup!	      *)
-	  dupd swap				(*  env  v  env	      *)
-	  [					(*  member?	      *)
+	[ ]
+	[
+	  dupd swap
+	  [
 	    [ null ]
-	    [ true ]				(*  fake	      *)
-	    [ first first in ]			(*  really ?	      *)
+	    [ true ]
+	    [ first first in ]
 	    ifte ]
-	  [ [ null ]				(*  was fake ?	      *)
-	    [ pop ]				(*  self-evaluating   *)
-	    [					(*  search really     *)
-	      first unswons rolldown		(*  [e1..] [v1..] v   *)
+	  [ [ null ]
+	    [ pop ]
+	    [
+	      first unswons rolldown
 	      [ [first] dip = ]
 	      [ pop pop first ]
 	      [ [ [rest] unary2] dip ]
 	      tailrec ]
 	    ifte ]
 	  [ rest ]
-	  tailrec ]				(* end lookup!	      *)
-	ifte ]					(* end eval-atomic    *)
-
+	  tailrec ]
+	ifte ]
     ifte
 ```
 
@@ -3032,40 +3044,33 @@ end eval
 
 ```joy
 apply ==
-    (*
-    dup2
-    "apply: fun = " putchars putln
-    "      args = " putchars putln
-*)
     [ list ]
-
-    [						(* apply-compound     *)
+    [
       unswons
-      [ [ CLOSURE				(* args [e v body]    *)
+      [ [ CLOSURE
 	  unswons call swons
-	  uncons swapd uncons			(* dissect the closure*)
-	  [ swap cons				(* build new frame    *)
-	    swons ]				(* install new frame  *)
-	  dip eval				(* new-env body	      *)
-	  popd ]				(* restore old env    *)
+	  uncons swapd uncons
+	  [ swap cons
+	    swons ]
+	  dip eval
+	  popd ]
 	[ "apply: unknown procedure type -\n"
 	  putchars abort ] ]
       case ]
-
-    [						(* apply-atomic	      *)
-     [ [numerical] [string] sequor ]		(* R.W. *)
-      [ ] [					(* self-evaluating    *)
+    [
+     [ [numerical] [string] sequor ]
+      [ ] [
       [ [ CAR first first ]
 	[ CDR first rest ]
 	[ CONS uncons first cons ]
 	[ EQ uncons first equal ]
 	[ ATOM first leaf ]
 	[ NULL first null ]
-	[ LIST (* do nothing *) ]
-	[ (* try Joy: *)
+	[ LIST                  ]
+	[
 	  [i] dip call ] ]
       case ]
-     ifte ]					(* R.W. *)
+     ifte ]
     ifte
 ```
 
@@ -3106,8 +3111,6 @@ lib0 ==
 					 y
 					 bin]
 			       bin] ] ] ]
-	  (* other definitions could go here, candidates are:
-		 LINREC  BINREC  Y				      *)
 	    ]
 ```
 
@@ -3128,9 +3131,9 @@ lisp ==
 	  "\t\t\t[ include  \"OK\"  \"lsplib.lsp\" ]\n"
 	  "GO\n\n" ]
 	putstrings
-	lib0						(* load lib0  *)
+	lib0
 	l-prompt putchars get
-	[ [ EXIT ] first equal not ]			(* R.W. *)
+	[ [ EXIT ] first equal not ]
 	[ eval putln
 	  l-prompt putchars get ]
 	while
@@ -3139,9 +3142,25 @@ lisp ==
 ```
 
 
+#### `LSPLIB`
+
+```joy
+LSPLIB == "lsplib.joy - (eval-apply) Lisp interpreter\n"
+```
+
+
 ---
 
 ## lsptst.joy
+
+### Definitions
+
+#### `l-prompt`
+
+```joy
+l-prompt == ""
+```
+
 
 ---
 
@@ -3160,15 +3179,24 @@ nrows == 30
 ```
 
 
+#### `ncols`
+
+```joy
+ncols == 75
+```
+
+size of output display
+
+
 #### `mandel`
 
 ```joy
 mandel ==
-    -1 nrows ncols *                    (* one loop for rows & cols.  *)
-	  [ succ dup dup [col] dip row        (* calc. column & row indices *)
-            get_c1 swap get_c2                (* calc. coefficients 1 & 2   *)
-            get_k putpt                       (* calc. k and then print     *)
-            [eol] ['\n putch] [] ifte         (* put newline if appropriate *)
+    -1 nrows ncols *
+	  [ succ dup dup [col] dip row
+            get_c1 swap get_c2
+            get_k putpt
+            [eol] ['\n putch] [] ifte
           ] times
 ```
 
@@ -3205,7 +3233,7 @@ I:i -> I:col
 #### `putpt`
 
 ```joy
-putpt == 16 rem " .:,
+putpt == 16 rem " .:,;!/>)|&IH%*#" of putch
 ```
 
 I:i -> B
@@ -3215,9 +3243,9 @@ I:i -> B
 
 ```joy
 get_k ==
-    pairlist [0 0] swoncat              (* F:c1 F:c2 -> A             *)
-          0 [112 <= [eoloop] dip and]         (* condition                  *)
-          [succ [inc_zs] dip] while           (* if true                    *)
+    pairlist [0 0] swoncat
+          0 [112 <= [eoloop] dip and]
+          [succ [inc_zs] dip] while
           popd 1 -
 ```
 
@@ -3263,8 +3291,7 @@ A -> I
 #### `inc_z1`
 
 ```joy
-inc_z1 ==
-    dup [sqr_z1] [sqr_z2] cleave -      (* (z1*z1)-(z2*z2)+c2         *)
+inc_z1 == dup [sqr_z1] [sqr_z2] cleave -
           [3 at] dip +
 ```
 
@@ -3275,8 +3302,8 @@ A -> I
 
 ```joy
 inc_z2 ==
-    3 take reverse uncons uncons        (* (2*z1*z2)+c1               *)
-          uncons pop                          (*                            *)
+    3 take reverse uncons uncons
+          uncons pop
           2 * * +
 ```
 
@@ -3296,7 +3323,7 @@ A -> I
 
 ```joy
 inc_zs ==
-    dup [inc_z1] [inc_z2] cleave        (*                            *)
+    dup [inc_z1] [inc_z2] cleave
           pairlist swap rest rest concat
 ```
 
@@ -3323,7 +3350,7 @@ mandel ==
 #### `putpt`
 
 ```joy
-putpt == get_k 16 rem " .:,
+putpt == get_k 16 rem " .:,;!/>)|&IH%*#" of putch
 ```
 
 
@@ -3364,13 +3391,6 @@ slices ==
 ## mapreduce.joy
 
 ### Definitions
-
-#### `flatten`
-
-```joy
-flatten == [] [concat] fold
-```
-
 
 #### `pair`
 
@@ -3475,6 +3495,16 @@ count-reducer == dup fst swap snd size pair
 ```
 
 
+#### `map-reduce`
+
+```joy
+map-reduce ==
+    rolldown swap [pmap] dip
+        swap flatten swap
+        [group-by-key] dip pmap
+```
+
+
 ---
 
 ## modtst.joy
@@ -3508,6 +3538,13 @@ un == one
 deux == zero one un + +
 			IN
 	two == deux
+```
+
+
+#### `two`
+
+```joy
+two == deux
 ```
 
 
@@ -3569,6 +3606,13 @@ cinq == two trois +
 ```
 
 
+#### `five`
+
+```joy
+five == cinq
+```
+
+
 #### `six`
 
 ```joy
@@ -3590,6 +3634,13 @@ twenty == 20
 ```
 
 
+#### `thirty`
+
+```joy
+thirty == 30
+```
+
+
 #### `fifty`
 
 ```joy
@@ -3604,31 +3655,49 @@ a == "a"
 ```
 
 
+#### `b`
+
+```joy
+b == "b"
+    PUBLIC
+	ab == a b concat
+```
+
+
 #### `ab`
 
 ```joy
 ab == a b concat
+```
+
+
+#### `ba`
+
+```joy
+ba == b a concat
 ```
 
 
 #### `abba`
 
 ```joy
-abba ==
-    ab ba concat
-    END
+abba == ab ba concat
+```
 
-			# correct usage of fields:
-m1.ab .
-m1.ba .
-m1.abba .
-			# incorrect usage of fields:  no such field
-m1.a .
-m1.b .
 
-MODULE m2
-    PRIVATE
-	a == "A"
+#### `a`
+
+```joy
+a == "A"
+```
+
+
+#### `b`
+
+```joy
+b == "B"
+    PUBLIC
+	ab == a b concat
 ```
 
 
@@ -3636,6 +3705,13 @@ MODULE m2
 
 ```joy
 ab == a b concat
+```
+
+
+#### `ba`
+
+```joy
+ba == b a concat
 ```
 
 
@@ -3653,6 +3729,15 @@ c == "C"
 ```
 
 
+#### `d`
+
+```joy
+d == "D"
+	    IN
+	cd == c d concat
+```
+
+
 #### `cd`
 
 ```joy
@@ -3664,7 +3749,13 @@ cd == c d concat
 
 ```joy
 abc == a b concat c concat
-	    END
+```
+
+
+#### `bcd`
+
+```joy
+bcd == b cd concat
 ```
 
 
@@ -3715,6 +3806,46 @@ calc ==
 ```
 
 e.g.   [* 10 [+ 2.2 3.3]]  calc.
+
+
+### Symbolicdifferentiation
+
+#### `diff`
+
+```joy
+diff ==
+    [ [ [numerical]
+	    pop pop 0 ]
+	  [ [leaf]
+	    [[first] dip = ]
+	    [pop pop 1]
+	    [pop pop 0]
+	    ifte ]
+	  [ [list]
+	    unswons
+	    [ [ +
+		pop unpair
+		[diff] unary2
+		_makesum popd ]
+	      [ *
+		pop unpair
+		dup2
+		[[diff] unary2] dip2
+		rollup
+		_makeproduct [_makeproduct] dip
+		_makesum popd ]
+	      [] ]
+	    opcase i ]
+	  [] ]
+	cond
+```
+
+
+#### `MTHLIB`
+
+```joy
+MTHLIB == "mthlib.joy - symbolic mathematics library\n"
+```
 
 
 ---
@@ -3840,14 +3971,14 @@ v-zdiag-m ==
 
 ```joy
 v-e-diag-m ==
-    (*P4*)	dup
+    dup
 	[ [swons cons] cons [first rest] swoncat ] dip
 	[swons] cons
 	[map cons] cons [dip] swoncat cons [dup] swoncat
-(*P1*)	[ [small]
-(*P2*)	  [[null] [] [[] cons] ifte]
-(*P3*)	  [uncons] ]  dip
-(*go*)	linrec
+      	[ [small]
+      	  [[null] [] [[] cons] ifte]
+      	  [uncons] ]  dip
+      	linrec
 ```
 
 
@@ -3903,8 +4034,7 @@ mm-horcat-m == [concat] mapr2
 
 ```joy
 m-transpose-m ==
-    (* READE p 133 *)
-	[ [null] [true] [[null] some] ifte ]
+    [ [null] [true] [[null] some] ifte ]
 	[ pop [] ]
 	[ [[first] map] [[rest] map] cleave ]
 	[ cons ]
@@ -3980,9 +4110,29 @@ m-print == putlist
 ```
 
 
+#### `MTRLIB`
+
+```joy
+MTRLIB == "mtrlib.joy - matrix/vector library\n"
+```
+
+"[ " putchars 	[ null ] 	[ pop ] 	[ unswons 	  put 	  [ "\n  " putchars put ] step ] 	ifte 	"]\n" putchars.
+
+
 ---
 
 ## mtrtst.joy
+
+### Inner Or Scalar Product
+
+#### `id2`
+
+```joy
+id2 == 2 1 n-e-vector  0 v-e-diag-m
+```
+
+2 by 2 identity matrix
+
 
 ---
 
@@ -4043,13 +4193,6 @@ fact == [1 1] dip [dup [*] dip succ] times pop
 
 ```joy
 fib == [1 0] dip [swap [+] unary] times popd
-```
-
-
-#### `nfib`
-
-```joy
-nfib == [1 1] dip [dup [+ succ] dip swap] times pop
 ```
 
 
@@ -4120,30 +4263,27 @@ tandeg == radians tan
 
 ```joy
 qroots ==
-    (*  a  b  c	      *)
-	[	pop pop null ]			(* a = 0 ?	      *)
-						(* degenerate cases:  *)
-	[	[   pop null ]			(* b = 0 ?	      *)
-		[   [ null   ]			(* c = 0 ?	      *)
-		    [ [_INF] ]			(* =>  [_INF]	      *)
-		    [ [] ]			(* =>  []	      *)
+    [	pop pop null ]
+	[	[   pop null ]
+		[   [ null   ]
+		    [ [_INF] ]
+		    [ [] ]
 		    ifte
 		    [ pop pop pop ] dip ]
-		[   0 swap - swap 1.0 * /	(* float divisor      *)
-		    [] cons popd ]		(* =>  [ -c/b ]	      *)
+		[   0 swap - swap 1.0 * /
+		    [] cons popd ]
 		ifte ]
-						(* standard cases:    *)
 	[	[   [ dup * swap ] dip
-		      4 * * - ] unary		(* b^2 - 4ac	      *)
-		[   0 < ]			(* b^2 - 4ac neg ?    *)
-		[   pop pop pop [_COMPLEX] ]	(* =>  [_COMPLEX]     *)
-		[   [ 0 swap - 1.0 *		(* -b  (floated)      *)
-		      swap 2 * ] dip		(* 2a		      *)
-		    [ 0 = ]			(* b^2 - 4ac zero ?   *)
-		    [ pop / [] cons ]		(* =>  [-b / 2a]      *)
-		    [ sqrt swapd dup2 - [+] dip	(*   -b+s      -b-s   *)
-			[] cons cons 		(* [ -b+s      -b-s ] *)
-		      swap [/] cons map ] (* => [(-b+s)/2a (-b-s)/2a] *)
+		      4 * * - ] unary
+		[   0 < ]
+		[   pop pop pop [_COMPLEX] ]
+		[   [ 0 swap - 1.0 *
+		      swap 2 * ] dip
+		    [ 0 = ]
+		    [ pop / [] cons ]
+		    [ sqrt swapd dup2 - [+] dip
+			[] cons cons
+		      swap [/] cons map ]
 		    ifte ]
 		ifte ]
 	ifte
@@ -4156,14 +4296,13 @@ find roots of the quadratic equation with coefficients a b c : 				  a * X^2  + 
 
 ```joy
 quadratic-formula ==
-    # a b c => [root1 root2]
-        [ [ [ pop pop 2 * ]                     # divisor
-            [ pop 0 swap - ]                    # minusb
-            [ swap dup * rollup * 4 * - sqrt] ] # radical
+    [ [ [ pop pop 2 * ]
+            [ pop 0 swap - ]
+            [ swap dup * rollup * 4 * - sqrt] ]
           [i] map ]
         ternary i
-        [ [ [ + swap / ]                        # root1
-            [ - swap / ] ]                      # root2
+        [ [ [ + swap / ]
+            [ - swap / ] ]
           [i] map ]
         ternary
 ```
@@ -4184,13 +4323,12 @@ deriv == [unary2 swap - 0.001 /] cons  [dup 0.001 +] swoncat
 
 ```joy
 newton ==
-    (*  Usage: guess [F] newton		*)
-	dup deriv		(* guess [F] [D]		*)
-	[ pop i abs 0.0001 > ]	(* too big ?			*)
-	[ [dupd] dip      	(* guess guess [F] [D]		*)
-	  dup2			(* guess guess [F] [D] [F] [D]	*)
+    dup deriv
+	[ pop i abs 0.0001 > ]
+	[ [dupd] dip
+	  dup2
 	  [[cleave / - ] dip]
-	  dip  ]		(* newguess [F] [D]		*)
+	  dip  ]
 	while
 	pop pop
 ```
@@ -4207,6 +4345,13 @@ use-newton == [[-] cons] dip  swoncat  1 swap newton
 
 ```joy
 cube-root == [dup dup * *] use-newton
+```
+
+
+#### `NUMLIB`
+
+```joy
+NUMLIB == "numlib.joy - numerical library\n"
 ```
 
 
@@ -4252,17 +4397,6 @@ bin3ops == [ and & K ]
 
 
 ### Semantictableaux
-
-#### `show-old`
-
-```joy
-show-old ==
-    pop
-	swap '\t putch
-	"T: " putchars put
-	"  F: " putchars putln
-```
-
 
 #### `show-all`
 
@@ -4313,27 +4447,41 @@ count == pop pop pop succ
 ```joy
 found ==
     pop pop pop not
-
 IN
-
-(*
-    ver-old ==
-	"ver-old B" t-trace
+    ver-all ==
+	"ver-all B" t-trace
 	unswons
 	[ [ [[or v A] in]
-	    pop uncons first
-	    [ stack [ver-old] infra pop pop ] dip
-	    ver-old ]
+	    pop
+	    [ [] cons cons cons dup ] dip
+	    uncons first
+	    [ swap
+	      [[i] dip ver-all] dip ]
+	    dip
+	    [i] dip ver-all ]
 	  [ [[imp > C] in]
-	    pop uncons first
-	    [ stack [fal-old] infra pop pop ] dip
-	    ver-old ]
+	    pop
+	    [ [] cons cons cons dup ] dip
+	    uncons first
+	    [ swap
+	      [[i] dip fal-all] dip ]
+	    dip
+	    [i] dip ver-all ]
+	  [ [[iff = E] in]
+	    pop
+	    [ [] cons cons cons dup ] dip
+	    dup
+	    [[and] swoncat] dip   [or] swoncat
+	    [ swap
+	      [[i] dip ver-all] dip ]
+	    dip
+	    [i] dip fal-all ]
 	  [ [[and & K] in]
 	    pop uncons first swap
-	    [ [ver-old] cons swons ]
-	    dip ver-old ]
+	    [ [ver-all] cons swons ]
+	    dip ver-all ]
 	  [ [[not - N] in]
-	    pop first fal-old ]
+	    pop first fal-all ]
 	  [ popd
 	    [ popd has ]
 	    [ pop pop pop pop ]
@@ -4345,40 +4493,7 @@ IN
 	      unswons i ]
 	    ifte ] ]
 	cond
-	"ver-old E" t-trace
-```
-
-
-#### `fal-old`
-
-```joy
-fal-old ==
-    "fal-old B" t-trace
-	unswons
-	[ [ [[and & K] in]
-	    pop uncons first
-	    [ stack [fal-old] infra pop pop ] dip
-	    fal-old ]
-	  [ [[or v A] in]
-	    pop uncons first swap
-	    [ [fal-old] cons swons ]
-	    dip fal-old ]
-	  [ [[imp > C] in]
-	    pop uncons first swap
-	    [ [fal-old] cons swons ]
-	    dip ver-old ]
-	  [ [[not - N] in]
-	    pop first ver-old ]
-	  [ popd
-	    [ popd popd has ]
-	    [ pop pop pop pop ]
-	    [ swap
-	      [ [has] [pop] [swons] ifte ]
-	      dip
-	      unswons i ]
-	    ifte ] ]
-	cond
-	"fal-old E" t-trace
+	"ver-all E" t-trace
 ```
 
 
@@ -4386,8 +4501,7 @@ fal-old ==
 
 ```joy
 ver-all ==
-    (* t f c F	      *)
-	"ver-all B" t-trace
+    "ver-all B" t-trace
 	unswons
 	[ [ [[or v A] in]
 	    pop
@@ -4439,8 +4553,7 @@ ver-all ==
 
 ```joy
 fal-all ==
-    (* t f c F	      *)
-	"fal-all B" t-trace
+    "fal-all B" t-trace
 	unswons
 	[ [ [[and & K] in]
 	    pop
@@ -4486,8 +4599,7 @@ fal-all ==
 
 ```joy
 ver-first ==
-    (* t f c F	      *)
-      [ pop pop pop pop null ]
+    [ pop pop pop pop null ]
       [
 	"ver-first B" t-trace
 	unswons
@@ -4544,8 +4656,7 @@ ver-first ==
 
 ```joy
 fal-first ==
-    (* t f c F	      *)
-      [ pop pop pop pop null ]
+    [ pop pop pop pop null ]
       [
 	"fal-first B" t-trace
 	unswons
@@ -4606,21 +4717,6 @@ t-trace == pop
 ```
 
 
-#### `t-trace`
-
-```joy
-t-trace == t-trace-default
-```
-
-
-#### `taut-old`
-
-```joy
-taut-old == [ [] [] [[show-old]] ] dip
-	fal-old
-```
-
-
 #### `taut-show-all`
 
 ```joy
@@ -4672,11 +4768,18 @@ taut-count == [ 0 [] [] [[count]] ] dip
 ```joy
 taut-test == [ false [] [] [[found]] ] dip
 	fal-first not
-
-END
 ```
 
-HIDE, end of SEMANTIC TABLEAUX
+
+### Other Stuff To Go Here
+
+#### `PLGLIB`
+
+```joy
+PLGLIB == "plglib.joy - propositional logic library\n"
+```
+
+other stuff to go here
 
 
 ---
@@ -4688,109 +4791,77 @@ HIDE, end of SEMANTIC TABLEAUX
 #### `m-show`
 
 ```joy
-m-show ==
-    Min2Tre taut-show-all.
-
-[ raining or not raining ]				m-show.
-
-[ raining or not windy ]				m-show.
-
-[ [p and q] imp [p or q] ]				m-show.
-
-[ [p or q] imp [p and q] ]				m-show.
-
-(* Really using minimal bracketing on the last two examples:	      *)
-
-[ p and q  imp  p or q ]				m-show.
-
-[ p or q  imp  p and q ]				m-show.
-
-(* Longer examples show the benefit of minimal bracketing:	      *)
-
-[ p and q and r imp  p or r or q ]			m-show.
-
-[ p and q and r iff  p or r or q ]			m-show.
-
-(* Using a more compact single symbol notation:			      *)
-
-[ p & q & r & s  >  p v r v q v s ]			m-show.
-
-[ p & q & r & s  =  p v r v q v s ]			m-show.
-
-[ - p & - q   >  - [p v q] ]				m-show.
-
-[ - p v - p   >   - [p v q] ]				m-show.
-
-[ p > q > r > p & q & r ]				m-show.
-
-[ p > q > r > p & q & s ]				m-show.
-
-[ [[p > q]  >  p]   >   p  ]				m-show.
-
-[ [[p > q]  >  q]   >   p  ]				m-show.
-
-[ [ p & q v p & r ]  =  p & [q v r] ]			m-show.
-
-[ [ p & q v p & r ]  =  q & [p v r] ]			m-show.
-
-[ [p v q] & [p > r] & [q > s]   >   [r v s] ]		m-show.
-
-[ [p v q] & [p > r] & [q > s]   >   [r & s] ]		m-show.
-
-(* The original Polish notation used by Polish logicians in the 1920s *)
-(* N = not, K = and, A = or, C = imp, E = iff :			      *)
-
-DEFINE   p-show == Pol2Tre taut-show-all.
-
-[  A  p  N p  ]						p-show.
-
-[  A  p  N q  ]						p-show.
-
-[  C   C p q   C N q N p  ]				p-show.
-
-[  C   C p q   C N p N q  ]				p-show.
-
-[  C  K  K  A p q  C p r  C q s   A r s  ]		p-show.
-
-[  C  K  K  A p q  C p r  C q s   K r s  ]		p-show.
-
-(* But we can also use the other symbols for Polish notation:	      *)
-
-[ imp  and  imp p q  imp q r   imp p r ]		p-show.
-
-[ imp  and  imp p q  imp p r   imp q r ]		p-show.
-
-[ >  v p & q r   & v p q v p r ]			p-show.
-
-[ >  v p & q r   v & p q & p r ]			p-show.
-
-(* Using reverse Polish (postfix, Joy) notation:		      *)
-
-DEFINE   r-show == Rev2Tre taut-show-all.
-
-[ p not q not and r imp   q p or  not   and  r  imp ]	r-show.
-
-[ p not q not and r imp   q p and not   and  r  imp ]	r-show.
-
-(* The remaining tests only use minimally bracketed infix for input.  *)
-(* There are four additional versions of the possible output:	      *)
-
-(* 1. Instead of showing all countermodels, show only one:	      *)
-
-DEFINE   m-show1 == Min2Tre taut-show-first.
-
-[ p & q & r  >  p v q v r ]				m-show.
-
-[ p v q v r  >  p & q & r ]				m-show.
-
-[ p v q v r  >  p & q & r ]				m-show1.
-
-(* 2. Do not show, but collect into  list (for further processing ?): *)
-
-DEFINE   m-collect  == Min2Tre taut-collect-all
+m-show == Min2Tre taut-show-all
 ```
 
-There are many notations. Begin using minimally bracketed infix:
+
+#### `p-show`
+
+```joy
+p-show == Pol2Tre taut-show-all
+```
+
+
+#### `r-show`
+
+```joy
+r-show == Rev2Tre taut-show-all
+```
+
+
+#### `m-show1`
+
+```joy
+m-show1 == Min2Tre taut-show-first
+```
+
+
+#### `m-collect`
+
+```joy
+m-collect == Min2Tre taut-collect-all
+```
+
+
+#### `m-collect1`
+
+```joy
+m-collect1 == Min2Tre taut-collect-first
+```
+
+
+#### `m-count`
+
+```joy
+m-count == Min2Tre taut-count
+```
+
+
+#### `m-test`
+
+```joy
+m-test == Min2Tre taut-test
+```
+
+
+#### `big-formula`
+
+```joy
+big-formula ==
+    [  [ CEO-sells-shares
+	imp    insider-trading  and  traders-conspire ]		and
+     [ i-trade-exposed
+	imp    CEO-resigns  or  CEO-is-sacked ]			and
+     [ CEO-resigns
+	imp    i-trade-exposed  and  shares-drop ]		and
+     [ traders-conspire  and  CEO-is-sacked
+	imp    sales-drop ]					and
+     [ sales-drop
+	imp    CEO-is-sacked  and  shares-drop ]
+  imp
+     [ CEO-sells-shares
+	imp    shares-drop ]  ]
+```
 
 
 ---
@@ -4858,9 +4929,13 @@ fold == swapd step
 #### `enconcat`
 
 ```joy
-enconcat == swapd cons concat.
+enconcat == swapd cons concat
+```
 
-CONST
+
+#### `inf`
+
+```joy
 inf == 1 1024 ldexp
 ```
 
@@ -4869,9 +4944,78 @@ inf == 1 1024 ldexp
 
 ## quad.joy
 
+### Definitions
+
+#### `quadratic-2`
+
+```joy
+quadratic-2 ==
+    [ [ [ pop pop 2 * ]
+            [ pop 0 swap - ]
+            [ swap dup * rollup * 4 * - sqrt] ]
+          [i] map ]
+        ternary i
+        [ [ [ + swap / ]
+            [ - swap / ] ]
+          [i] map ]
+        ternary
+```
+
+
 ---
 
 ## quadratic.joy
+
+### Definitions
+
+#### `quadratic-1`
+
+```joy
+quadratic-1 ==
+    [ [ pop pop 2 * ]
+          [ pop 0 swap - ]
+          [ swap dup * rollup * 4 * - sqrt] ]
+        [i] map [] step
+        [ [ + swap / ]
+          [ - swap / ] ]
+        [i] map  [] step
+        [] cons cons
+        [ pop pop pop pop pop pop ] dip
+```
+
+
+#### `quadratic-2`
+
+```joy
+quadratic-2 ==
+    [ [ [ pop pop 2 * ]
+            [ pop 0 swap - ]
+            [ swap dup * rollup * 4 * - sqrt] ]
+          [i] map ]
+        ternary i
+        [ [ [ + swap / ]
+            [ - swap / ] ]
+          [i] map ]
+        ternary
+```
+
+
+#### `quadratic-3`
+
+```joy
+quadratic-3 ==
+    [] cons cons cons
+        [ [ [ [dup * swap] dip * 4 * - sqrt ]
+            [ pop 0 swap - ]
+            [ 2 * ] ]
+          [i] map ]
+        infra first
+        [ [ [ + swap / ]
+            [ - swap / ] ]
+          [i] map ]
+        infra first
+```
+
 
 ---
 
@@ -4883,11 +5027,15 @@ inf == 1 1024 ldexp
 
 ```joy
 foo == "foo"
-
 PUBLIC
-
-    # basic utilities
     duco == dup cons
+```
+
+
+#### `duco`
+
+```joy
+duco == dup cons
 ```
 
 
@@ -4979,14 +5127,13 @@ n-stream-d == [infra dureco] cons deposit cons dureco
 
 ```joy
 f-stream-prepare ==
-    # s [N] [F]
-        swap                       # s [F] [N]
-        [dip] cons concat          # s [F [N] dip]
-        cons                       # [s F [N] dip]
-        [dup] infra                # [s s F [N] dip]
-        dup rest rest infra        # [Fs Ns F [N] dip]
-        uncons uncons              # Fs Ns [F [N] dip]
-        [pop dup] swoncat          # Fs Ns [pop dup F [N] dip]
+    swap
+        [dip] cons concat
+        cons
+        [dup] infra
+        dup rest rest infra
+        uncons uncons
+        [pop dup] swoncat
         [infra durereco] cons
 ```
 
@@ -5009,9 +5156,8 @@ f-stream-d == f-stream-prepare deposit cons cons durereco
 
 ```joy
 inter ==
-    # s [P]
-        [dip cons dureco] cons     # s [[P] dip cons dureco]
-        [uncons] swoncat           # s [uncons [P] dip cons dureco]
+    [dip cons dureco] cons
+        [uncons] swoncat
         cons dureco
 ```
 
@@ -5020,12 +5166,11 @@ inter ==
 
 ```joy
 exe-t ==
-    # N [P] => [[N [I] [T] [E] ifte] ..]
-        [dip dureco] cons          # N [[P] dip dureco]
-        [[pred] infra] swoncat     # N [[pred] infra [P] dip dureco]
-        [ifte] cons                # N [[E] ifte]
-        [pop [[duco] duco]] swons  # N [[pop [[duco] duco] [E] ifte]
-        [first null] swons         # N [[first null] [T] [E] ifte]
+    [dip dureco] cons
+        [[pred] infra] swoncat
+        [ifte] cons
+        [pop [[duco] duco]] swons
+        [first null] swons
         cons dureco
 ```
 
@@ -5048,22 +5193,10 @@ fix-c == [0 [succ] infra dureco] swoncat dureco
 
 ```joy
 fix-i ==
-    # s [I] [P]
-       [dip cons dureco] swoncat cons # s [[I] dip cons dureco P]
-       [uncons] swoncat cons          # [s uncons [I] dip cons dureco P]
-       dureco
-```
-
-
-#### `fix-i`
-
-```joy
-fix-i ==
-    # [P] s [I]
-        [dip cons dureco] cons      # [P] s [[I] dip cons dureco]
-        [uncons] swoncat            # [P] s [uncons [I] dip cons dureco]
-        cons                        # [P] [s uncons [I] dip cons dureco]
-        swoncat                     # [s uncons [I] dip cons dureco P]
+    [dip cons dureco] cons
+        [uncons] swoncat
+        cons
+        swoncat
         dureco
 ```
 
@@ -5086,8 +5219,13 @@ linear == [i] _expand
 
 ```joy
 binary == [dip swap i] _expand
+```
 
-END
+
+#### `REPLIB`
+
+```joy
+REPLIB == "replib.joy - for survey of replicating programs"
 ```
 
 
@@ -5100,125 +5238,98 @@ END
 #### `selfr`
 
 ```joy
-selfr ==
-    rep.self.
+selfr == rep.self
+```
 
-selfr.
 
-selfr i i i.
+#### `squaring`
 
-DEFINE
-    squaring == [dup *] rep.exe.
+```joy
+squaring == [dup *] rep.exe
+```
 
-squaring.
 
-2 squaring i pop.
+#### `state`
 
-2 squaring i i pop.
-
-2 squaring i i i pop.
-
-DEFINE
-    state == first first
+```joy
+state == first first
 ```
 
 
 #### `integers`
 
 ```joy
-integers ==
-    rep.ints.
-
-integers.
-
-integers i i i i i state.
-
-integers i i i i i i.
-
-DEFINE
-    times10-c ==  [10 *] rep.exe-c.
-
-times10-c.
-
-3 times10-c i i i i i pop.
-
-3 times10-c i i i i i popd state.
-
-(* -STREAMS *)
-
-DEFINE
-    ones == 1 rep.c-stream.
-
-ones.
-ones i i i i i.
-ones i i i i i state.
-
-DEFINE
-    halving == 1.0 [2 /] rep.n-stream.
-
-halving.
-
-halving i i i.
-
-halving i i i state.
-
-DEFINE
-    integers-from == [succ] rep.n-stream.
-
-42 integers-from.
-
-42 integers-from i i i i i state.
+integers == rep.ints
+```
 
 
-DEFINE
-    ones-d == 1 rep.c-stream-d.
+#### `times10-c`
 
-ones-d.
-
-ones-d i i i pop. . .
-
-DEFINE
-    halving-d == 1.0 [2 /] rep.n-stream-d.
-
-halving-d.
-
-halving-d i i i i i pop. . . . .
-
-DEFINE
-    primes-d == 2 [succ [prime not] [succ] while] rep.n-stream-d.
-
-primes-d.
-
-primes-d i i i i i pop. . . . .
+```joy
+times10-c == [10 *] rep.exe-c
+```
 
 
-DEFINE
-    even-squares == 0 [2 +] [dup *] rep.f-stream.
+#### `ones`
 
-even-squares.
+```joy
+ones == 1 rep.c-stream
+```
 
-even-squares state.
 
-even-squares i state.
+#### `halving`
 
-even-squares i i state.
+```joy
+halving == 1.0 [2 /] rep.n-stream
+```
 
-even-squares i i i state.
 
-even-squares i i i i state.
+#### `integers-from`
 
-DEFINE
-    ten-powers-log10 ==
-	 1 [10 *] [[] cons [dup log10] infra]  rep.f-stream-d.
+```joy
+integers-from == [succ] rep.n-stream
+```
 
-ten-powers-log10.
 
-ten-powers-log10 i i i i i i pop. . . . . .
+#### `ones-d`
 
-(* -INTERACTION *)
+```joy
+ones-d == 1 rep.c-stream-d
+```
 
-DEFINE
-    accu-list == [] [cons] rep.inter
+
+#### `halving-d`
+
+```joy
+halving-d == 1.0 [2 /] rep.n-stream-d
+```
+
+
+#### `primes-d`
+
+```joy
+primes-d == 2 [succ [prime not] [succ] while] rep.n-stream-d
+```
+
+
+#### `even-squares`
+
+```joy
+even-squares == 0 [2 +] [dup *] rep.f-stream
+```
+
+
+#### `ten-powers-log10`
+
+```joy
+ten-powers-log10 == 1 [10 *] [[] cons [dup log10] infra]  rep.f-stream-d
+```
+
+
+#### `accu-list`
+
+```joy
+accu-list == [] [cons] rep.inter
 ```
 
 
@@ -5232,66 +5343,42 @@ accu-sum == 0 [+] rep.inter
 #### `accu-product-list`
 
 ```joy
-accu-product-list ==
-    [] [[*] dip cons] rep.inter.
+accu-product-list == [] [[*] dip cons] rep.inter
+```
 
-accu-list.
 
-1 2 3 4 5 accu-list i i i i i state.
+#### `max-3-adds`
 
-accu-sum.
-
-1 2 3 4 5 accu-sum i i i i i state.
-
-accu-product-list.
-
-1 10 2 100 3 1000 4 10000 accu-product-list i i i i state.
-
-DEFINE
-    max-3-adds == 3 [+] rep.exe-t
+```joy
+max-3-adds == 3 [+] rep.exe-t
 ```
 
 
 #### `max-4-adds`
 
 ```joy
-max-4-adds ==
-    4 [+] rep.exe-t.
-
-          max-3-adds.
+max-4-adds == 4 [+] rep.exe-t
+```
 
 
-      2 1 max-3-adds i pop.
+#### `fact0`
 
-    3 2 1 max-3-adds i i pop.
-
-  4 3 2 1 max-3-adds i i i pop.
-
-5 4 3 2 1 max-3-adds i i i i pop. .
-
-5 4 3 2 1 max-4-adds i i i i pop.
-
-(* -RECURSIVE *)
-
-DEFINE
-    fact0 == [[pop null] [pop pop 1  ] [[dup pred] dip i  *     ] ifte]
+```joy
+fact0 == [[pop null] [pop pop 1  ] [[dup pred] dip i  *     ] ifte]
 ```
 
 
 #### `fact`
 
 ```joy
-fact ==
-    [[pop null] [[pop 1] dip] [[dup pred] dip i [*] dip] ifte].
+fact == [[pop null] [[pop 1] dip] [[dup pred] dip i [*] dip] ifte]
+```
 
-6 fact0 rep.fix i.
 
-6 fact  rep.fix i. .
+#### `fact-fix`
 
-3 fact  rep.fix i i. .
-
-DEFINE
-    fact-fix   == fact rep.fix
+```joy
+fact-fix == fact rep.fix
 ```
 
 
@@ -5319,18 +5406,15 @@ steps == "steps: " putchars state putln
 #### `trace`
 
 ```joy
-trace ==
-    "trace: " putchars state putln.
+trace == "trace: " putchars state putln
+```
 
-3 4 5  fact-fix   i swap put space i swap put space i swap putln pop.
 
-3 4 5  fact-fix-c i swap put space i swap put space i swap putln steps.
+#### `nfib`
 
-3 4 5  fact-fix-a i swap put space i swap put space i swap putln trace.
-
-DEFINE
-    nfib ==
-	[ [ pop small ]
+```joy
+nfib ==
+    [ [ pop small ]
 	  [ [pop 1] dip ]
 	  [ [pred dup pred] dip
 	    dip swap i
@@ -5356,26 +5440,14 @@ nfib-fix-c == nfib rep.fix-c
 #### `nfib-fix-a`
 
 ```joy
-nfib-fix-a ==
-    nfib rep.fix-a.
-
-nfib-fix.
-
-6 nfib-fix i pop.
-
-6 nfib-fix-c i swap putln steps.
-
-6 nfib-fix-a i swap putln trace.
-
-0 __settracegc.
-
-30 nfib-fix-c i swap putln steps.
+nfib-fix-a == nfib rep.fix-a
+```
 
 
-(* -CONVENIENCE *)
+#### `fact-lin`
 
-DEFINE
-    fact-lin == [null] [pop 1] [dup pred] [*] rep.linear
+```joy
+fact-lin == [null] [pop 1] [dup pred] [*] rep.linear
 ```
 
 
@@ -5410,19 +5482,14 @@ length-fix-a == length-lin rep.fix-a
 #### `nfib-fix`
 
 ```joy
-nfib-fix ==
-    nfib-bin rep.fix.
+nfib-fix == nfib-bin rep.fix
+```
 
-4 fact-fix i pop.
 
-[2 5 3 7 6] [a b c] length-fix-a i swap put space i swap putln trace.
+#### `qsort-bin`
 
-6 nfib-fix i pop.
-
-6 nfib-bin [] [[dup put space] dip] rep.fix-i i newline pop.
-
-DEFINE
-    qsort-bin == [small] [] [uncons [>] split] [enconcat] rep.binary
+```joy
+qsort-bin == [small] [] [uncons [>] split] [enconcat] rep.binary
 ```
 
 
@@ -5430,6 +5497,13 @@ DEFINE
 
 ```joy
 qsort-fix-c == qsort-bin rep.fix-c
+```
+
+
+#### `qtest`
+
+```joy
+qtest == qsort-fix-c i state
 ```
 
 
@@ -5496,21 +5570,6 @@ product == 1 [*] fold
 ```
 
 
-#### `product`
-
-```joy
-product ==
-    1 swap
-	[ null not ]
-	[ [first null]
-	  [[pop 0] dip pop []]
-	  [uncons [*] dip]
-	  ifte ]
-	while
-	pop
-```
-
-
 #### `scalarproduct`
 
 ```joy
@@ -5523,8 +5582,7 @@ scalarproduct == [0] dip2
 
 ```joy
 frontlist1 ==
-    (* Thompson p 247 *)
-	[null] [[] cons]
+    [null] [[] cons]
 	[uncons]
 	[ [cons] map popd [] swons ]
 	linrec
@@ -5535,8 +5593,7 @@ frontlist1 ==
 
 ```joy
 frontlist ==
-    (* also works for sets and strings *)
-	[null] [[] cons]
+    [null] [[] cons]
 	[uncons]
 	[ [cons] map popd dup first rest swons ]
 	linrec
@@ -5547,8 +5604,7 @@ frontlist ==
 
 ```joy
 subseqlist ==
-    (* Thompson p 247 *)
-	[null] 
+    [null]
 	[[] cons]
 	[ uncons dup
 	  [frontlist [cons] map popd] dip ]
@@ -5579,14 +5635,13 @@ powerlist2 ==
 
 ```joy
 insertlist ==
-    (*   Sequence  Item   ->   List(Sequence) *)
-	swons
+    swons
 	[ small ]
 	[ unitlist ]
-	[ dup				(* keep original *)
-	  unswons unconsd swons ]	(* take out second *)
-	[ swap [swons] cons map		(* swons in second *)
-	  cons ]			(* cons in original *)
+	[ dup
+	  unswons unconsd swons ]
+	[ swap [swons] cons map
+	  cons ]
 	linrec
 ```
 
@@ -5708,8 +5763,7 @@ delete ==
 
 ```joy
 transpose ==
-    (* READE p 133 *)
-	[ [null] [true] [[null] some] ifte ]
+    [ [null] [true] [[null] some] ifte ]
 	[ pop [] ]
 	[ [[first] map] [[rest] map] cleave ]
 	[ cons ]
@@ -5769,13 +5823,6 @@ treestrip == [list] treefilter
 #### `treemap`
 
 ```joy
-treemap == [map] treerec
-```
-
-
-#### `treemap`
-
-```joy
 treemap == [] [map] treegenrec
 ```
 
@@ -5794,18 +5841,18 @@ treesample == [ [1 2 [3 4] 5 [[[6]]] 7 ] 8 ]
 ```
 
 
+#### `SEQLIB`
+
+```joy
+SEQLIB == "seqlib.joy - sequence library, assumes agglib.joy\n"
+```
+
+
 ---
 
 ## symlib.joy
 
 ### Definitions
-
-#### `bin1ops`
-
-```joy
-bin1ops == [>..]
-```
-
 
 #### `C2T`
 
@@ -5850,8 +5897,7 @@ C2I ==
 ```joy
 C2P ==
     [ list ]
-
-	[ unswons 
+	[ unswons
 	  [ [ [unops in]
 	      [first C2P] dip ]
 	    [ [[QUOTE] in]
@@ -5869,8 +5915,7 @@ C2P ==
 ```joy
 C2R ==
     [ list ]
-
-	[ unswons 
+	[ unswons
 	  [ [ [unops in]
 	      swap first C2R ]
 	    [ [[QUOTE] in]
@@ -5892,7 +5937,7 @@ I2C ==
 	    [I2C [] cons] dip swons ]
 	  [ [[QUOTE] in]
 	    [unswons [] cons] dip swons ]
-	  [ [list] (* binary *)
+	  [ [list]
 	    I2C swap uncons swapd
 	    I2C swons cons cons ]
 	  [ ] ]
@@ -5911,7 +5956,7 @@ I2T ==
 	    [I2T [] cons] dip swons ]
 	  [ [[QUOTE] in]
 	    [unswons [] cons] dip swons ]
-	  [ [list] (* binary *)
+	  [ [list]
 	    I2T swap uncons swapd
 	    I2T swons cons cons ]
 	  [ [] cons ] ]
@@ -6026,8 +6071,7 @@ R2I ==
 
 ```joy
 X2Y ==
-    (* used by Pol2Rev and Rev2Pol *)
-	unswons
+    unswons
 	[ [ [unops in]
 	    [X2Y] dip swap ]
 	  [ [binops in]
@@ -6337,9 +6381,7 @@ Min2Tre == unswons M12T popd
 #### `Min2Inf`
 
 ```joy
-Min2Inf == Min2Cam Cam2Inf				(* 2   passes *)
-
-END
+Min2Inf == Min2Cam Cam2Inf
 ```
 
 1   pass
@@ -6369,12 +6411,29 @@ IN
 ```
 
 
+#### `j2f-forwards`
+
+```joy
+j2f-forwards == [[]] swap [j2f-f] step
+```
+
+
 #### `j2f-reverse`
 
 ```joy
 j2f-reverse == [] swap [j2f-r] step [] swons
-END
 ```
+
+
+### Other Stuff To Go Here
+
+#### `SYMLIB`
+
+```joy
+SYMLIB == "symlib.joy - symbolic manipulation library\n"
+```
+
+other stuff to go here
 
 
 ---
@@ -6389,186 +6448,18 @@ END
 unops == [not succ pred fact fib first rest reverse i intern]
 ```
 
-The translations will use the following unary and binary operators:
-
 
 #### `binops`
 
 ```joy
-binops ==
-    [and or + - * / = < > cons concat map filter].
-
-(* Translations from Reverse Polish (= postfix, Joy, but no dup swap. *)
-
-			       (* to Cambridge (= Lisp without lambda *)
-
-[2  3  *  4  5  +  -]					Rev2Cam.
-
-[4 6 pred * 5 succ 7 + - fact]				Rev2Cam.
-
-[true true not or false false and or]			Rev2Cam.
-
-[2 3 * 2 3 + succ =]					Rev2Cam.
-
-[1 [2 3] cons 4 [5 6] cons concat]			Rev2Cam.
-
-[[1 2 3 4]  [fact]  map]				Rev2Cam.
-
-[[6 7 8 9]  [prime] filter]				Rev2Cam.
-
-				(* to Tree, = Cam but bracketed atoms *)
-
-[2  3  *  4  5  +  -]					Rev2Tre.
-
-[4 6 pred * 5 succ 7 + - fact]				Rev2Tre.
-
-[true true not or false false and or]			Rev2Tre.
-
-[2 3 * 2 3 + succ =]					Rev2Tre.
-
-[1 [2 3] cons 4 [5 6] cons concat]			Rev2Tre.
-
-[[1 2 3 4]  [fact]  map]				Rev2Tre.
-
-[[6 7 8 9]  [prime] filter]				Rev2Tre.
-
-				(* to Infix, bracketed infix binaries *)
-
-[2  3  *  4  5  +  -]					Rev2Inf.
-
-[4 6 pred * 5 succ 7 + - fact]				Rev2Inf.
-
-[true true not or false false and or]			Rev2Inf.
-
-[2 3 * 2 3 + succ =]					Rev2Inf.
-
-[1 [2 3] cons 4 [5 6] cons concat]			Rev2Inf.
-
-[[1 2 3 4]  [fact]  map]				Rev2Inf.
-
-[[6 7 8 9]  [prime] filter]				Rev2Inf.
-
-			       (* to Polish, prefix for all operators *)
-
-[2  3  *  4  5  +  -]					Rev2Pol.
-
-[4 6 pred * 5 succ 7 + - fact]				Rev2Pol.
-
-[true true not or false false and or]			Rev2Pol.
-
-[2 3 * 2 3 + succ =]					Rev2Pol.
-
-[1 [2 3] cons 4 [5 6] cons concat]			Rev2Pol.
-
-[[1 2 3 4]  [fact]  map]				Rev2Pol.
-
-[[6 7 8 9]  [prime] filter]				Rev2Pol.
+binops == [and or + - * / = < > cons concat map filter]
+```
 
 
-(* Various Translations	*)
+#### `bin1ops`
 
-						(* Cambridge to Infix *)
- 
-[- [* 2 3] [+ 4 5]]					Cam2Inf.
- 
-[fact [- [* 4 [pred 6]] [+ [succ 5] 7]]]		Cam2Inf.
- 
-[or [or true [not true]] [and false false]]		Cam2Inf.
- 
-[= [* 2 3] [succ [+ 2 3]]]				Cam2Inf.
- 
-[concat [cons 1 [QUOTE [2 3]]] [cons 4 [QUOTE [5 6]]]]	Cam2Inf.
- 
-[map [QUOTE [1 2 3 4]] [QUOTE [fact]]]			Cam2Inf.
- 
-[filter [QUOTE [6 7 8 9]] [QUOTE [prime]]]		Cam2Inf.
- 
-						   (* Infix to Polish *)
-
-[[[2 * 3] - [4 + 5]]]					Inf2Pol.
- 
-[fact [[4 * pred 6] - [succ 5 + 7]]]			Inf2Pol.
- 
-[[[true or not true] or [false and false]]]		Inf2Pol.
- 
-[[[2 * 3] = succ [2 + 3]]]				Inf2Pol.
- 
-[[[1 cons QUOTE [2 3]] concat [4 cons QUOTE [5 6]]]]	Inf2Pol.
- 
-[[QUOTE [1 2 3 4] map QUOTE [fact]]]			Inf2Pol.
- 
-[[QUOTE [6 7 8 9] filter QUOTE [prime]]]		Inf2Pol.
- 
-					  (* Polish to Reverse Polish *)
- 
-[- * 2 3 + 4 5]						Pol2Rev.
- 
-[fact - * 4 pred 6 + succ 5 7]				Pol2Rev.
- 
-[or or true not true and false false]			Pol2Rev.
- 
-[= * 2 3 succ + 2 3]					Pol2Rev.
- 
-[concat cons 1 [2 3] cons 4 [5 6]]			Pol2Rev.
- 
-[map [1 2 3 4] [fact]]					Pol2Rev.
- 
-[filter [6 7 8 9] [prime]]				Pol2Rev.
- 
-(* Translation to Reverse Polish, followed by evaluation in Joy	*)
-
-					      (* Cambridge evaluation *)
- 
-[- [* 2 3] [+ 4 5]]					Cam2Rev i.
- 
-[fact [- [* 4 [pred 6]] [+ [succ 5] 7]]]		Cam2Rev i.
- 
-[or [or true [not true]] [and false false]]		Cam2Rev i.
- 
-[= [* 2 3] [succ [+ 2 3]]]				Cam2Rev i.
- 
-[concat [cons 1 [QUOTE [2 3]]] [cons 4 [QUOTE [5 6]]]]	Cam2Rev i.
- 
-[map [QUOTE [1 2 3 4]] [QUOTE [fact]]]			Cam2Rev i.
- 
-[filter [QUOTE [6 7 8 9]] [QUOTE [prime]]]		Cam2Rev i.
- 
-						  (* Infix evaluation *)
-
-[[[2 * 3] - [4 + 5]]]					Inf2Rev i.
- 
-[fact [[4 * pred 6] - [succ 5 + 7]]]			Inf2Rev i.
- 
-[[[true or not true] or [false and false]]]		Inf2Rev i.
- 
-[[[2 * 3] = succ [2 + 3]]]				Inf2Rev i.
- 
-[[[1 cons QUOTE [2 3]] concat [4 cons QUOTE [5 6]]]]	Inf2Rev i.
- 
-[[QUOTE [1 2 3 4] map QUOTE [fact]]]			Inf2Rev i.
- 
-[[QUOTE [6 7 8 9] filter QUOTE [prime]]]		Inf2Rev i.
- 
-						 (* Polish evaluation *)
- 
-[- * 2 3 + 4 5]						Pol2Rev i.
- 
-[fact - * 4 pred 6 + succ 5 7]				Pol2Rev i.
- 
-[or or true not true and false false]			Pol2Rev i.
- 
-[= * 2 3 succ + 2 3]					Pol2Rev i.
- 
-[concat cons 1 [2 3] cons 4 [5 6]]			Pol2Rev i.
- 
-[map [1 2 3 4] [fact]]					Pol2Rev i.
- 
-[filter [6 7 8 9] [prime]]				Pol2Rev i.
- 
-(* the following are only for Min (minimally bracketed infix notation *)
-
-DEFINE
-  bin1ops == [ = < > ]
+```joy
+bin1ops == [ = < > ]
 ```
 
 
@@ -6576,6 +6467,13 @@ DEFINE
 
 ```joy
 bin2ops == [ + - or concat ]
+```
+
+
+#### `bin3ops`
+
+```joy
+bin3ops == [ * / and cons ]
 ```
 
 
@@ -6614,7 +6512,7 @@ pausing == putchars pause
 ```joy
 praise ==
     [ "Good." "Splendid." "Excellent." "Great." "Terrific." ]
-	(* rand 5 rem *) 0 at putchars newline
+	                 0 at putchars newline
 ```
 
 R.W.
@@ -6695,18 +6593,11 @@ put-stats ==
 ```
 
 
-#### `toc-of-tutorial`
+#### `toc-all-headings`
 
 ```joy
-toc-of-tutorial ==
-    [ [ [Q0] "Title" ]
-			     [ [Q1] "1 H1 " ]
-			     [ [Q1] "2 H2 " ]
-			     ....             ]
-where each Qi is a quote, each Hi is a section heading. *)
-
-    toc-all-headings ==
-	toc-of-tutorial rest
+toc-all-headings ==
+    toc-of-tutorial rest
 	[space space second putchars newline] step
 ```
 
@@ -6722,8 +6613,7 @@ toc-one-heading == toc-of-tutorial of second putchars newline newline
 
 ```joy
 toc-do-section0 ==
-    #	terminal include				      (* R.W. *)
-	newline
+    newline
 	0 toc-one-heading
 	"Contents:\n" putchars toc-all-headings newline
 	toc-of-tutorial first first i
@@ -6777,6 +6667,13 @@ toc-do-sec0-loop ==
 ```
 
 
+#### `TUTLIB`
+
+```joy
+TUTLIB == "tutlib.joy - tutorial library, for interaction"
+```
+
+
 ---
 
 ## typlib.joy
@@ -6787,6 +6684,13 @@ toc-do-sec0-loop ==
 
 ```joy
 fatal2 == putchars putchars newline abort
+```
+
+
+#### `st_new`
+
+```joy
+st_new == []
 ```
 
 
@@ -6822,7 +6726,13 @@ st_pop == [null] ["st_pop\n" _st_chk] [rest] ifte
 
 ```joy
 st_pull == [null] ["st_pull\n" _st_chk] [unswons] ifte
-END
+```
+
+
+#### `q_new`
+
+```joy
+q_new == [] []
 ```
 
 
@@ -6862,7 +6772,13 @@ add a list
 
 ```joy
 q_rem == _q_prep [null] ["q_rem \n" _q_chk] [unswons] ifte
-END
+```
+
+
+#### `t_new`
+
+```joy
+t_new == []
 ```
 
 
@@ -6906,6 +6822,15 @@ t_rem ==
                    [unswons unswons [swons] dip]
                    ifte
 ```
+
+
+#### `bs_new`
+
+```joy
+bs_new == []
+```
+
+B&W p 230
 
 
 #### `bs_union`
@@ -7022,19 +6947,18 @@ r_bs_insert1 == unitlist r_bs_union
 #### `r_bs_delete1`
 
 ```joy
-r_bs_delete1 ==
-    unitlist r_bs_differ.
-
-
-(* end old recursive versions *)
-
-LIBRA (* dictionary *)
-
-d_new   == []
+r_bs_delete1 == unitlist r_bs_differ
 ```
 
 
 ### End Old Recursive Versions
+
+#### `d_new`
+
+```joy
+d_new == []
+```
+
 
 #### `d_null`
 
@@ -7118,28 +7042,19 @@ RAWJOY1 == "the primitives of the Joy1 system\n"
 ```
 
 
-#### `myname`
-
-```joy
-myname == "Abigail Aardvark"
-```
-
-
-#### `myphone`
-
-```joy
-myphone == 12345678
-```
-
-
 #### `returned`
 
 ```joy
-returned ==
-    "\007\nReturned to Joy\n" putchars
+returned == "\007\nReturned to Joy\n" putchars
 IN
-						(* unix: *)
     unix == true
+```
+
+
+#### `unix`
+
+```joy
+unix == true
 ```
 
 
@@ -7181,52 +7096,6 @@ escape ==
 ```
 
 
-#### `vms`
-
-```joy
-vms == true
-```
-
-
-#### `control-eof`
-
-```joy
-control-eof == 'Z
-```
-
-
-#### `terminal`
-
-```joy
-terminal == "tt:"
-```
-
-
-#### `dir`
-
-```joy
-dir == "DIR/DATE" system returned
-```
-
-
-#### `editor`
-
-```joy
-editor == "TECO "
-```
-
-
-#### `escape`
-
-```joy
-escape ==
-    "\nTo return to Joy, hit  Control-" putchars
-	control-eof putch  '\n putch
-	"@tt:" system
-	returned
-```
-
-
 #### `edit`
 
 ```joy
@@ -7256,6 +7125,20 @@ find-in ==
 
 ```joy
 standard-setting == 1 setautoput 1 setundeferror
+```
+
+
+#### `USRLIB`
+
+```joy
+USRLIB == "usrlib.joy - (personal) user library\n"
+```
+
+
+#### `verbose`
+
+```joy
+verbose == true
 ```
 
 

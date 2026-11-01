@@ -385,6 +385,7 @@ All subsequent DEFINE operations will be persisted to disk.
 */
 void session_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char path[PATH_MAX];
     char* name;
 
@@ -436,6 +437,7 @@ Closes the current persistent session.
 */
 void session_close_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     if (!env->session) {
         printf("session: no active session\n");
         return;
@@ -452,6 +454,7 @@ Lists all available sessions (*.joy.db files in current directory).
 */
 void sessions_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     Index result = 0;
     DIR* dir = opendir(".");
     struct dirent* entry;
@@ -503,6 +506,7 @@ Saves current session state as named snapshot.
 */
 void snapshot_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char* name;
     Session* s = env->session;
     char* sql;
@@ -541,6 +545,7 @@ Restores session state from named snapshot.
 */
 void restore_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char* name;
     Session* s = env->session;
     char* sql;
@@ -605,6 +610,7 @@ Lists all available snapshots in current session.
 */
 void snapshots_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     Session* s = env->session;
     Index result = 0;
     sqlite3_stmt* stmt;
@@ -651,6 +657,7 @@ Merges source session into current. Returns false if conflicts exist.
 */
 void session_merge_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char* source_name;
     Session* target = env->session;
     char path[PATH_MAX];
@@ -731,12 +738,13 @@ Returns dict with keys: added, modified, removed.
 */
 void session_diff_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char* other_name;
     Session* current = env->session;
     char path[PATH_MAX];
     char* attach_sql;
     sqlite3_stmt* stmt;
-    Index added = 0, modified = 0, removed = 0;
+    Index node;
     khash_t(Dict)* dict;
     khint_t k;
     int ret, rc;
@@ -761,12 +769,18 @@ void session_diff_(pEnv env)
     }
     sqlite3_free(attach_sql);
 
+    /* Each list stays rooted while the next one allocates */
+    env->dump1 = LIST_NEWNODE(0, env->dump1);
+    env->dump2 = LIST_NEWNODE(0, env->dump2);
+    env->dump3 = LIST_NEWNODE(0, env->dump3);
+
     /* Added: in other but not in current */
     stmt = prepare_sql(env, current->db,
         "SELECT name FROM other.symbols WHERE name NOT IN (SELECT name FROM symbols)",
         "DETACH DATABASE other", "session-diff");
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        added = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), added);
+        node = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), DMP1);
+        DMP1 = node;
     }
     finish_sql(env, current->db, stmt, rc, "DETACH DATABASE other", "session-diff");
 
@@ -776,7 +790,8 @@ void session_diff_(pEnv env)
         "JOIN symbols s ON o.name = s.name WHERE o.body != s.body",
         "DETACH DATABASE other", "session-diff");
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        modified = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), modified);
+        node = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), DMP2);
+        DMP2 = node;
     }
     finish_sql(env, current->db, stmt, rc, "DETACH DATABASE other", "session-diff");
 
@@ -785,25 +800,34 @@ void session_diff_(pEnv env)
         "SELECT name FROM symbols WHERE name NOT IN (SELECT name FROM other.symbols)",
         "DETACH DATABASE other", "session-diff");
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        removed = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), removed);
+        node = STRING_NEWNODE(GC_strdup((const char*)sqlite3_column_text(stmt, 0)), DMP3);
+        DMP3 = node;
     }
     finish_sql(env, current->db, stmt, rc, "DETACH DATABASE other", "session-diff");
 
     exec_sql(env, current->db, "DETACH DATABASE other", NULL, "session-diff");
 
-    /* Build result dict */
-    dict = kh_init(Dict);
+    /* The dict goes on the stack first, for a GC to rewrite its values */
+    env->stck = DICT_NEWNODE(kh_init(Dict), env->stck);
 
-    k = kh_put(Dict, dict, GC_strdup("added"), &ret);
-    kh_val(dict, k) = LIST_NEWNODE(reverse_list(env, added), 0);
+    node = LIST_NEWNODE(reverse_list(env, DMP1), 0);
+    dict = nodevalue(env->stck).dict;
+    k = kh_put(Dict, dict, strdup("added"), &ret);
+    kh_val(dict, k) = node;
 
-    k = kh_put(Dict, dict, GC_strdup("modified"), &ret);
-    kh_val(dict, k) = LIST_NEWNODE(reverse_list(env, modified), 0);
+    node = LIST_NEWNODE(reverse_list(env, DMP2), 0);
+    dict = nodevalue(env->stck).dict;
+    k = kh_put(Dict, dict, strdup("modified"), &ret);
+    kh_val(dict, k) = node;
 
-    k = kh_put(Dict, dict, GC_strdup("removed"), &ret);
-    kh_val(dict, k) = LIST_NEWNODE(reverse_list(env, removed), 0);
+    node = LIST_NEWNODE(reverse_list(env, DMP3), 0);
+    dict = nodevalue(env->stck).dict;
+    k = kh_put(Dict, dict, strdup("removed"), &ret);
+    kh_val(dict, k) = node;
 
-    NULLARY(DICT_NEWNODE, dict);
+    POP(env->dump3);
+    POP(env->dump2);
+    POP(env->dump1);
 }
 
 /**
@@ -813,6 +837,7 @@ Takes a symbol from source session, overwriting current.
 */
 void session_take_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char* source_name;
     char* symbol_name;
     Session* current = env->session;
@@ -890,6 +915,7 @@ Each result row becomes a dictionary in the returned list.
 */
 void sql_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char* query;
     Index params;
     Session* s = env->session;
@@ -947,10 +973,14 @@ void sql_(pEnv env)
     /* Collect results */
     col_count = sqlite3_column_count(stmt);
 
+    env->dump1 = LIST_NEWNODE(0, env->dump1); /* rows */
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
-        /* Each row becomes a dict */
+        /* Each row becomes a dict, rooted while its values allocate */
         khash_t(Dict)* dict = kh_init(Dict);
+        Index row;
         int c;
+
+        env->dump2 = DICT_NEWNODE(dict, env->dump2);
 
         for (c = 0; c < col_count; c++) {
             const char* col_name = sqlite3_column_name(stmt, c);
@@ -979,15 +1009,18 @@ void sql_(pEnv env)
                 break;
             }
 
-            k = kh_put(Dict, dict, GC_strdup(col_name), &ret);
+            k = kh_put(Dict, dict, strdup(col_name), &ret);
             kh_val(dict, k) = val;
         }
 
-        results = DICT_NEWNODE(dict, results);
+        row = DICT_NEWNODE(dict, DMP1);
+        DMP1 = row;
+        POP(env->dump2);
     }
     finish_sql(env, s->db, stmt, rc, NULL, "sql");
 
-    results = reverse_list(env, results);
+    results = reverse_list(env, DMP1);
+    POP(env->dump1);
     NULLARY(LIST_NEWNODE, results);
 }
 

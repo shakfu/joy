@@ -128,6 +128,7 @@ Executes P with profiling enabled and prints a timing report.
 */
 void profile_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     ONEPARAM("profile");
     ONEQUOTE("profile");
     SAVESTACK;
@@ -153,6 +154,7 @@ Starts collecting profiling data (clears previous data).
 */
 void profile_start_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     profiler_reset(env);
     env->profiler.enabled = 1;
 }
@@ -163,6 +165,7 @@ Stops collecting profiling data.
 */
 void profile_stop_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     env->profiler.enabled = 0;
 }
 
@@ -172,6 +175,7 @@ Prints the current profiling data as a formatted report.
 */
 void profile_report_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     profiler_report(env);
 }
 
@@ -181,6 +185,7 @@ Pushes profiling data as a list of [name calls total-ns self-ns] lists.
 */
 void profile_data_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     EnvProfiler* prof = &env->profiler;
     Index result = 0;
     size_t n, i;
@@ -218,5 +223,6 @@ Clears all profiling data.
 */
 void profile_reset_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     profiler_reset(env);
 }

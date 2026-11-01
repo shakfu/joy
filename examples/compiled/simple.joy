@@ -1,10 +1,6 @@
 (* Simple test - constant folding example *)
 
-(* This should fold to just pushing 28 *)
-5 dup * 3 + .
-
-(* User-defined square *)
 DEFINE square == dup *.
 
-(* Use it *)
-7 square .
+(* 5 dup * 3 + folds to 28 *)
+[5 dup * 3 + put 7 square put] "simple.c" compile-to-file.

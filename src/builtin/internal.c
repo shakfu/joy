@@ -103,14 +103,14 @@ PUSH(__dump_, INTEGER_NEWNODE, 0) /* variables */
 Q0  IGNORE_OK  2940  __html_manual  :  ->
 [IMPURE] Writes this manual of all Joy primitives to output file in HTML style.
 */
-void __html_manual_(pEnv env) { make_manual(1); }
+void __html_manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(1); }
 
 /**
 Q0  IGNORE_OK  2950  __latex_manual  :  ->
 [IMPURE] Writes this manual of all Joy primitives to output file in Latex style
 but without the head and tail.
 */
-void __latex_manual_(pEnv env) { make_manual(2); }
+void __latex_manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(2); }
 
 /**
 Q0  OK  2960  __manual_list  :  ->  L
@@ -210,6 +210,7 @@ Q0  IGNORE_POP  2920  helpdetail  :  [ S1 S2 .. ]  ->
 */
 void helpdetail_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     int op;
     Index n;
     Entry ent;
@@ -261,5 +262,5 @@ void helpdetail_(pEnv env)
 Q0  IGNORE_OK  2930  manual  :  ->
 [IMPURE] Writes this manual of all Joy primitives to output file.
 */
-void manual_(pEnv env) { make_manual(0); }
+void manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(0); }
 

@@ -6,8 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `-DJOY_GC_STRESS=ON` collects at every allocation. A plain test only catches a GC bug when a collection happens to land in the right place; a test written to sweep the heap passed on the unfixed code.
+- **FFI**: `ffi` and `ffi-call` call C functions in shared libraries through libffi, under `-DJOY_FFI=ON`. A callable is a plain quotation, not a new node type, so it needs no GC support and survives a session reload. See `doc/ffi.md`.
+- **Dictionary literals**: `{"k": v}` and the empty `{:}`, so dictionaries print in a form that reads back. An empty dictionary now prints as `{:}`, because `{}` reads as the empty set. Sessions can reload dictionaries.
+
+### Changed
+
+- `examples/compiled` builds with `compile-to-file` instead of `tools/joy2c.py`.
+
 ### Fixed
 
+- **`-DJOY_PARALLEL=ON` did not compile, and was unsafe once it did.** Tasks wrote to the shared symbol table and allocated through the single default GC context. Legacy GC calls now use the running task's context. A task that errors, needs a shared side effect, or returns a lazy sequence, dictionary or file is discarded, and the combinator replays sequentially. This choice over raising an error keeps results independent of list length and build flags. See `doc/parallel.md`.
+- **Parallel combinators**: results were held unrooted across parent allocation; a GC while copying a symbol body made `exec_term` read a stale index; vector and matrix results dangled after their task ended; `preduce` swapped operands, which reversed `concat`.
+- **`pfilter`** read empty strings as true on both paths: `newnode` overwrites only the bytes a string needs, so `u.num` includes stale pointer bytes.
+- **Lazy sequence constructors and `json>` broke when a GC ran inside them**, giving `bad node` errors or crashes that depended on heap layout, even on the length of the file path. `LazyData` holds indices that a GC cannot find until a node refers to it. `json>` held partial lists and a pointer into its string node. Both now reserve their nodes first.
+- **Dictionary values were lost at the first GC after they were stored**: they are node indices, and the collector did not rewrite them. `"a" dget` then returned wrong values `dput`, `ddel` and `dmerge` also reserve nodes first, because a collector cannot find a new table until a node refers to it.
+- **Dictionary keys were freed while in use**: keys came from the GC, and the `malloc`'d table that held them is not scanned.
+- **`session-diff`** held finished lists unrooted while building the next one.
+- **Embedding**: the GC never scanned the C stack, because its bound was a static variable. Each outermost `joy_eval_*` call now sets the bound from its own frame.
+- **`compile-to-c`**: a symbol without a body inside a quotation failed to link; it is now data.
+- **`compile-to-c`**: inlined `while` kept the stack in a C local, which a GC invalidated.
+- **`tools/fmt_joy.py`** changed programs: it dropped `:` and unknown characters, and split `$"..."`, `v[`, `m[` and numeric char escapes. It also treated comments as nested, unlike the scanner, and dropped blank lines.
+- **`tools/gen_docs.py`** missed `.`-terminated definitions and read definitions inside comments.
+- `flatten` is defined once, in `lib/seqlib.joy`. The `lib/mapreduce.joy` copy behaved the same.
 - **Test harness executed no test2 files.** The CLI runs only its first filename argument; later ones become `argv`. `run_test.sh` passed `inilib.joy` first, so all 174 registered tests loaded the library and passed without running. The runner now includes `usrlib.joy` and the test from stdin, in the test's directory. Six tests then failed: four lacked `agglib` definitions; `all2.joy` and `matrix.joy` had wrong expectations (exact float equality after `inv`).
 - **Conservative GC freed live vector/matrix payloads.** Nodes live in a `calloc`'d arena that the collector never scanned, so an allocation that triggered a collection could free a `MatrixData` still referenced by a node. glibc then wrote its free-list pointer over `rows`/`cols`. The arena (and the old arena during a copying GC) is now a registered root.
 - **`let`, `match` and `cases` bindings were not GC roots**, so a collection inside the body left names pointing at moved nodes (`[7 8 9] [n] [200000 [[1 2 3] pop] times n] let` gave `[]`). An error inside the body also left the names rebound. Bindings are now roots, saved bodies live on the dump, and an error restores them; `debug-trace`, `debug-step` and `profile` restore their flags the same way.

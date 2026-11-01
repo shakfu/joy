@@ -41,6 +41,7 @@ class TokenType(Enum):
     NEWLINE = auto()        # line break
     WHITESPACE = auto()     # spaces/tabs (preserved for indent detection)
     KEYWORD = auto()        # LIBRA, DEFINE, HIDE, etc.
+    LITERAL_OPEN = auto()   # v[ or m[
 
 
 @dataclass
@@ -52,6 +53,7 @@ class Token:
     col: int = 0
 
 
+WORD_CHARS = '_-+*/<>=!@#$%^&|~?:'
 KEYWORDS = {'LIBRA', 'DEFINE', 'HIDE', 'IN', 'MODULE', 'PRIVATE', 'PUBLIC', 'END', 'CONST'}
 
 
@@ -84,27 +86,66 @@ def tokenize(source: str) -> Iterator[Token]:
 
         # Comment (* ... *)
         if i + 1 < n and source[i:i+2] == '(*':
+            # Comments do not nest: the scanner stops at the first *)
+            start = i
+            end = source.find('*)', i + 2)
+            i = n if end < 0 else end + 2
+            newlines = source.count('\n', start, i)
+            if newlines:
+                line += newlines
+                col = i - source.rfind('\n', start, i)
+            else:
+                col += i - start
+            yield Token(TokenType.COMMENT, source[start:i], line, start_col)
+            continue
+
+        # Line comment: the scanner ends it at the newline
+        if source[i] == '#':
+            start = i
+            while i < n and source[i] != '\n':
+                i += 1
+                col += 1
+            yield Token(TokenType.COMMENT, source[start:i], line, start_col)
+            continue
+
+        # Interpolated string $"...${expr}..."; expr may hold quotes
+        if source[i:i+2] == '$"':
             start = i
             i += 2
-            col += 2
-            depth = 1
-            while i < n and depth > 0:
-                if i + 1 < n and source[i:i+2] == '(*':
-                    depth += 1
+            depth = 0
+            in_nested = False
+            while i < n:
+                c = source[i]
+                if c == '\\':
                     i += 2
-                    col += 2
-                elif i + 1 < n and source[i:i+2] == '*)':
-                    depth -= 1
-                    i += 2
-                    col += 2
-                elif source[i] == '\n':
-                    i += 1
+                    continue
+                if depth and c == '"':
+                    in_nested = not in_nested
+                elif not in_nested:
+                    if source[i:i+2] == '${':
+                        depth += 1
+                        i += 2
+                        continue
+                    elif depth and c == '{':
+                        depth += 1
+                    elif depth and c == '}':
+                        depth -= 1
+                    elif not depth and c == '"':
+                        break
+                if c == '\n':
                     line += 1
-                    col = 1
-                else:
-                    i += 1
-                    col += 1
-            yield Token(TokenType.COMMENT, source[start:i], line, start_col)
+                i += 1
+            i = min(i + 1, n)
+            col += i - start
+            yield Token(TokenType.STRING, source[start:i], line, start_col)
+            continue
+
+        # Vector and matrix literals: the scanner needs v[ and m[ unbroken
+        if source[i:i+2] in ('v[', 'm['):
+            size = 2
+            yield Token(TokenType.LITERAL_OPEN, source[i:i+size], line, start_col)
+            i += size
+            col += size
             continue
 
         # String "..."
@@ -137,7 +178,13 @@ def tokenize(source: str) -> Iterator[Token]:
             if i < n and source[i] == '\\':
                 i += 1
                 col += 1
-                if i < n:
+                # Numeric escape: up to 3 digits, as in '\\010
+                digits = 0
+                while i < n and source[i].isdigit() and digits < 3:
+                    i += 1
+                    col += 1
+                    digits += 1
+                if not digits and i < n:
                     i += 1
                     col += 1
             elif i < n:
@@ -214,10 +261,10 @@ def tokenize(source: str) -> Iterator[Token]:
             continue
 
         # Word (identifier or operator)
-        if source[i].isalnum() or source[i] in '_-+*/<>=!@#$%^&|~?':
+        if source[i].isalnum() or source[i] in WORD_CHARS:
             start = i
             # Include alphanumeric and common Joy operator chars
-            while i < n and (source[i].isalnum() or source[i] in '_-+*/<>=!@#$%^&|~?'):
+            while i < n and (source[i].isalnum() or source[i] in WORD_CHARS):
                 i += 1
                 col += 1
             word = source[start:i]
@@ -227,7 +274,8 @@ def tokenize(source: str) -> Iterator[Token]:
                 yield Token(TokenType.WORD, word, line, start_col)
             continue
 
-        # Skip unknown characters
+        # Any other character is kept: a formatter must not change the program
+        yield Token(TokenType.WORD, source[i], line, col)
         i += 1
         col += 1
 
@@ -273,7 +321,7 @@ def format_joy(source: str, indent: str = "    ") -> str:
         if not result or at_line_start:
             return False
         last = result[-1]
-        return last not in (' ', '\n', '[', '{')
+        return not last.endswith((' ', '\n', '[', '{'))
 
     def emit_base_indent():
         """Emit base indentation for current block depth."""
@@ -299,8 +347,9 @@ def format_joy(source: str, indent: str = "    ") -> str:
                     blank_lines += 1
                 i += 1
             # Preserve up to one blank line between definitions
-            if blank_lines > 0 and not in_definition_body:
-                emit_newline()
+            if blank_lines > 0 and not in_definition_body and i < n:
+                result.append('\n')
+                at_line_start = True
             continue
 
         # Skip original whitespace
@@ -355,6 +404,16 @@ def format_joy(source: str, indent: str = "    ") -> str:
         if tok.type == TokenType.DOT:
             emit('.')
             in_definition_body = False
+            i += 1
+            continue
+
+        if tok.type == TokenType.LITERAL_OPEN:
+            if at_line_start:
+                emit_base_indent()
+                emit_continuation_indent()
+            elif needs_space_before():
+                result.append(' ')
+            emit(tok.value)
             i += 1
             continue
 

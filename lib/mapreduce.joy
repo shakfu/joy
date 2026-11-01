@@ -1,8 +1,9 @@
 (* FILE: mapreduce.joy - MapReduce framework using parallel primitives *)
 
+"seqlib" libload. (* flatten *)
+
 LIBRA
     _mapreduce == true;
-    flatten == [] [concat] fold;
     pair == [] cons cons;
     fst == first;
     snd == rest first;

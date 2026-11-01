@@ -226,7 +226,7 @@ When a parallel task starts, it receives:
 A key challenge is that user-defined symbols have their bodies stored in the parent's memory. When a child executes a symbol like `pair`, it must access the parent's memory.
 
 Solution (Phase 6):
-- Added `parent_memory` field to Env structure
+- Added `parent_memory` field to Env structure; it always names the root environment's memory, so nested combinators work
 - When executing USR_ nodes in parallel context, symbol bodies are copied from parent memory to child memory via `copy_body_from_parent()` in `interp.c`
 
 ### Result Copying
@@ -278,10 +278,9 @@ for (int i = 0; i < count; i++) {
 
 ### Error Handling
 
-- Each task has its own `setjmp`/`longjmp` error context
-- Errors are captured in `ParallelTask.error_msg`
-- After all tasks complete, first error is propagated to parent
-- No cancellation mechanism (all tasks run to completion)
+A task that fails prints nothing and sets `ParallelTask.failed`. After all tasks finish, the parent discards them and replays the combinator sequentially. The replay produces any error message, once.
+
+A failed attempt costs up to twice the run time. There is no cancellation.
 
 ---
 
@@ -289,12 +288,21 @@ for (int i = 0; i < count; i++) {
 
 ### Semantic Restrictions
 
-| Restriction | Reason |
-|-------------|--------|
-| No symbol definition in parallel tasks | Would require locking the symbol table |
-| No I/O in parallel tasks | stdout/stdin are not thread-safe |
-| No file operations | FILE* handles are not safely shareable |
-| No `include` in parallel | Scanner state is per-environment |
+Results match the sequential combinator. These operations run, but force a sequential replay:
+
+| Operation | Reason |
+|-----------|--------|
+| `assign`, `unassign`, `let`, `match`, `cases`, new symbols | The symbol table is shared |
+| Output, `system`, `include`, `get`, `ffi`, `ffi-call`, file builtins | Shared state; task order is not program order |
+| `body`, `helpdetail` | Symbol bodies live in the root memory |
+| `localtime`, `gmtime` | The C functions return a shared static buffer |
+| Config, session, profiler and debugger builtins | State belongs to the parent |
+| Lazy sequences, dictionaries or files crossing a task boundary | They hold indices or shared handles |
+| Any error, including stack underflow | `pmap`, `pfilter` and `preduce` tasks see only their operands |
+
+Tasks stop before the side effect, so a replay does not repeat output.
+
+`rand` and `stack` do not force a replay. `rand` order varies between runs, and `stack` in a `pmap` task shows only the operand.
 
 ### Performance Considerations
 

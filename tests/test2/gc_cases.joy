@@ -1,0 +1,25 @@
+(*
+    module  : gc_cases.joy
+
+    Lazy sequence, JSON and dictionary operations that hold indices across allocation. Only
+    a -DJOY_GC_STRESS=ON build tests them fully: it collects at every allocation.
+*)
+
+0 [1 +] iterate 5 take [0 1 2 3 4] equal.
+"x" ["y" concat] iterate 4 take 3 drop first "xyyy" equal.
+42 replicate 3 take [42 42 42] equal.
+"a long string that spans several nodes in memory" replicate 2 take size 2 =.
+[1 2 3] cycle 7 take [1 2 3 1 2 3 1] equal.
+1 5 lazy-range 10 take [1 2 3 4 5] equal.
+1 lazy-range 3 take [1 2 3] equal.
+1 [1 +] iterate rest rest first 3 =.
+
+"[1, 2, 3, 4, 5]" json> [1 2 3 4 5] equal.
+"[[1, [2, 3]], \"a string long enough to span nodes\", true]" json> size 3 =.
+"{\"a\": [1, 2, {\"b\": 3}], \"c\": \"text\"}" json> "a" dget size 3 =.
+"[\"abc\", \"def\", \"ghi\"]" json> ["abc" "def" "ghi"] equal.
+
+dempty "a" [1 2] dput "b" "a long string that spans several nodes" dput "a" dget [1 2] equal.
+{"a": [1] "b": 2} "b" ddel "a" dget [1] equal.
+{"a": [1]} {"b": [2]} dmerge "a" dget [1] equal.
+[["x" [1 2]] ["y" "s"]] >dict "x" dget [1 2] equal.

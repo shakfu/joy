@@ -24,6 +24,10 @@ As an example of such import: if Joy had `putenv`, the environment could be
 modified and Joy would suddenly have variables. Joy already has `getenv` but
 that one is harmless, as it only reads a value from somewhere.
 
+Update: this implementation now has `ffi` and `ffi-call`, off by default and enabled
+with `-DJOY_FFI=ON`. The objection above still holds for programs that use them:
+`"" "putenv" [string] [int] ffi-call` is possible. See [ffi.md](ffi.md).
+
 This implementation makes adding a function easier. All it takes is to write
 the function and relocate the source code in the src-directory. The build
 system takes it from there.

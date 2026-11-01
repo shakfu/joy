@@ -41,6 +41,7 @@ int joy_getc(pEnv env, FILE* fp)
  */
 void joy_putchar(pEnv env, int ch)
 {
+    PARALLEL_UNSAFE(env);
     if (env->io.write_char) {
         env->io.write_char(env->io.user_data, ch);
     } else {
@@ -54,6 +55,7 @@ void joy_putchar(pEnv env, int ch)
  */
 void joy_putc(pEnv env, int ch, FILE* fp)
 {
+    PARALLEL_UNSAFE(env);
     if (fp == stdout && env->io.write_char) {
         env->io.write_char(env->io.user_data, ch);
     } else {
@@ -67,6 +69,7 @@ void joy_putc(pEnv env, int ch, FILE* fp)
  */
 void joy_fputs(pEnv env, const char* s, FILE* fp)
 {
+    PARALLEL_UNSAFE(env);
     if (fp == stdout && env->io.write_string) {
         env->io.write_string(env->io.user_data, s);
     } else {
@@ -80,6 +83,7 @@ void joy_fputs(pEnv env, const char* s, FILE* fp)
  */
 void joy_fwrite(pEnv env, const char* s, size_t len, FILE* fp)
 {
+    PARALLEL_UNSAFE(env);
     if (fp == stdout && env->io.write_string) {
         /* For callback, we need a null-terminated string */
         char* buf = malloc(len + 1);
@@ -100,6 +104,7 @@ void joy_fwrite(pEnv env, const char* s, size_t len, FILE* fp)
  */
 void joy_fprintf(pEnv env, FILE* fp, const char* fmt, ...)
 {
+    PARALLEL_UNSAFE(env);
     va_list ap;
     va_start(ap, fmt);
 
@@ -141,6 +146,7 @@ void joy_fprintf(pEnv env, FILE* fp, const char* fmt, ...)
  */
 void joy_puts(pEnv env, const char* s)
 {
+    PARALLEL_UNSAFE(env);
     if (env->io.write_string) {
         env->io.write_string(env->io.user_data, s);
     } else {
@@ -154,6 +160,7 @@ void joy_puts(pEnv env, const char* s)
  */
 void joy_printf(pEnv env, const char* fmt, ...)
 {
+    PARALLEL_UNSAFE(env);
     va_list ap;
     va_start(ap, fmt);
 

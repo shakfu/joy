@@ -27,6 +27,7 @@ Executes P with full execution tracing enabled.
 */
 void debug_trace_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     SavedFlag saved;
     ONEPARAM("debug-trace");
     ONEQUOTE("debug-trace");
@@ -47,6 +48,7 @@ Commands: s=step, c=continue, q=quit
 */
 void debug_step_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     SavedFlag saved;
     ONEPARAM("debug-step");
     ONEQUOTE("debug-step");
@@ -66,6 +68,7 @@ Sets a breakpoint on the named symbol.
 */
 void breakpoint_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     int idx;
     char* name;
     ONEPARAM("breakpoint");
@@ -97,6 +100,7 @@ Clears all breakpoints.
 */
 void clear_breakpoints_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     if (env->config.breakpoints)
         vec_setsize(env->config.breakpoints, 0);
 }
@@ -107,6 +111,7 @@ Pushes a list of breakpoint symbol names.
 */
 void show_breakpoints_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     Index list = 0;
     if (env->config.breakpoints) {
         for (int i = (int)vec_size(env->config.breakpoints) - 1; i >= 0; i--) {

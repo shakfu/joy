@@ -7,11 +7,7 @@ DEFINE square == dup *.
    Each iteration: add n^2 to acc, decrement n *)
 DEFINE sum-squares == 0 swap [dup 0 >] [dup square rolldown + swap pred] while pop.
 
-(* Warm up and test correctness: sum of 1..10 = 385 *)
-10 sum-squares .
-
-(* Benchmark: sum of squares 1..1000, repeated 1000 times *)
 DEFINE bench == 1000 [1000 sum-squares pop] times.
 
-bench
-"done" .
+(* Sum of 1..10 is 385; then squares of 1..1000, 1000 times *)
+[10 sum-squares put bench "done" put] "benchmark.c" compile-to-file.

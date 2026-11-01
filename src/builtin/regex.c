@@ -257,12 +257,10 @@ void regex_find_all_(pEnv env)
 
     TWOPARAMS("regex-find-all");
     STRING("regex-find-all");
+    STRING2("regex-find-all");
+    /* Both stay on the stack until the reservation: it may run a GC */
     pattern = GETSTRING(env->stck);
-    POP(env->stck);
-
-    STRING("regex-find-all");
-    str = GETSTRING(env->stck);
-    POP(env->stck);
+    str = GETSTRING(nextnode1(env->stck));
 
     if (compile_regex(env, pattern, &re, "regex-find-all") < 0)
         return;
@@ -279,8 +277,9 @@ void regex_find_all_(pEnv env)
     }
 
 #ifdef NOBDW
-    if (count > 0)
-        ensure_capacity(env, count);
+    ensure_capacity(env, count * 2 + (int)(strlen(str) / sizeof(Node)) + 2);
+    str = GETSTRING(nextnode1(env->stck));
+    env->stck = nextnode2(env->stck);
 #endif
 
     /* Now collect matches */
@@ -337,34 +336,21 @@ void regex_split_(pEnv env)
     const char* segment_start;
     Index list_head = 0;
     Index list_tail = 0;
-    int count = 0;
 
     TWOPARAMS("regex-split");
     STRING("regex-split");
+    STRING2("regex-split");
+    /* Both stay on the stack until the reservation: it may run a GC */
     pattern = GETSTRING(env->stck);
-    POP(env->stck);
-
-    STRING("regex-split");
-    str = GETSTRING(env->stck);
-    POP(env->stck);
+    str = GETSTRING(nextnode1(env->stck));
 
     if (compile_regex(env, pattern, &re, "regex-split") < 0)
         return;
 
-    /* Count segments first */
-    cursor = str;
-    while (regexec(&re, cursor, 1, matches, 0) == 0) {
-        count++;
-        if (matches[0].rm_eo == 0)
-            break;
-        cursor += matches[0].rm_eo;
-        if (*cursor == '\0')
-            break;
-    }
-    count++;  /* Final segment after last match */
-
 #ifdef NOBDW
-    ensure_capacity(env, count);
+    ensure_capacity(env, (int)strlen(str) * 2 + (int)(strlen(str) / sizeof(Node)) + 6);
+    str = GETSTRING(nextnode1(env->stck));
+    env->stck = nextnode2(env->stck);
 #endif
 
     /* Collect segments */
@@ -605,12 +591,10 @@ void regex_groups_(pEnv env)
 
     TWOPARAMS("regex-groups");
     STRING("regex-groups");
+    STRING2("regex-groups");
+    /* Both stay on the stack until the reservation: it may run a GC */
     pattern = GETSTRING(env->stck);
-    POP(env->stck);
-
-    STRING("regex-groups");
-    str = GETSTRING(env->stck);
-    POP(env->stck);
+    str = GETSTRING(nextnode1(env->stck));
 
     if (compile_regex(env, pattern, &re, "regex-groups") < 0)
         return;
@@ -619,6 +603,7 @@ void regex_groups_(pEnv env)
 
     if (result != 0) {
         regfree(&re);
+        env->stck = nextnode2(env->stck);
         NULLARY(LIST_NEWNODE, 0);  /* Empty list - no match */
         return;
     }
@@ -630,8 +615,9 @@ void regex_groups_(pEnv env)
     }
 
 #ifdef NOBDW
-    if (count > 0)
-        ensure_capacity(env, count);
+    ensure_capacity(env, count * ((int)(strlen(str) / sizeof(Node)) + 2) + 2);
+    str = GETSTRING(nextnode1(env->stck));
+    env->stck = nextnode2(env->stck);
 #endif
 
     /* Build list of groups (full match + capture groups) */

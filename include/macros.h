@@ -31,6 +31,17 @@
 #define POP(X) X = nextnode1(X)
 
 /*
+ * Tasks stop here before a shared side effect: the parent discards them and
+ * replays the combinator sequentially. An expression, for use in macro bodies.
+ */
+#if defined(JOY_PARALLEL) && defined(NOBDW)
+#define PARALLEL_UNSAFE(env)                                                  \
+    ((env)->parent_memory ? abortexecution_((env), ABORT_RETRY) : (void)0)
+#else
+#define PARALLEL_UNSAFE(env) ((void)0)
+#endif
+
+/*
  * TYPE_NEWNODE(u, r) - Create a new node of TYPE with value u, next pointer r
  *
  * @requires: env in scope
@@ -66,7 +77,7 @@
 #define FLOAT_NEWNODE(u, r)                                                   \
     (env->bucket.dbl = u, newnode(env, FLOAT_, env->bucket, r))
 #define FILE_NEWNODE(u, r)                                                    \
-    (env->bucket.fil = u, newnode(env, FILE_, env->bucket, r))
+    (PARALLEL_UNSAFE(env), env->bucket.fil = u, newnode(env, FILE_, env->bucket, r))
 #define BIGNUM_NEWNODE(u, r)                                                  \
     (env->bucket.str = u, newnode(env, BIGNUM_, env->bucket, r))
 #define DICT_NEWNODE(u, r)                                                    \

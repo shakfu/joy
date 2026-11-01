@@ -1,0 +1,57 @@
+(*
+    module  : ffi.joy
+
+    ffi and ffi-call. JOY_FFI_TESTLIB names tests/ffi/ffi_testlib.c, built.
+*)
+
+DEFINE lib == "JOY_FFI_TESTLIB" getenv;
+       add-int == lib "add_int" [int int] [int] ffi-call;
+       half == lib "half_double" [double] [double] ffi-call.
+
+(* integers, and argument order: the last argument is on top *)
+2 3 add-int 5 =.
+lib "max_uint" [] [uint] ffi-call 4294967295 =.
+lib "negative_int" [] [int] ffi-call -7 =.
+4000000000 5 lib "add_int64" [int64 int64] [int64] ffi-call 4000000005 =.
+"abcd" lib "size_of_string" [string] [size_t] ffi-call 4 =.
+'a lib "next_char" [char] [char] ffi-call 'b =.
+true lib "negate" [bool] [bool] ffi-call false =.
+1.5 lib "half_float" [float] [float] ffi-call 0.75 =.
+
+(* integers widen to floating point *)
+3 half 1.5 =.
+1.5 half 0.75 =.
+
+(* strings and pointers *)
+lib "greeting" [] [string] ffi-call "hello" equal.
+lib "null_pointer" [] [pointer] ffi-call 0 =.
+12345 lib "same_pointer" [pointer] [pointer] ffi-call 12345 =.
+"abc" lib "skip_one" [string] [string] ffi-call "bc" equal.
+
+(* foreign writes do not reach Joy's string *)
+"keep" dup lib "clobber" [string] [int] ffi-call pop "keep" equal.
+
+(* void leaves the stack alone; state persists between calls *)
+7 lib "bump" [] [] ffi-call lib "bump" [] [] ffi-call 7 =.
+lib "count" [] [int] ffi-call 2 =.
+
+(* more arguments than registers *)
+1 1.0 1 1.0 1 1.0 1 1.0 1 1.0 1 1.0 1 1.0 1 1.0
+lib "mixed" [int double int double int double int double
+             int double int double int double int double] [double] ffi-call
+136.0 =.
+
+(* ffi gives a quotation that any combinator can run *)
+lib "add_int" [int int] [int] ffi size 5 =.
+lib "add_int" [int int] [int] ffi [2 3] swap infra first 5 =.
+[1 2 3] [half] map [0.5 1.0 1.5] equal.
+
+(* parallel combinators replay sequentially *)
+[2 4 6 8] [half] pmap [1.0 2.0 3.0 4.0] equal.
+[2 4 6 8] [half 1.5 >] pfilter [4 6 8] equal.
+
+(* symbols already loaded, and floats as Joy's float word *)
+"abc" "" "strlen" [string] [size_t] ffi-call 3 =.
+
+(* survives GC pressure between calls *)
+[] 100000 [0 swons] times pop 2 3 add-int 5 =.

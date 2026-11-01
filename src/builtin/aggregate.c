@@ -24,6 +24,7 @@ Q0  IGNORE_POP  3140  assign  :  V [N]  ->
 */
 void assign_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     int index;
     Entry ent;
     Index lis, node;
@@ -560,6 +561,7 @@ Q0  IGNORE_POP  3230  unassign  :  [N]  ->
 */
 void unassign_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     Index lis;
     int index;
     Entry ent;

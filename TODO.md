@@ -3,32 +3,25 @@
 ## Completed (January 2026)
 
 Summary of completed work:
-- **Parallel execution** - `pfork`/`pmap`/`pfilter`/`preduce` implemented. Not working: see Known defects.
+- **Parallel execution** - `pfork`/`pmap`/`pfilter`/`preduce`, under `-DJOY_PARALLEL=ON`
 - **Architecture** - Grouped builtins (229->29 files), Env sub-structs, inline accessors
 - **Vector/Matrix ops** - Full suite with SIMD and optional BLAS support
 - **Language features** - `let` bindings, pattern matching (`match`/`cases`), dictionaries, JSON, string interpolation
-- **Persistent sessions** - Persistence with snapshots and merging. Dictionaries do not round-trip: see Known defects.
+- **Persistent sessions** - Persistence with snapshots and merging
 - **Regular expressions** - POSIX ERE with Perl shortcuts (`\d`, `\w`, `\s`, etc.): `regex-match`, `regex-find`, `regex-find-all`, `regex-split`, `regex-sub`, `regex-sub-all`, `regex-groups`
 
 See `doc/` for detailed documentation on each feature.
 
 ## Known defects
 
-- **Parallel** - `-DJOY_PARALLEL=ON` does not compile: `src/builtin/parallel.c` never includes `parallel.h`.
-  Child contexts share the symbol table while running any builtin (data race).
-  `parallel.c` holds result `Index`es unrooted across allocation (GC hazard).
-- **Sessions** - Dictionaries are written as `{"k": v}`, but `{` parses as a set literal, so they cannot be reloaded.
-- **Compile-to-C** - `tools/joy2c.py` duplicates `compiler.c` and maps to C symbols that do not exist.
-- **Code formatter** - `tools/fmt_joy.py` drops `:` in `match`/`cases` patterns and splits `$"..."` tokens.
-- **Doc generator** - `tools/gen_docs.py` misses `.`-terminated definitions (`map-reduce`) and reads definitions inside comments.
-- **Libraries** - `flatten` is defined in both `lib/seqlib.joy` (recursive) and `lib/mapreduce.joy` (one level).
-- **Embedding API** - `src/joy.c:76` sets `bottom_of_stack` to a static variable, so the conservative GC never scans the C stack of embedded contexts.
-- **Sessions: GC** - `session-diff` and `session-merge` build result lists with `STRING_NEWNODE` in a loop without `ensure_capacity`; a GC moves the partial list.
+- **GC stress** - Under `-DJOY_GC_STRESS=ON`, `test2_regex` and `size_errors` fail with `false` assertions; cause not yet found. They pass in normal builds. `test2_gc`, `test2_matrix`, `test2_dict_gc`, `test2_vector_native` and `parallel_semantics` exceed 40 s, so they are unchecked; each collection copies the heap, so tests with many allocations are slow.
+- **Compile-to-C** - `tools/joy2c.py` is unused and maps 20 names to missing C symbols. Delete it; `compile-to-file` replaces it.
+- **Dictionaries** - Tables and keys are `malloc`'d and never freed. `dput` allocates a new table each call.
 
 ### Unverified (in CI, not run locally)
 
 - `JOY_BLAS` build: no BLAS headers on the dev machine.
-- The `JOY_PARALLEL` job uses job-level `continue-on-error`; it is assumed, not confirmed, that `ci-success` then sees `needs.features.result == success`.
+- The `JOY_PARALLEL` job now blocks CI. It passes locally with clang and with GCC 16 on macOS, not yet on `ubuntu-latest`.
 - Windows: `run_test.sh` and the session scripts need bash, so the Windows test step is still `continue-on-error`.
 
 ### Reported by the review, not yet re-verified
@@ -40,7 +33,6 @@ Interpreter and builtins:
 - `fread_`/`fgets_` (`io.c`): int64-to-int truncation, no negative-count check, unbounded growth on newline-less input; failed `fopen` pushes a NULL `FILE_`.
 - `strtol_`/`strtod_` accept partial conversions (`"12abc" strtol` gives 12) and overflow silently.
 - `Compare` orders `FILE_`/`DICT_` pointers with `<` (UB); `UNMKTIME` dereferences a NULL `gmtime`/`localtime` result; `equal_aux` recursion is unbounded.
-- `pmap`: the parallel path skips elements whose quotation empties the stack; the sequential path raises an error.
 - Multiple `joy_create` contexts share global GC state; `joy_memory_max` returns `stats.avail`.
 - `factor.c` literal parsing: unchecked `realloc` in `v[`/`m[[` readers.
 
@@ -98,9 +90,9 @@ Tooling and tests:
   - `url headers body http-post` -> response
   - Enables web integration
 
-- [ ] **FFI (Foreign Function Interface)** - Call C functions
+- [x] **FFI (Foreign Function Interface)** - Call C functions, under `-DJOY_FFI=ON`
   - `"libm.so" "sin" [double] [double] ffi` -> callable
-  - Would enable integration with native libraries
+  - Not supported: callbacks, structs, varargs, memory access; see `doc/ffi.md`
 
 - [ ] **Persistent sessions: Lazy loading** - Load symbols on demand
   - Add `heap` table for chunked storage of large structures
@@ -114,7 +106,7 @@ Tooling and tests:
   - Generate markdown/HTML documentation
   - Include stack effects and examples
 
-- [ ] **Code formatter** - Auto-format Joy code (exists but corrupts code; see Known defects)
+- [x] **Code formatter** - Auto-format Joy code
   - Consistent indentation and spacing
   - `python tools/fmt_joy.py file.joy`
 
@@ -145,6 +137,7 @@ Tooling and tests:
 | File | Description |
 |------|-------------|
 | `doc/parallel.md` | Parallel execution user guide |
+| `doc/ffi.md` | Calling C functions |
 | `doc/vector.md` | Vector/matrix operations design |
 | `doc/architecture.md` | Architecture review |
 | `doc/persistent_session_design.md` | Persistent sessions design |

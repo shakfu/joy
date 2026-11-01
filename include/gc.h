@@ -97,4 +97,12 @@ size_t GC_get_free_bytes(void);
  */
 GC_Context* gc_get_default_context(void);
 
+#ifdef JOY_PARALLEL
+/*
+ * Route this thread's legacy API calls to ctx (NULL = default context).
+ * Returns the previous context.
+ */
+GC_Context* gc_set_task_context(GC_Context* ctx);
+#endif
+
 #endif

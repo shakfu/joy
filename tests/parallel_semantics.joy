@@ -1,0 +1,55 @@
+(*
+    module  : parallel_semantics.joy
+
+    Parallel combinators must agree with their sequential definitions,
+    whichever path runs. Every list has at least 4 items, to reach the
+    parallel path in a JOY_PARALLEL build.
+*)
+
+DEFINE square == dup *;
+       inner == [square] pmap;
+       grow == [] swap [0 swons] times.
+
+(* operand order: the right operand ends on top *)
+["a" "b" "c" "d" "e"] [concat] preduce "abcde" equal.
+[[1] [2] [3] [4] [5] [6]] [concat] preduce [1 2 3 4 5 6] equal.
+
+(* builtins that allocate through the legacy GC api, on worker threads *)
+["abcd" "efgh" "ijkl" "mnop"] [rest] pmap ["bcd" "fgh" "jkl" "nop"] equal.
+["a b" "c d" "e f" "g h"] [" " "-" regex-sub-all] pmap
+["a-b" "c-d" "e-f" "g-h"] equal.
+
+(* user words, nested parallel combinators *)
+[1 2 3 4] [square] pmap [1 4 9 16] equal.
+[[1 2 3 4] [5 6 7 8] [1 1 1 1] [2 2 2 2]] [inner] pmap
+[[1 4 9 16] [25 36 49 64] [1 1 1 1] [4 4 4 4]] equal.
+
+(* pfilter: truthiness as in filter, also for strings *)
+["a" "" "b" ""] [] pfilter ["a" "b"] equal.
+[1 0 2 0 3 0] [] pfilter [1 2 3] equal.
+["keep" "drop" "keep" "drop"] ["keep" equal] pfilter ["keep" "keep"] equal.
+
+(* the stack below the arguments *)
+10 [1 2 3 4] [over +] pmap [11 12 13 14] equal.
+10 [1 2 3 4] [over >] pfilter [] equal.
+
+(* symbol table writes replay sequentially, keeping sequential results *)
+[1 2 3 4] [[n] [n n *] let] pmap [1 4 9 16] equal.
+[1 2 3 4] [[v] assign v] pmap [1 2 3 4] equal.
+v 4 =.
+[1 2 3 4] [pop "parallel_semantics_new_symbol" intern name] pmap size 4 =.
+
+(* payloads that cannot leave a task *)
+[1 2 3 4] [pop dempty] pmap size 4 =.
+5 [dup +] [dup *] pfork [] cons cons [10 25] equal.
+dempty [pop 1] [pop 2] pfork + 3 =.
+
+(* parent GC while results are collected: results outgrow the parent arena *)
+[20000 20000 20000 20000] [grow size] pmap [20000 20000 20000 20000] equal.
+[20000 20000 20000 20000] [grow] pmap [size] map [20000 20000 20000 20000] equal.
+[20000 20000 20000 20000 20000] [grow] pfilter size 5 =.
+[5000 5000 5000 5000 5000] [grow] pmap [concat] preduce size 25000 =.
+20000 [grow] [grow] pfork size swap size =.
+
+(* vectors made in a task outlive it *)
+[1 2 3 4] [[1.5] >vec pop [2.5] >vec] pmap [>list] map [[2.5] [2.5] [2.5] [2.5]] equal.

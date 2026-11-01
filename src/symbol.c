@@ -34,6 +34,7 @@ static int enterglobal(pEnv env, char* name)
     Entry ent;
     int index;
 
+    PARALLEL_UNSAFE(env);
     index = vec_size(env->symtab);
     memset(&ent, 0, sizeof(ent)); /* make sure that all fields are 0 */
     ent.name = strdup(name);      /* copy to permanent memory */
@@ -259,6 +260,11 @@ void exec_with_bindings(pEnv env, int* syms, int n, Index body)
     Index saved_bodies = 0;
     int i;
 
+#if defined(JOY_PARALLEL) && defined(NOBDW)
+    if (env->parent_memory)
+        free(syms); /* PARALLEL_UNSAFE below does not return */
+#endif
+    PARALLEL_UNSAFE(env);
     f.syms = syms;
     f.n = n;
     f.saved = malloc(n * sizeof(Entry));

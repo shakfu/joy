@@ -163,7 +163,7 @@ static void collect_user_funcs_from_body(Compiler* c, Index body) {
         if (nodetype(p) == USR_) {
             int ent_idx = nodevalue(p).ent;
             Entry ent = vec_at(env->symtab, ent_idx);
-            if (ent.is_user) {
+            if (ent.is_user && ent.u.body) {
                 collect_user_func(c, ent_idx);
             }
         } else if (nodetype(p) == LIST_) {
@@ -370,7 +370,8 @@ static void emit_quotation_build(Compiler* c, Index list, int depth, int indent)
         case USR_: {
             int ent_idx = nodevalue(p).ent;
             Entry ent = vec_at(c->env->symtab, ent_idx);
-            if (ent.is_user) {
+            /* A symbol without a body is data, such as a type word for ffi */
+            if (ent.is_user && ent.u.body) {
                 /* Collect this user function for emission */
                 collect_user_func(c, ent_idx);
                 sanitize_name(ent.name, cname, sizeof(cname));
@@ -487,13 +488,14 @@ static int try_emit_while(Compiler* c, Index* pp, int indent) {
     emit_indent(c, indent);
     cbuf_append(&c->out, "{\n");
     emit_indent(c, indent + 1);
-    cbuf_printf(&c->out, "Index _while_stck_%d = env->stck;\n", loop_id);
+    /* On the dump, not in a C local: a GC in the loop moves the stack */
+    cbuf_append(&c->out, "env->dump = LIST_NEWNODE(env->stck, env->dump);\n");
     emit_indent(c, indent + 1);
     cbuf_append(&c->out, "while (1) {\n");
 
     /* Restore stack and emit condition */
     emit_indent(c, indent + 2);
-    cbuf_printf(&c->out, "env->stck = _while_stck_%d;\n", loop_id);
+    cbuf_append(&c->out, "env->stck = nodevalue(env->dump).lis;\n");
     emit_quotation_body(c, cond_body, indent + 2);
 
     /* Check result and break if false */
@@ -510,18 +512,20 @@ static int try_emit_while(Compiler* c, Index* pp, int indent) {
 
     /* Restore stack and emit body */
     emit_indent(c, indent + 2);
-    cbuf_printf(&c->out, "env->stck = _while_stck_%d;\n", loop_id);
+    cbuf_append(&c->out, "env->stck = nodevalue(env->dump).lis;\n");
     emit_quotation_body(c, loop_body, indent + 2);
 
     /* Save new stack state */
     emit_indent(c, indent + 2);
-    cbuf_printf(&c->out, "_while_stck_%d = env->stck;\n", loop_id);
+    cbuf_append(&c->out, "nodevalue(env->dump).lis = env->stck;\n");
     emit_indent(c, indent + 1);
     cbuf_append(&c->out, "}\n");
 
     /* Restore final stack state */
     emit_indent(c, indent + 1);
-    cbuf_printf(&c->out, "env->stck = _while_stck_%d;\n", loop_id);
+    cbuf_append(&c->out, "env->stck = nodevalue(env->dump).lis;\n");
+    emit_indent(c, indent + 1);
+    cbuf_append(&c->out, "POP(env->dump);\n");
     emit_indent(c, indent);
     cbuf_append(&c->out, "}\n");
 

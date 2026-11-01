@@ -34,6 +34,7 @@ if I = 1, put; if I = 2, stack).
 */
 void setautoput_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     ONEPARAM("setautoput");
     NUMERICTYPE("setautoput");
     if (!env->config.autoput_set)
@@ -48,6 +49,7 @@ I = 0: no echo, 1: echo, 2: with tab, 3: and linenumber.
 */
 void setecho_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     ONEPARAM("setecho");
     NUMERICTYPE("setecho");
     env->config.echoflag = nodevalue(env->stck).num;
@@ -68,6 +70,7 @@ Q0  IGNORE_POP  2990  setundeferror  :  I  ->
 */
 void setundeferror_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     ONEPARAM("setundeferror");
     NUMERICTYPE("setundeferror");
     if (!env->config.undeferror_set)

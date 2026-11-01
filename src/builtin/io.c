@@ -299,6 +299,7 @@ system. B is a boolean indicating success or failure.
 */
 void fremove_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char* str;
 
     ONEPARAM("fremove");
@@ -314,6 +315,7 @@ B is a boolean indicating success or failure.
 */
 void frename_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char *p1, *p2;
 
     TWOPARAMS("frename");
@@ -388,6 +390,7 @@ Q0  POSTPONE  3070  get  :  ->  F
 */
 void get_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     int ch, rv;
 
     ch = getch(env);

@@ -31,8 +31,6 @@ char* bottom_of_stack; /* needed in gc.c for stack scanning */
 
 static pEnv push_int_env; /* for do_push_int callback from setraw.c */
 
-static clock_t start_gc_clock; /* statistics */
-
 /*
  * Push an integer on the stack. Used by setraw.c for screen dimensions.
  * The env is set via set_push_int_env before calling SetRaw.
@@ -166,6 +164,29 @@ void printnode(pEnv env, Index p)
 /* Forward declaration for mutual recursion */
 static Index copy(pEnv env, Index n);
 
+KHASH_SET_INIT_INT64(DictSeen)
+
+/*
+ * Dictionary values are node indices, so a collection must rewrite them. Nodes
+ * made by dup share one table: rewrite each table once per collection. In
+ * place over a new table per node, because tables are never freed.
+ */
+static void forward_dict_values(pEnv env, khash_t(Dict)* d)
+{
+    khash_t(DictSeen)* seen = env->gc_dicts_seen;
+    khint_t k;
+    int ret;
+
+    if (!d)
+        return;
+    kh_put(DictSeen, seen, (khint64_t)(uintptr_t)d, &ret);
+    if (!ret)
+        return;
+    for (k = kh_begin(d); k != kh_end(d); ++k)
+        if (kh_exist(d, k))
+            kh_value(d, k) = copy(env, kh_value(d, k));
+}
+
 /*
  * Copy a single node (not the next chain) from from_space to to_space.
  * Returns the new index. Does NOT recursively copy the next field.
@@ -253,6 +274,8 @@ static Index copy_one(pEnv env, Index n)
         new_lzy->generator = copy(env, old_lzy->generator);
         env->memory[temp].u.lzy = new_lzy;
     }
+    if (op == DICT_)
+        forward_dict_values(env, env->old_memory[n].u.dict);
     /*
      * The original location is set to COPIED_, such that it will not be copied
      * again.
@@ -359,7 +382,7 @@ static void scan_roots(pEnv env)
 
 static void gc1(pEnv env, Index *l, Index *r)
 {
-    start_gc_clock = clock(); /* statistics */
+    env->gc_start_clock = clock(); /* statistics */
 #ifdef TRACEGC
     if (env->config.tracegc > 1)
         printf("begin garbage collection\n");
@@ -386,6 +409,10 @@ static void gc1(pEnv env, Index *l, Index *r)
     if (r)
         COP1(*r, "next");
 #endif
+    if (env->gc_dicts_seen)
+        kh_clear(DictSeen, (khash_t(DictSeen)*)env->gc_dicts_seen);
+    else
+        env->gc_dicts_seen = kh_init(DictSeen);
     env->old_memoryindex = env->memoryindex;
     env->old_memory = env->memory; /* backup original memory */
     /*
@@ -451,7 +478,7 @@ static void gc2(pEnv env)
             fatal("memory exhausted");
 #endif
     }
-    this_gc_clock = clock() - start_gc_clock; /* statistics */
+    this_gc_clock = clock() - env->gc_start_clock; /* statistics */
     env->gc_clock += this_gc_clock;
     env->stats.collect++;
 #ifdef TRACEGC
@@ -479,8 +506,17 @@ void gc_collect(pEnv env)
  */
 void ensure_capacity(pEnv env, int num)
 {
+#ifdef JOY_GC_STRESS
+    if (env->memoryindex + num < env->memorymax) {
+        /* A nested, smaller reservation must not shorten the outer one */
+        if (env->gc_reserved < env->memoryindex + num)
+            env->gc_reserved = env->memoryindex + num;
+        return;
+    }
+#else
     if (env->memoryindex + num < env->memorymax)
         return; /* Already have enough space */
+#endif
 
     if (env->flibrary_busy) {
         /* During library loading, just expand without GC */
@@ -497,6 +533,9 @@ void ensure_capacity(pEnv env, int num)
             env->memorymax *= 2;
         gc1(env, 0, 0);
         gc2(env);
+#ifdef JOY_GC_STRESS
+        env->gc_reserved = env->memoryindex + num;
+#endif
     }
 }
 
@@ -545,7 +584,12 @@ Index newnode(pEnv env, Operator o, Types u, Index r)
         if ((size -= sizeof(Types)) > 0) /* first part in Types */
             num += (size + sizeof(Node) - 1) / sizeof(Node); /* round up */
     }
-    if (env->memoryindex + num >= env->memorymax) { /* space for new node */
+    if (env->memoryindex + num >= env->memorymax
+#ifdef JOY_GC_STRESS
+        /* Collect at every allocation, to expose indices held across one */
+        || (!env->flibrary_busy && env->memoryindex + num > env->gc_reserved)
+#endif
+    ) { /* space for new node */
         /*
          * No garbage collection during the read of definitions.
          */

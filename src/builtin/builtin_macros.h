@@ -471,6 +471,7 @@ static void decode_time(pEnv env, struct tm* t)
         int column = 0;                                                       \
         int name_length;                                                      \
         Entry ent;                                                            \
+        PARALLEL_UNSAFE(env);                                                 \
         while (i) {                                                           \
             ent = vec_at(env->symtab, --i);                                   \
             if (strchr("#0123456789_", ent.name[0]) REL 0) {                  \
@@ -808,6 +809,7 @@ static void decode_time(pEnv env, struct tm* t)
     {                                                                         \
         int wday;                                                             \
         Index temp;                                                           \
+        PARALLEL_UNSAFE(env); /* FUNC returns a shared static buffer */       \
         struct tm* t;                                                         \
         time_t timval;                                                        \
         ONEPARAM(NAME);                                                       \

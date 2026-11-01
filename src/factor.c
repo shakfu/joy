@@ -29,6 +29,47 @@ static uint64_t list2set(pEnv env, Index n)
 }
 
 /*
+ * Read a dictionary literal after its '{': {"k": v ...} or the empty {:}. A
+ * string cannot start a set, so the two literals do not overlap. The table is
+ * on the stack while values are read, for a GC to find it.
+ */
+static int readdict(pEnv env, int ch, int* rv)
+{
+    khash_t(Dict)* d;
+    char* key;
+    Index value;
+    khint_t k;
+    int ret;
+
+    env->stck = DICT_NEWNODE(kh_init(Dict), env->stck);
+    if (env->scanner.sym == USR_) { /* {:} */
+        ch = getsym(env, ch);
+        if (env->scanner.sym != '}')
+            error(env, "'}' expected");
+        *rv = 1;
+        return ch;
+    }
+    while (env->scanner.sym == STRING_) {
+        key = strdup(env->str); /* reachable only through the malloc'd table */
+        ch = getsym(env, ch);
+        if (env->scanner.sym != USR_ || strcmp(env->str, ":"))
+            error(env, "':' expected in dictionary");
+        ch = getsym(env, ch);
+        ch = readfactor(env, ch, &ret);
+        ch = getsym(env, ch);
+        value = newnode2(env, env->stck, 0);
+        d = nodevalue(nextnode1(env->stck)).dict;
+        k = kh_put(Dict, d, key, &ret);
+        kh_value(d, k) = value;
+        POP(env->stck);
+    }
+    if (env->scanner.sym != '}')
+        error(env, "'}' expected");
+    *rv = 1;
+    return ch;
+}
+
+/*
  * readfactor - read a factor from srcfile and push it on the stack.
  * In case of an error nothing is pushed on the stack and rv is set to 0.
  */
@@ -84,6 +125,9 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
 
     case '{':
         ch = getsym(env, ch);
+        if (env->scanner.sym == STRING_
+            || (env->scanner.sym == USR_ && !strcmp(env->str, ":")))
+            return readdict(env, ch, rv);
         ch = readterm(env, ch);
         set = list2set(env, nodevalue(env->stck).lis);
         UNARY(SET_NEWNODE, set);

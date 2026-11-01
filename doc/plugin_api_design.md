@@ -9,6 +9,8 @@ A clean C extension system for Joy that allows runtime loading of plugins withou
 3. **Simple registration** - one function to register multiple builtins
 4. **Dynamic loading** - dlopen/LoadLibrary at runtime
 
+`ffi-call` (see [ffi.md](ffi.md)) calls existing C functions with fixed signatures. This design differs: a plugin adds builtins that work on the Joy stack. It is not implemented.
+
 ---
 
 ## Plugin API Header (`include/joy/plugin.h`)

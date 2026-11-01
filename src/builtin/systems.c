@@ -29,7 +29,7 @@ static int joy_random(void)
 Q0  IGNORE_OK  3120  abort  :  ->
 [IMPURE] Aborts execution of current Joy program, returns to Joy main cycle.
 */
-void abort_(pEnv env) { abortexecution_(env, ABORT_RETRY); } /* LCOV_EXCL_LINE */
+void abort_(pEnv env) { PARALLEL_UNSAFE(env); abortexecution_(env, ABORT_RETRY); } /* LCOV_EXCL_LINE */
 
 /**
 Q0  OK  3050  argc  :  ->  I
@@ -62,6 +62,7 @@ Q0  OK  2190  body  :  U  ->  [P]
 */
 void body_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     ONEPARAM("body");
     USERDEF("body");
     UNARY(LIST_NEWNODE, vec_at(env->symtab, nodevalue(env->stck).ent).u.body);
@@ -166,6 +167,7 @@ On end-of-file returns to previous input file.
 */
 void include_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
     char* str;
 
     ONEPARAM("include");
@@ -255,7 +257,7 @@ void name_(pEnv env)
 Q0  IGNORE_OK  3130  quit  :  ->
 [IMPURE] Exit from Joy.
 */
-void quit_(pEnv env) { abortexecution_(env, ABORT_QUIT); } /* LCOV_EXCL_LINE */
+void quit_(pEnv env) { PARALLEL_UNSAFE(env); abortexecution_(env, ABORT_QUIT); } /* LCOV_EXCL_LINE */
 
 /**
 Q0  IGNORE_PUSH  1150  rand  :  ->  I
@@ -307,6 +309,7 @@ When that has finished, the process returns to Joy.
 */
 void system_(pEnv env)
 {
+    PARALLEL_UNSAFE(env);
 #ifndef WINDOWS_S
     char* str;
 #endif

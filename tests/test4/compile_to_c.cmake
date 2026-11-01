@@ -5,12 +5,13 @@
 
 # Covers nested quotations, '=' (eql_), a hyphenated builtin (regex_match_),
 # a user definition, inlined builtins, chars, floats, integer wraparound,
-# div (two results) and folded integer comparison above 2^53.
+# div (two results), folded integer comparison above 2^53, and an undefined
+# symbol as data.
 set(defs "DEFINE sq == dup *.")
 set(term [=[3 3 = put 4 sq put [1 [2 [3]] 'a] put "abc" "b" regex-match put
 [[1 2] [3]] [size] map put 1 2 swap - put 'A put 0.1 put [1 2] [3 4] = put
 [[1 [2]] [3]] [first] map put 7 2 div put put maxint 1 + put maxint succ put
-maxint 1 + -1 / put maxint 1 + neg put 9007199254740993 9007199254740992 = put]=])
+maxint 1 + -1 / put maxint 1 + neg put 9007199254740993 9007199254740992 = put [no_such_word] size put]=])
 
 file(MAKE_DIRECTORY ${WORK})
 file(WRITE ${WORK}/interp.joy "${defs}\n${term}.\n")

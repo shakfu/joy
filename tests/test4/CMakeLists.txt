@@ -122,7 +122,7 @@ joy_crash_test(errors)
 
 # Parallel combinator tests. Without JOY_PARALLEL they check the sequential
 # fallback; run_test.sh makes a false assertion fail the test.
-foreach(t parallel_stress parallel_test)
+foreach(t parallel_stress parallel_test parallel_semantics)
   add_test(NAME ${t}
            COMMAND ${CMAKE_SOURCE_DIR}/tools/run_test.sh ${JOY_EXECUTABLE}
                    ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests/${t}.joy)
@@ -130,7 +130,7 @@ endforeach()
 
 # Session persistence scripts (need a JOY_SESSION build)
 if(JOY_SESSION AND SQLite3_FOUND)
-  foreach(t persist snapshot errors)
+  foreach(t persist snapshot errors diff)
     add_test(NAME session_${t}
              COMMAND ${CMAKE_SOURCE_DIR}/tests/test_session_${t}.sh)
     set_tests_properties(session_${t} PROPERTIES ENVIRONMENT "JOY=${JOY_EXECUTABLE}")
@@ -145,7 +145,7 @@ add_test(NAME cli_exit_on_error
 
 # compile-to-c: generated C must build and match the interpreter's output.
 # Builds with extra link dependencies (sessions, BLAS, OpenMP) are skipped.
-if(NOT MSVC AND NOT JOY_SESSION AND NOT JOY_BLAS AND NOT JOY_PARALLEL)
+if(NOT MSVC AND NOT JOY_SESSION AND NOT JOY_BLAS AND NOT JOY_PARALLEL AND NOT JOY_FFI_ENABLED)
   add_test(NAME compile_to_c
            COMMAND ${CMAKE_COMMAND} -DJOY=${JOY_EXECUTABLE}
                    -DCC=${CMAKE_C_COMPILER}
@@ -154,6 +154,34 @@ if(NOT MSVC AND NOT JOY_SESSION AND NOT JOY_BLAS AND NOT JOY_PARALLEL)
                    -DWORK=${CMAKE_CURRENT_BINARY_DIR}/compile_to_c
                    -P ${TEST4_SOURCE_DIR}/compile_to_c.cmake)
 endif()
+
+# Foreign function interface; without JOY_FFI, check the error
+add_test(NAME ffi_errors COMMAND ${CMAKE_SOURCE_DIR}/tests/test_ffi_errors.sh)
+if(JOY_FFI_ENABLED)
+  add_library(ffi_testlib MODULE EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tests/ffi/ffi_testlib.c)
+  add_test(NAME build_ffi_testlib
+           COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ffi_testlib)
+  set_tests_properties(build_ffi_testlib PROPERTIES FIXTURES_SETUP ffi_testlib_built)
+  add_test(NAME ffi
+           COMMAND ${CMAKE_SOURCE_DIR}/tools/run_test.sh ${JOY_EXECUTABLE}
+                   ${CMAKE_SOURCE_DIR} ${CMAKE_SOURCE_DIR}/tests/ffi/ffi.joy)
+  set_tests_properties(ffi PROPERTIES FIXTURES_REQUIRED ffi_testlib_built
+                       ENVIRONMENT "JOY_FFI_TESTLIB=$<TARGET_FILE:ffi_testlib>")
+  set_tests_properties(ffi_errors PROPERTIES FIXTURES_REQUIRED ffi_testlib_built
+                       ENVIRONMENT "JOY=${JOY_EXECUTABLE};JOY_FFI_TESTLIB=$<TARGET_FILE:ffi_testlib>")
+else()
+  set_tests_properties(ffi_errors PROPERTIES ENVIRONMENT "JOY=${JOY_EXECUTABLE}")
+endif()
+
+# Embedding: the GC scans the embedder's C stack during an eval
+add_executable(test_embed_gc EXCLUDE_FROM_ALL ${CMAKE_SOURCE_DIR}/tests/embed/test_embed_gc.c)
+target_link_libraries(test_embed_gc PRIVATE joycore_static)
+target_include_directories(test_embed_gc PRIVATE ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME build_test_embed_gc
+         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target test_embed_gc)
+add_test(NAME embed_gc COMMAND test_embed_gc)
+set_tests_properties(build_test_embed_gc PROPERTIES FIXTURES_SETUP embed_gc_built)
+set_tests_properties(embed_gc PROPERTIES FIXTURES_REQUIRED embed_gc_built)
 
 # Bindings restored when an error unwinds through let/match/cases
 add_test(NAME error_restore
@@ -171,6 +199,11 @@ endif()
 
 # LSP protocol tests (tests/lsp/test_lsp.py)
 find_package(Python3 COMPONENTS Interpreter)
+# Python tools (tests/tools; also runs under pytest)
+if(Python3_Interpreter_FOUND)
+  add_test(NAME tools
+           COMMAND Python3::Interpreter ${CMAKE_SOURCE_DIR}/tests/tools/test_tools.py)
+endif()
 if(Python3_Interpreter_FOUND AND NOT WIN32)
   # Interactive REPL through a pseudo-terminal (POSIX only)
   add_test(NAME repl

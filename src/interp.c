@@ -34,6 +34,7 @@
 */
 #include "builtin.h"
 #include "globals.h"
+#include "parallel.h"
 
 /*
  * Profiler timing helper - returns current time in nanoseconds.
@@ -110,135 +111,75 @@ static void profiler_exit(pEnv env, int sym_idx)
     }
 }
 
-#ifdef JOY_PARALLEL
+#if defined(JOY_PARALLEL) && defined(NOBDW)
 /*
- * Copy a single node (not the next chain) from parent memory to child memory.
- * Returns the new node with next=0.
+ * Copy one node between the memories of a parent and a task. Lazy sequences
+ * and dictionaries hold indices into their owner's memory, and files are
+ * shared state: a task that meets one stops, so that the parent replays it.
  */
-static Index copy_body_from_parent(pEnv env, Index node);
-
-static Index copy_single_body_node(pEnv env, Index node)
+Index parallel_copy_value(pEnv dst, Node* src, Index node)
 {
-#ifdef NOBDW
-    Node* pmem = env->parent_memory;
-    Types u;
-    Operator op = pmem[node].op;
+    Types u = src[node].u;
+    Operator op = src[node].op;
 
     switch (op) {
-    case INTEGER_:
-    case BOOLEAN_:
-    case CHAR_:
-    case SET_:
-    case FLOAT_:
-        u = pmem[node].u;
+    case FILE_:
+    case LAZY_:
+    case DICT_:
+        abortexecution_(dst, ABORT_RETRY);
         break;
     case STRING_:
     case BIGNUM_:
-        u.str = GC_CTX_STRDUP(env, (char*)&pmem[node].u);
+        u.str = (char*)&src[node].u; /* newnode copies it */
         break;
     case LIST_:
-        /* Recursively copy list contents (bounded by nesting depth) */
-        u.lis = copy_body_from_parent(env, pmem[node].u.lis);
+        /* Recursion is bounded by the nesting depth */
+        u.lis = parallel_copy_chain(dst, src, src[node].u.lis);
         break;
 #ifdef JOY_NATIVE_TYPES
     case VECTOR_:
-        /* Deep-copy VectorData */
-        if (pmem[node].u.vec) {
-            VectorData* old_vec = pmem[node].u.vec;
-            size_t size = sizeof(VectorData) + old_vec->len * sizeof(double);
-            VectorData* new_vec = GC_CTX_MALLOC_ATOMIC(env, size);
-            memcpy(new_vec, old_vec, size);
-            u.vec = new_vec;
-        } else {
-            u.vec = NULL;
+        if (u.vec) {
+            size_t size = sizeof(VectorData) + u.vec->len * sizeof(double);
+            u.vec = memcpy(GC_CTX_MALLOC_ATOMIC(dst, size), u.vec, size);
         }
         break;
     case MATRIX_:
-        /* Deep-copy MatrixData */
-        if (pmem[node].u.mat) {
-            MatrixData* old_mat = pmem[node].u.mat;
-            size_t size = sizeof(MatrixData) + old_mat->rows * old_mat->cols * sizeof(double);
-            MatrixData* new_mat = GC_CTX_MALLOC_ATOMIC(env, size);
-            memcpy(new_mat, old_mat, size);
-            u.mat = new_mat;
-        } else {
-            u.mat = NULL;
+        if (u.mat) {
+            size_t size = sizeof(MatrixData)
+                + u.mat->rows * u.mat->cols * sizeof(double);
+            u.mat = memcpy(GC_CTX_MALLOC_ATOMIC(dst, size), u.mat, size);
         }
         break;
-#endif /* JOY_NATIVE_TYPES */
-    case USR_:
-        /* Symbol references stay as-is */
-        u = pmem[node].u;
-        break;
+#endif
     default:
-        u = pmem[node].u;
         break;
     }
-
-    return newnode(env, op, u, 0);
-#else
-    return node;
-#endif
+    return newnode(dst, op, u, 0);
 }
 
-/*
- * Copy a node list from parent memory to child memory for parallel execution.
- * This is needed because symbol bodies live in parent memory.
- *
- * IMPORTANT: Uses iteration for the next-chain to avoid stack overflow on
- * long lists. Only LIST_ contents use recursion (bounded by nesting depth).
- */
-static Index copy_body_from_parent(pEnv env, Index node)
+/* Iterative along next, for long lists. dump4 and dump5 root head and tail. */
+Index parallel_copy_chain(pEnv env, Node* src, Index node)
 {
-    if (!node || !env->parent_memory)
-        return node;  /* Not in parallel context or empty */
+    Index head, copied;
 
-#ifdef NOBDW
-    Node* pmem = env->parent_memory;
-    Index current = node;
-
-    /*
-     * GC protection: Push protection nodes onto dump4 (head) and dump5 (tail).
-     * These are GC roots, so values stored in them survive garbage collection.
-     */
-    {
-        Types u_prot;
-        u_prot.lis = 0;
-        env->dump4 = newnode(env, LIST_, u_prot, env->dump4);
-        env->dump5 = newnode(env, LIST_, u_prot, env->dump5);
+    if (!node)
+        return 0;
+    env->dump4 = LIST_NEWNODE(0, env->dump4);
+    env->dump5 = LIST_NEWNODE(0, env->dump5);
+    for (; node; node = src[node].next) {
+        copied = parallel_copy_value(env, src, node);
+        if (env->memory[env->dump4].u.lis)
+            env->memory[env->memory[env->dump5].u.lis].next = copied;
+        else
+            env->memory[env->dump4].u.lis = copied;
+        env->memory[env->dump5].u.lis = copied;
     }
-
-    while (current) {
-        /* Copy this single node (with recursive list copy for LIST_ type) */
-        Index new_node = copy_single_body_node(env, current);
-
-        if (!env->memory[env->dump4].u.lis) {
-            /* First node becomes head and tail */
-            env->memory[env->dump4].u.lis = new_node;
-            env->memory[env->dump5].u.lis = new_node;
-        } else {
-            /* Link previous tail to new node, update tail */
-            Index tail = env->memory[env->dump5].u.lis;
-            env->memory[tail].next = new_node;
-            env->memory[env->dump5].u.lis = new_node;
-        }
-
-        current = pmem[current].next;
-    }
-
-    /* Extract head before popping */
-    Index head = env->memory[env->dump4].u.lis;
-
-    /* Pop the protection nodes */
-    env->dump5 = env->memory[env->dump5].next;
-    env->dump4 = env->memory[env->dump4].next;
-
+    head = env->memory[env->dump4].u.lis;
+    POP(env->dump5);
+    POP(env->dump4);
     return head;
-#else
-    return node;
-#endif
 }
-#endif /* JOY_PARALLEL */
+#endif /* JOY_PARALLEL && NOBDW */
 
 static void writestack(pEnv env, Index n)
 {
@@ -475,12 +416,14 @@ start:
 #endif
             {
                 Index body = ent.u.body;
+                /* Read before the copy: a GC during it invalidates p */
+                int is_tail = !nextnode1(p);
 #if defined(JOY_PARALLEL) && defined(NOBDW)
-                /* In parallel context, copy body from parent memory */
+                /* Bodies live in the memory of the root environment */
                 if (env->parent_memory)
-                    body = copy_body_from_parent(env, body);
+                    body = parallel_copy_chain(env, env->parent_memory, body);
 #endif
-                if (!nextnode1(p)) {
+                if (is_tail) {
 #ifdef NOBDW
                     POP(env->conts);
 #endif

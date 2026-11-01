@@ -29,6 +29,8 @@ gcc -O3 -DNOBDW \
 # Output: 28
 ```
 
+A program that uses `ffi-call` needs a library built with `-DJOY_FFI=ON`. Add `-DJOY_FFI` and `-lffi` to the command, and `-L` for the libffi directory if the linker does not search it. See [ffi.md](ffi.md).
+
 ## Operators
 
 | Operator | Stack Effect | Description |

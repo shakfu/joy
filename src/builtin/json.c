@@ -232,7 +232,7 @@ static Index parse_object(pEnv env, const char **p)
         if (!value)
             return 0;
 
-        k = kh_put(Dict, d, key, &ret);
+        k = kh_put(Dict, d, strdup(key), &ret); /* see dict_copy */
         kh_value(d, k) = value;
 
         skip_ws(p);
@@ -307,6 +307,12 @@ void fromjson_(pEnv env)
     ONEPARAM("json>");
     STRING("json>");
 
+    /*
+     * Parsing holds a pointer into the string node and indices of partial
+     * lists and tables, so no GC may run. Each source character gives at most
+     * two nodes.
+     */
+    ensure_capacity(env, (int)strlen(GETSTRING(env->stck)) * 2 + 4);
     str = GETSTRING(env->stck);
     p = str;
 

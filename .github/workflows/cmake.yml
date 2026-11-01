@@ -60,8 +60,6 @@ jobs:
   features:
     name: ubuntu-latest (${{ matrix.feature }})
     runs-on: ubuntu-latest
-    # JOY_PARALLEL does not compile yet (see TODO.md); report it without blocking
-    continue-on-error: ${{ matrix.feature == 'JOY_PARALLEL' }}
     strategy:
       fail-fast: false
       matrix:
@@ -72,6 +70,8 @@ jobs:
             packages: libopenblas-dev
           - feature: JOY_PARALLEL
             packages: ""
+          - feature: JOY_FFI
+            packages: libffi-dev
 
     steps:
     - uses: actions/checkout@v4
@@ -89,6 +89,24 @@ jobs:
     - name: Test
       working-directory: build
       run: ctest --output-on-failure
+
+  # A collection at every allocation exposes indices held across one. Only
+  # these tests: others are slow or still fail under it (see TODO.md).
+  gc-stress:
+    name: ubuntu-latest (JOY_GC_STRESS)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure CMake
+      run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DRUN_TESTS=ON -DJOY_GC_STRESS=ON
+
+    - name: Build
+      run: cmake --build build --target joy
+
+    - name: Test
+      working-directory: build
+      run: ctest --output-on-failure -R "test2_(gc_cases|lazy|json)$"
 
   # joy-lsp under AddressSanitizer: memory errors in the server only show
   # up reliably with a sanitizer. (The interpreter's conservative GC scans
@@ -167,7 +185,7 @@ jobs:
   # Summary job that depends on all others
   ci-success:
     name: CI Success
-    needs: [build, features, lsp-asan, build-windows, lint]
+    needs: [build, features, gc-stress, lsp-asan, build-windows, lint]
     runs-on: ubuntu-latest
     if: always()
     steps:
@@ -179,6 +197,10 @@ jobs:
         fi
         if [ "${{ needs.features.result }}" != "success" ]; then
           echo "Feature build job failed"
+          exit 1
+        fi
+        if [ "${{ needs.gc-stress.result }}" != "success" ]; then
+          echo "::error::GC stress tests failed"
           exit 1
         fi
         if [ "${{ needs.lsp-asan.result }}" != "success" ]; then

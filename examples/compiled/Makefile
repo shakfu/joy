@@ -16,11 +16,10 @@ JOY_GEN := $(JOY_BUILD)/generated
 CC := gcc
 CFLAGS := -O3 -DNOBDW -Wall -Wno-unused-parameter
 INCLUDES := -I$(JOY_INC) -I$(JOY_GEN) -I$(JOY_DIR)
-LIBS := $(JOY_BUILD)/libjoycore_static.a -lm -lsqlite3
+LIBS := $(JOY_BUILD)/libjoycore_static.a -lm
 
-# Python for code generator
-PYTHON := python3
-JOY2C := $(JOY_DIR)/tools/joy2c.py
+# Each example ends with compile-to-file, which writes its .c file
+JOY := $(abspath $(JOY_BUILD)/joy)
 
 # Targets
 EXAMPLES := simple fib benchmark
@@ -30,8 +29,8 @@ EXAMPLES := simple fib benchmark
 all: $(EXAMPLES)
 
 # Pattern rule: .joy -> .c
-%.c: %.joy $(JOY2C)
-	$(PYTHON) $(JOY2C) $< --inline --fold -o $@
+%.c: %.joy $(JOY)
+	$(JOY) $<
 
 # Pattern rule: .c -> executable
 %: %.c $(JOY_BUILD)/libjoycore_static.a
@@ -56,5 +55,5 @@ clean:
 	rm -f $(EXAMPLES) *.c
 
 # Show generated C code
-show-%: %.joy
-	$(PYTHON) $(JOY2C) $< --inline --fold --print
+show-%: %.c
+	@cat $<

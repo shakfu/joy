@@ -456,10 +456,15 @@ typedef struct Env {
     Types bucket; /* used by NEWNODE defines */
 #ifdef NOBDW
     clock_t gc_clock;
+    clock_t gc_start_clock;
     Node* memory;       /* dynamic memory */
     Node* old_memory;   /* backup during GC (was static in utils.c) */
     Index old_memoryindex; /* nodes in use in old_memory */
-    Node* parent_memory; /* parent's memory for symbol body lookup in parallel contexts */
+#ifdef JOY_GC_STRESS
+    Index gc_reserved; /* ensure_capacity promised no GC below this index */
+#endif
+    void* gc_dicts_seen; /* dictionary tables rewritten by this collection */
+    Node* parent_memory; /* root environment's memory, in parallel tasks: holds symbol bodies */
     Index conts, dump, dump1, dump2, dump3, dump4, dump5, inits;
     Index mem_low;      /* start of definition space (was global in utils.c) */
     Index memoryindex;  /* next free node index (was global in utils.c) */

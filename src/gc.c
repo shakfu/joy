@@ -71,6 +71,26 @@ KHASH_INIT(Backup, uint64_t, mem_info, 1, HASH_FUNCTION, kh_int64_hash_equal)
  */
 static GC_Context* default_ctx = NULL;
 
+#ifdef JOY_PARALLEL
+#ifdef _MSC_VER
+static __declspec(thread) GC_Context* task_ctx = NULL;
+#else
+static _Thread_local GC_Context* task_ctx = NULL;
+#endif
+/* Builtins allocate through the legacy API, also on worker threads. */
+#define legacy_ctx() (task_ctx ? task_ctx : default_ctx)
+
+GC_Context* gc_set_task_context(GC_Context* ctx)
+{
+    GC_Context* previous = task_ctx;
+
+    task_ctx = ctx;
+    return previous;
+}
+#else
+#define legacy_ctx() default_ctx
+#endif
+
 /*
  * Pointers to memory segments (global, used for BSS scanning).
  */
@@ -554,28 +574,28 @@ void GC_gcollect(void)
 #ifdef USE_GC_MALLOC_ATOMIC
 void* GC_malloc_atomic(size_t size)
 {
-    return gc_ctx_malloc_atomic(default_ctx, size);
+    return gc_ctx_malloc_atomic(legacy_ctx(), size);
 }
 #endif
 
 #ifdef USE_GC_MALLOC
 void* GC_malloc(size_t size)
 {
-    return gc_ctx_malloc(default_ctx, size);
+    return gc_ctx_malloc(legacy_ctx(), size);
 }
 #endif
 
 #ifdef USE_GC_REALLOC
 void* GC_realloc(void* ptr, size_t size)
 {
-    return gc_ctx_realloc(default_ctx, ptr, size);
+    return gc_ctx_realloc(legacy_ctx(), ptr, size);
 }
 #endif
 
 #ifdef USE_GC_STRDUP
 char* GC_strdup(const char* str)
 {
-    return gc_ctx_strdup(default_ctx, str);
+    return gc_ctx_strdup(legacy_ctx(), str);
 }
 #endif
 

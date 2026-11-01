@@ -35,6 +35,18 @@ static LazyData* copy_lazy(pEnv env, LazyData* src)
     return lzy;
 }
 
+/*
+ * Nodes that newnode2 of node n allocates. LazyData holds indices where a GC
+ * cannot find them until a node refers to it, so each builtin reserves all of
+ * its nodes before it reads an index. See ensure_capacity.
+ */
+static int nodes_for(pEnv env, Index n)
+{
+    if (nodetype(n) == STRING_ || nodetype(n) == BIGNUM_)
+        return (int)(strlen(GETSTRING(n)) / sizeof(Node)) + 2;
+    return 1;
+}
+
 /**
 Q0  OK  4000  iterate  :  X [F]  ->  L
 Creates a lazy sequence: X, F(X), F(F(X)), ...
@@ -47,6 +59,7 @@ void iterate_(pEnv env)
 
     TWOPARAMS("iterate");
     ONEQUOTE("iterate");
+    ensure_capacity(env, nodes_for(env, nextnode1(env->stck)) + 1);
 
     generator = nodevalue(env->stck).lis;
     POP(env->stck);
@@ -68,6 +81,7 @@ void replicate_(pEnv env)
     Index state;
 
     ONEPARAM("repeat");
+    ensure_capacity(env, nodes_for(env, env->stck) + 1);
 
     /* Copy state node to protect from stack changes */
     state = newnode2(env, env->stck, 0);
@@ -89,6 +103,7 @@ void cycle_(pEnv env)
 
     ONEPARAM("cycle");
     LIST("cycle");
+    ensure_capacity(env, 1);
 
     list = nodevalue(env->stck).lis;
     CHECKEMPTYLIST(list, "cycle");
@@ -116,6 +131,8 @@ void lazy_range_(pEnv env)
         execerror(env, "integer", "lazy-range");
         return;
     }
+
+    ensure_capacity(env, 2);
 
     /* Check if we have two arguments (both integers) */
     if (nextnode1(env->stck) && nodetype(nextnode1(env->stck)) == INTEGER_) {
@@ -173,7 +190,7 @@ void lazy_step(pEnv env)
         env->dump1 = LIST_NEWNODE(env->stck, env->dump1);
         env->stck = newnode2(env, nodevalue(DMP1).lzy->state, 0);
         exec_term(env, nodevalue(DMP1).lzy->generator);
-        ensure_capacity(env, 2);
+        ensure_capacity(env, (env->stck ? nodes_for(env, env->stck) : 0) + 1);
         state = env->stck ? newnode2(env, env->stck, 0) : 0;
         lzy = make_lazy(env, LAZY_ITERATE, state, nodevalue(DMP1).lzy->generator, -1);
         env->stck = DMP1;

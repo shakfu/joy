@@ -40,6 +40,66 @@ class JoyFile:
     sections: list = field(default_factory=list)
 
 
+DEFINITION_NAME = re.compile(r'(?:^|(?<=[\s;]))([A-Za-z_][\w-]*)\s*==(?=\s)', re.MULTILINE)
+INLINE_COMMENT = re.compile(r'[ \t]*\(\*([^*\n]*)\*\)')
+DEFINITION_END = re.compile(r';|\.(?=\s|$)|\bEND\b')
+
+
+def mask_source(content: str) -> tuple[str, str]:
+    """Return content without comments, and also without literal contents.
+
+    Both keep every offset. The first gives definition bodies, the second is
+    safe to search for syntax.
+    """
+    code = list(content)
+    masked = list(content)
+    i, n = 0, len(content)
+
+    def blank(chars: list, start: int, stop: int):
+        for j in range(start, stop):
+            if chars[j] != '\n':
+                chars[j] = ' '
+
+    while i < n:
+        if content.startswith('(*', i):
+            # Comments do not nest: the scanner stops at the first *)
+            start = i
+            end = content.find('*)', i + 2)
+            i = n if end < 0 else end + 2
+            blank(code, start, i)
+            blank(masked, start, i)
+        elif content[i] == '"':
+            start = i
+            i += 1
+            while i < n and content[i] != '"':
+                i += 2 if content[i] == '\\' else 1
+            i = min(i + 1, n)
+            blank(masked, start, i)
+        elif content[i] == "'" and i + 1 < n:
+            size = 2
+            if content[i + 1] == '\\':
+                size = 3
+                while size < 5 and content[i + size:i + size + 1].isdigit():
+                    size += 1
+            blank(masked, i, min(i + size, n))
+            i += size
+        elif content[i] == '#' and (i == 0 or content[i - 1].isspace()):
+            start = i
+            while i < n and content[i] != '\n':
+                i += 1
+            blank(code, start, i)
+            blank(masked, start, i)
+        else:
+            i += 1
+    return ''.join(code), ''.join(masked)
+
+
+def find_definition_end(masked: str, start: int) -> int:
+    """Return the offset of the ';', '.' or END that ends a definition."""
+    match = DEFINITION_END.search(masked, start)
+    return match.start() if match else len(masked)
+
+
 def parse_joy_file(path: pathlib.Path) -> JoyFile:
     """Parse a Joy file and extract documentation."""
     content = path.read_text()
@@ -69,22 +129,19 @@ def parse_joy_file(path: pathlib.Path) -> JoyFile:
         section_markers.append((m.start(), m.group(1).strip().title()))
     section_markers.sort(key=lambda x: x[0])
 
-    # Match definitions: name == body ;
-    define_pattern = re.compile(
-        r'^\s*(?:DEFINE\s+)?(\w[\w-]*)\s*==\s*'  # Definition name
-        r'((?:[^;]|;(?!\s*$))*?)'  # Body (non-greedy, stop at line-ending ;)
-        r'\s*;'  # Terminating semicolon
-        r'[ \t]*(?:\(\*([^*\n]*)\*\))?',  # Optional inline comment (same line)
-        re.MULTILINE
-    )
-
     # Build a map of definition positions
     definitions = []
-    for match in define_pattern.finditer(content):
+    code, masked = mask_source(content)
+    for match in DEFINITION_NAME.finditer(masked):
         name = match.group(1)
-        body = match.group(2).strip()
-        inline = (match.group(3) or "").strip()
-        pos = match.start()
+        end = find_definition_end(masked, match.end())
+        lines = code[match.end():end].strip().splitlines()
+        body = '\n'.join(l.rstrip() for l in lines if l.strip())
+        pos = match.start(1)
+        inline = ""
+        inline_match = INLINE_COMMENT.match(content, end + 1)
+        if inline_match and masked[end] == ';':
+            inline = inline_match.group(1).strip()
 
         # Skip internal markers like _libname == true
         if name.startswith('_'):
