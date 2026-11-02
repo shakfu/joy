@@ -49,8 +49,9 @@ int main(void) {
     fprintf(stderr, "joy-lsp: server exiting\n");
 
     /* Cleanup */
+    int code = server_exit_code();
     server_free();
     ts_parser_delete(parser);
 
-    return 0;
+    return code;
 }

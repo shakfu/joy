@@ -50,6 +50,8 @@ static int readdict(pEnv env, int ch, int* rv)
     }
     while (env->scanner.sym == STRING_) {
         key = strdup(env->str); /* reachable only through the malloc'd table */
+        if (!key)
+            execerror(env, "memory", "dictionary");
         ch = getsym(env, ch);
         if (env->scanner.sym != USR_ || strcmp(env->str, ":"))
             error(env, "':' expected in dictionary");
@@ -144,7 +146,7 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
 #ifdef JOY_NATIVE_TYPES
     case VBRACKET: {
         /* Parse vector literal: v[1 2 3] */
-        double* values = NULL;
+        double *values = NULL, *grown;
         int capacity = 0, len = 0;
         VectorData* vec;
 
@@ -176,7 +178,14 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
             }
             if (len >= capacity) {
                 capacity = capacity ? capacity * 2 : 8;
-                values = realloc(values, capacity * sizeof(double));
+                grown = realloc(values, capacity * sizeof(double));
+                if (!grown) {
+                    error(env, "memory exhausted in vector literal");
+                    free(values);
+                    *rv = 0;
+                    return ch;
+                }
+                values = grown;
             }
             values[len++] = val;
             ch = getsym(env, ch);
@@ -196,7 +205,7 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
          * Scanner consumed m[[, so we're already inside the first row.
          * Format: m[[row1][row2]...] where each row is numbers separated by spaces.
          */
-        double* values = NULL;
+        double *values = NULL, *grown;
         int capacity = 0, total = 0;
         int rows = 0, cols = -1;
         MatrixData* mat;
@@ -234,7 +243,14 @@ int readfactor(pEnv env, int ch, int* rv) /* read a JOY factor */
                 }
                 if (total >= capacity) {
                     capacity = capacity ? capacity * 2 : 16;
-                    values = realloc(values, capacity * sizeof(double));
+                    grown = realloc(values, capacity * sizeof(double));
+                    if (!grown) {
+                        error(env, "memory exhausted in matrix literal");
+                        free(values);
+                        *rv = 0;
+                        return ch;
+                    }
+                    values = grown;
                 }
                 values[total++] = val;
                 row_len++;

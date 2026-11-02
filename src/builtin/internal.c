@@ -94,8 +94,8 @@ static void make_manual(int style) /* 0=plain, 1=HTML, 2=Latex */
 
 /* Internal operations */
 /**
-Q0  OK  1070  __dump  :  ->  [..]
-[SYMBOLS] debugging only: pushes the dump as a list.
+Q0  OK  1070  __dump  :  ->  0
+[SYMBOLS] debugging only: pushes 0; the dump is not exposed.
 */
 PUSH(__dump_, INTEGER_NEWNODE, 0) /* variables */
 

@@ -193,6 +193,13 @@ TEST(memory_stats)
     /* After some operations, memory used should be > 0 */
     joy_eval_string(ctx, "[1 2 3 4 5] dup concat .");
     ASSERT(joy_memory_used(ctx) > 0);
+    ASSERT(joy_memory_used(ctx) <= joy_memory_max(ctx));
+
+    /* In-use nodes fall after a collection; a cumulative count would not */
+    joy_eval_string(ctx, "0 [100000 <] [succ] while pop.");
+    size_t before = joy_memory_used(ctx);
+    joy_eval_string(ctx, "gc.");
+    ASSERT(joy_memory_used(ctx) < before);
 
     joy_destroy(ctx);
 }

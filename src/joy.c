@@ -489,23 +489,23 @@ int joy_get_echo(JoyContext* ctx)
 }
 
 /*
- * Get number of nodes currently allocated.
+ * Get number of nodes currently in use, as __memoryindex reports.
  */
 size_t joy_memory_used(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return (size_t)ctx->env.stats.nodes;
+    return (size_t)ctx->env.memoryindex;
 }
 
 /*
- * Get maximum memory size.
+ * Get the node capacity of the heap, as __memorymax reports.
  */
 size_t joy_memory_max(JoyContext* ctx)
 {
     if (!ctx)
         return 0;
-    return (size_t)ctx->env.stats.avail;
+    return ctx->env.memorymax;
 }
 
 /*

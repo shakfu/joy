@@ -6,21 +6,9 @@
 
 ## Medium
 
-- [ ] **fgets** - `fgets_` (`io.c:76-86`) doubles its buffer without a cap on newline-free input. The BDW `GC_realloc` path is unchecked.
-
-- [ ] **__dump** - `__dump_` (`internal.c:100`) pushes integer `0`; its doc says it pushes the dump as a list.
-
-- [ ] **joy_memory_max** - Returns `stats.avail` (`joy.c:506`), the minimum count of free nodes. The header documents "maximum memory size"; `env->memorymax` matches that.
-
 - [ ] **Shared GC state** - Under NOBDW each `joy_create` context has its own node `gc_ctx` (`joy.c:84`). `GC_INIT` and the legacy `GC_malloc` API use one static `default_ctx` (`gc.c:72`), which kvec and builtins share. Under BDW the whole heap is shared. The `joy.c:57` comment overstates the sharing for node memory.
 
-- [ ] **factor.c** - `values = realloc(values, ...)` is unchecked in the `v[`/`m[[` readers (`factor.c:180, 238`). On OOM it leaks the old block and writes through NULL. The `strdup` at `factor.c:53` is also unchecked.
-
-- [ ] **LSP lifecycle** - `initialized`/`shutdown_requested` (`server.c:20`) are written, never read. Requests before `initialize` are handled. `main.c:55` returns 0; the spec requires 1 when `exit` arrives without `shutdown`.
-
 - [ ] **LSP positions** - Columns are bytes, sent and received unchanged (`diagnostics.c:29`, `document.c:131, 242`). There is no `positionEncoding` negotiation, so non-ASCII lines are off.
-
-- [ ] **LSP documents** - Duplicate `didOpen` leaks the `strdup`'d key (`document.c:165`); the comment at line 175 claims it is freed. `didChange` ignores `range` (`server.c:144`); the server advertises full sync, so only non-compliant clients corrupt the document.
 
 - [ ] **Tree-sitter grammar** - Diverges from `scan.c`:
   - Unknown escapes: `scan.c` keeps the character; the grammar gives ERROR.

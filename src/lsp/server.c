@@ -149,6 +149,11 @@ static void handle_did_change(const JsonValue *params) {
     const JsonValue *last_change = changes->u.array.items[changes->u.array.len - 1];
     const char *text = json_object_get_string(last_change, "text");
     if (!text) return;
+    /* The server advertises full sync; a ranged change is a fragment */
+    if (json_object_get(last_change, "range")) {
+        fprintf(stderr, "joy-lsp: ignoring incremental change to %s\n", uri);
+        return;
+    }
 
     doc_update(uri, text, strlen(text));
 
@@ -183,6 +188,10 @@ void server_init(TSParser *parser) {
     shutdown_requested = 0;
 }
 
+int server_exit_code(void) {
+    return shutdown_requested ? 0 : 1;
+}
+
 void server_free(void) {
     doc_store_free();
 }
@@ -207,7 +216,25 @@ int server_handle_message(const char *msg, size_t msg_len) {
 
     fprintf(stderr, "joy-lsp: <- %s\n", method);
 
-    /* Lifecycle */
+    /* Lifecycle: exit is always honoured; other messages need initialize
+       first and are refused after shutdown (LSP 3.17, lifecycle) */
+    if (strcmp(method, "exit") == 0) {
+        json_free(root);
+        return 1; /* Signal exit */
+    }
+    if (!initialized && strcmp(method, "initialize") != 0) {
+        if (id)
+            send_error(id, -32002, "Server not initialized");
+        json_free(root);
+        return 0;
+    }
+    if (shutdown_requested) {
+        if (id)
+            send_error(id, -32600, "Shutdown requested");
+        json_free(root);
+        return 0;
+    }
+
     if (strcmp(method, "initialize") == 0) {
         JsonValue *result = handle_initialize(params);
         send_response(id, result);
@@ -217,9 +244,6 @@ int server_handle_message(const char *msg, size_t msg_len) {
     } else if (strcmp(method, "shutdown") == 0) {
         shutdown_requested = 1;
         send_response(id, json_null());
-    } else if (strcmp(method, "exit") == 0) {
-        json_free(root);
-        return 1; /* Signal exit */
     }
     /* Document sync */
     else if (strcmp(method, "textDocument/didOpen") == 0) {

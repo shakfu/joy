@@ -162,18 +162,34 @@ static void doc_parse(Document *doc) {
 
 void doc_open(const char *uri, const char *text, size_t text_len) {
     int ret;
-    khint_t k = kh_put(DocMap, doc_map, strdup(uri), &ret);
-
+    khint_t k;
+    char *key;
     Document *doc = calloc(1, sizeof(Document));
-    doc->uri = strdup(uri);
-    doc->text = malloc(text_len + 1);
+
+    if (!doc || !(doc->uri = strdup(uri)) || !(doc->text = malloc(text_len + 1))) {
+        doc_destroy(doc);
+        fprintf(stderr, "joy-lsp: out of memory opening %s\n", uri);
+        return;
+    }
     memcpy(doc->text, text, text_len);
     doc->text[text_len] = '\0';
     doc->text_len = text_len;
 
-    if (ret == 0) {
-        /* Key already existed — free old doc and old key */
-        doc_destroy(kh_value(doc_map, k));
+    k = kh_put(DocMap, doc_map, uri, &ret);
+    if (ret > 0) { /* new key: replace the borrowed pointer */
+        if (!(key = strdup(uri))) {
+            kh_del(DocMap, doc_map, k);
+            doc_destroy(doc);
+            fprintf(stderr, "joy-lsp: out of memory opening %s\n", uri);
+            return;
+        }
+        kh_key(doc_map, k) = key;
+    } else if (ret == 0) {
+        doc_destroy(kh_value(doc_map, k)); /* reopened: keep the key */
+    } else {
+        doc_destroy(doc);
+        fprintf(stderr, "joy-lsp: out of memory opening %s\n", uri);
+        return;
     }
     kh_value(doc_map, k) = doc;
     doc_parse(doc);
@@ -185,8 +201,13 @@ void doc_update(const char *uri, const char *text, size_t text_len) {
         doc_open(uri, text, text_len);
         return;
     }
+    char *copy = malloc(text_len + 1);
+    if (!copy) {
+        fprintf(stderr, "joy-lsp: out of memory updating %s\n", uri);
+        return; /* keep the old text */
+    }
     free(doc->text);
-    doc->text = malloc(text_len + 1);
+    doc->text = copy;
     memcpy(doc->text, text, text_len);
     doc->text[text_len] = '\0';
     doc->text_len = text_len;

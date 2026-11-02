@@ -9,6 +9,7 @@
  *  stderr, stdin, stdout
  */
 #include "globals.h"
+#include <limits.h>
 
 /* Include shared helper headers */
 
@@ -60,10 +61,7 @@ Q0  OK  1880  fgets  :  S  ->  S L
 */
 void fgets_(pEnv env)
 {
-    char* buf;
-#ifdef NOBDW
-    char* tmp;
-#endif
+    char *buf, *tmp;
     size_t leng, size = INPLINEMAX;
 
     ONEPARAM("fgets");
@@ -73,17 +71,28 @@ void fgets_(pEnv env)
 #else
     buf = GC_malloc_atomic(size);
 #endif
+    if (!buf)
+        execerror(env, "memory", "fgets");
     buf[leng = 0] = 0;
     while (fgets(buf + leng, size - leng, nodevalue(env->stck).fil)) {
         if ((leng = strlen(buf)) > 0 && buf[leng - 1] == '\n')
             break;
+        /* newnode stores string lengths in an int */
+        tmp = size > INT_MAX / 2 ? NULL :
 #ifdef NOBDW
-        if ((tmp = realloc(buf, size <<= 1)) == 0)
-            break; /* LCOV_EXCL_LINE */
-        buf = tmp;
+            realloc(buf, size << 1);
 #else
-        buf = GC_realloc(buf, size <<= 1);
+            GC_realloc(buf, size << 1);
 #endif
+        if (!tmp) {
+#ifdef NOBDW
+            free(buf);
+#endif
+            execerror(env, size > INT_MAX / 2 ? "line under 2 GiB" : "memory",
+                "fgets");
+        }
+        buf = tmp;
+        size <<= 1;
     }
     NULLARY(STRING_NEWNODE, buf);
 #ifdef NOBDW

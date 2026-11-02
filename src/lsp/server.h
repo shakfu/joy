@@ -18,6 +18,9 @@ void server_init(TSParser *parser);
 int server_handle_message(const char *msg, size_t msg_len);
 
 /* Clean up server resources */
+/* 0 if exit followed shutdown, else 1 (LSP 3.17, exit) */
+int server_exit_code(void);
+
 void server_free(void);
 
 #endif /* LSP_SERVER_H */

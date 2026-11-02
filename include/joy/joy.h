@@ -175,12 +175,12 @@ void joy_set_echo(JoyContext* ctx, int enabled);
 int joy_get_echo(JoyContext* ctx);
 
 /*
- * Get number of nodes currently in use.
+ * Get number of nodes currently in use. Falls after a collection.
  */
 size_t joy_memory_used(JoyContext* ctx);
 
 /*
- * Get maximum memory size available.
+ * Get the current heap capacity in nodes. It grows and shrinks with collections.
  */
 size_t joy_memory_max(JoyContext* ctx);
 
