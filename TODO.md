@@ -4,8 +4,6 @@
 
 ## High
 
-- [ ] **Node heap growth** - Before each collection, `newnode` (`utils.c:715`) doubles `memorymax` until the pre-collection fill fits, and `ensure_capacity` does the same. `gc2` shrinks it by only 10% when under 10% is live. With constant live data the heap grows 1.8x per collection: `N [[1 2] [3] concat pop] times` peaks at 16 MB for N=1e5 and 146 MB for N=1e6. Collections also become rarer, so garbage held outside nodes (dictionary tables) accumulates between them.
-
 - [ ] **GC stress** - With `-DJOY_GC_STRESS=ON -DJOY_SESSION=ON`, all four session tests fail (`session_persist` reports `bad node` on reopen); HEAD fails the same way, and they pass without stress. The non-session tests pass under stress, but `test2_dict_gc` takes 900 s and `parallel_semantics` 250 s. The earlier `test2_regex` and `size_errors` failures no longer reproduce.
 
 ## Medium

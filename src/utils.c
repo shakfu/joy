@@ -326,7 +326,7 @@ static Index copy_one(pEnv env, Index n)
         memcpy(&env->memory[temp].u, &env->old_memory[n].u, leng);
         if ((size -= sizeof(Types)) > 0) /* first part in Types */
             num += (size + sizeof(Node) - 1) / sizeof(Node); /* round up */
-        env->memoryindex += num;
+        env->memoryindex += num - 1; /* the first node is already counted */
     }
     /*
      * If the node contains a list, then the list needs to be copied. This
@@ -557,26 +557,48 @@ static void gc1(pEnv env, Index *l, Index *r)
     sweep_dicts(env);
 }
 
-static void gc2(pEnv env)
+/*
+ * Before a collection, the to-space must hold every node in use plus the
+ * pending allocation of num nodes. Only this worst case is allocated; gc2 sets
+ * the heap size from what survived.
+ */
+static void gc_reserve(pEnv env, size_t num)
+{
+    if (env->memorymax <= env->memoryindex + num)
+        env->memorymax = env->memoryindex + num + 1;
+}
+
+/*
+ * After a collection, the heap holds LIVE_FACTOR times the surviving nodes
+ * (definitions included), plus the pending allocation. Sizing from the
+ * survivors keeps collection cost proportional to allocation; sizing from the
+ * pre-collection heap, as before, grew it 1.8x per collection. A heap that
+ * must grow at least doubles: each growth reallocates a large block, and
+ * macOS libmalloc retains freed large blocks, so many small steps raised the
+ * peak footprint 1.7x when building a 2M-element list.
+ */
+#define LIVE_FACTOR 4
+
+static void gc2(pEnv env, size_t num)
 {
     clock_t this_gc_clock;
+    size_t capacity = env->memorymax; /* size of the to-space from gc1 */
+    size_t target = (size_t)env->memoryindex * LIVE_FACTOR + num + 1;
 
     free(env->old_memory);                    /* release old memory */
     env->old_memory = NULL;
-    /*
-     * If memory is mostly occupied, even after gc, it should be increased.
-     * If only a small amount is occupied after gc, it should be decreased.
-     */
-    if (env->memoryindex * 100.0 / env->memorymax < 10) /* check decrease */
-        env->memorymax = (size_t)(env->memorymax * 0.9);
-    else if (env->memoryindex * 100.0 / env->memorymax > 90) { /* check increase */
-        env->memorymax *= 2;
-        env->memory = realloc(env->memory, env->memorymax * sizeof(Node));
+    if (target < MEM_LOW)
+        target = MEM_LOW;
+    if (target > capacity) {
+        if (target < capacity * 2)
+            target = capacity * 2;
+        env->memory = realloc(env->memory, target * sizeof(Node));
 #ifdef TEST_MALLOC_RETURN
         if (!env->memory)
             fatal("memory exhausted");
 #endif
     }
+    env->memorymax = target;
     this_gc_clock = clock() - env->gc_start_clock; /* statistics */
     env->gc_clock += this_gc_clock;
     env->stats.collect++;
@@ -592,7 +614,7 @@ static void gc2(pEnv env)
 void gc_collect(pEnv env)
 {
     gc1(env, 0, 0);
-    gc2(env);
+    gc2(env, 0);
 }
 
 /*
@@ -628,10 +650,9 @@ void ensure_capacity(pEnv env, int num)
 #endif
     } else {
         /* Trigger GC now, before caller has any local Index variables */
-        while (env->memoryindex + num >= env->memorymax)
-            env->memorymax *= 2;
+        gc_reserve(env, (size_t)num);
         gc1(env, 0, 0);
-        gc2(env);
+        gc2(env, (size_t)num);
 #ifdef JOY_GC_STRESS
         env->gc_reserved = env->memoryindex + num;
 #endif
@@ -708,17 +729,13 @@ Index newnode(pEnv env, Operator o, Types u, Index r)
             if (o == LIST_)
                 numgc += count(env, u.lis);
             numgc += count(env, r);
-            /*
-             * Increase memorymax, do not realloc. The new memory is allocated
-             * in gc1 before copying nodes to the new memory.
-             */
-            while (env->memoryindex + numgc >= env->memorymax)
-                env->memorymax *= 2;
+            /* gc1 allocates the to-space with this size */
+            gc_reserve(env, (size_t)numgc);
             if (o == LIST_)             /* copy parameters */
                 gc1(env, &u.lis, &r);
             else                        /* copy roots */
                 gc1(env, 0, &r);
-            gc2(env); /* finish copying */
+            gc2(env, (size_t)num); /* finish copying */
         }
     }
     p = env->memoryindex;    /* new index of new node(s) */
