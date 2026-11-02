@@ -29,11 +29,6 @@
         return;                                                               \
     }
 
-/* Helper to create a new empty dictionary */
-static khash_t(Dict)* dict_new(void)
-{
-    return kh_init(Dict);
-}
 
 /*
  * A GC rewrites only tables that a node refers to. These reservations stop a
@@ -48,28 +43,19 @@ static void reserve_for_value(pEnv env, Index value)
     ensure_capacity(env, nodes);
 }
 
-/*
- * Tables are malloc'd, so the GC cannot see keys in them: keys are malloc'd too
- * and live as long as the tables, which are never freed. Copies share them.
- */
 /* Helper to copy a dictionary (shallow copy - values are shared) */
 static khash_t(Dict)* dict_copy(pEnv env, khash_t(Dict)* src)
 {
     khash_t(Dict)* dst;
     khint_t k;
-    int ret;
 
-    (void)env;
-    dst = kh_init(Dict);
+    dst = dict_create(env);
     if (!src)
         return dst;
 
-    for (k = kh_begin(src); k != kh_end(src); ++k) {
-        if (kh_exist(src, k)) {
-            khint_t key = kh_put(Dict, dst, kh_key(src, k), &ret);
-            kh_value(dst, key) = kh_value(src, k);
-        }
-    }
+    for (k = kh_begin(src); k != kh_end(src); ++k)
+        if (kh_exist(src, k))
+            dict_set(env, dst, kh_key(src, k), kh_value(src, k));
     return dst;
 }
 
@@ -79,7 +65,7 @@ D is an empty dictionary.
 */
 void dempty_(pEnv env)
 {
-    khash_t(Dict)* d = dict_new();
+    khash_t(Dict)* d = dict_create(env);
     NULLARY(DICT_NEWNODE, d);
 }
 
@@ -92,8 +78,6 @@ void dput_(pEnv env)
     khash_t(Dict) *d, *d2;
     char* key;
     Index value;
-    khint_t k;
-    int ret;
 
     THREEPARAMS("dput");
     DICT3("dput");
@@ -101,14 +85,14 @@ void dput_(pEnv env)
     reserve_for_value(env, env->stck);
 
     value = env->stck;
-    key = strdup(GETSTRING(nextnode1(env->stck)));
+    key = GETSTRING(nextnode1(env->stck));
     d = (khash_t(Dict)*)nodevalue(nextnode2(env->stck)).dict;
 
     /* Create a copy for immutable semantics */
     d2 = dict_copy(env, d);
 
-    k = kh_put(Dict, d2, key, &ret);
-    kh_value(d2, k) = newnode2(env, value, 0);
+    /* Reserved above, so newnode2 cannot move the key */
+    dict_set(env, d2, key, newnode2(env, value, 0));
 
     env->stck = DICT_NEWNODE(d2, nextnode3(env->stck));
 }
@@ -197,6 +181,7 @@ void ddel_(pEnv env)
 
     k = kh_get(Dict, d2, key);
     if (k != kh_end(d2)) {
+        free((char*)kh_key(d2, k));
         kh_del(Dict, d2, k);
     }
 
@@ -320,13 +305,11 @@ void todict_(pEnv env)
     khash_t(Dict)* d;
     Index lis, pair, key_node, val_node;
     Index value;
-    khint_t k;
-    int ret;
 
     ONEPARAM(">dict");
     ONEQUOTE(">dict");
 
-    d = dict_new();
+    d = dict_create(env);
     /* Rooted: a GC rewrites the values of a table that a node refers to */
     env->dump1 = DICT_NEWNODE(d, env->dump1);
     env->dump2 = LIST_NEWNODE(nodevalue(env->stck).lis, env->dump2);
@@ -352,8 +335,7 @@ void todict_(pEnv env)
 
         value = newnode2(env, val_node, 0);
         key_node = nodevalue(DMP2).lis; /* the allocation may have moved it */
-        k = kh_put(Dict, d, strdup(GETSTRING(key_node)), &ret);
-        kh_value(d, k) = value;
+        dict_set(env, d, GETSTRING(key_node), value);
     }
 
     UNARY(DICT_NEWNODE, d);
@@ -433,7 +415,6 @@ void dmerge_(pEnv env)
 {
     khash_t(Dict) *d1, *d2, *d3;
     khint_t k;
-    int ret;
 
     TWOPARAMS("dmerge");
     DICT("dmerge");
@@ -449,10 +430,8 @@ void dmerge_(pEnv env)
     /* Merge in d2 (overwrites existing keys) */
     if (d2) {
         for (k = kh_begin(d2); k != kh_end(d2); ++k) {
-            if (kh_exist(d2, k)) {
-                khint_t key = kh_put(Dict, d3, kh_key(d2, k), &ret);
-                kh_value(d3, key) = kh_value(d2, k);
-            }
+            if (kh_exist(d2, k))
+                dict_set(env, d3, kh_key(d2, k), kh_value(d2, k));
         }
     }
 

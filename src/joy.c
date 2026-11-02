@@ -162,6 +162,8 @@ void joy_destroy(JoyContext* ctx)
     if (ctx->env.prim)
         kh_destroy(Funtab, ctx->env.prim);
 
+    dict_destroy_all(&ctx->env);
+
 #ifdef NOBDW
     /* Free copying GC memory for this context */
     if (ctx->env.memory) {

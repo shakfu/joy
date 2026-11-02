@@ -12,6 +12,7 @@
 
 /* Read one JSON-RPC message from stdin.
  * Returns malloc'd buffer with the JSON body, or NULL on EOF.
+ * Messages with a missing or invalid Content-Length are skipped.
  * *out_len receives the body length. */
 char *transport_read(size_t *out_len);
 

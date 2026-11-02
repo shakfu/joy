@@ -4,25 +4,9 @@
 
 ## High
 
-- [ ] **regex** - `\D`/`\W`/`\S` expand to `[^...]` even inside a bracket expression (`regex.c:51-71, 104-108`). `[\D]` becomes `[[^0-9]]`, so `"a1b" "[\\D]+"` does not match.
+- [ ] **Node heap growth** - Before each collection, `newnode` (`utils.c:715`) doubles `memorymax` until the pre-collection fill fits, and `ensure_capacity` does the same. `gc2` shrinks it by only 10% when under 10% is live. With constant live data the heap grows 1.8x per collection: `N [[1 2] [3] concat pop] times` peaks at 16 MB for N=1e5 and 146 MB for N=1e6. Collections also become rarer, so garbage held outside nodes (dictionary tables) accumulates between them.
 
-- [ ] **strtol/strtod** - `strings.c:29-57` ignores `endptr` and `errno`. `"12abc" 10 strtol` gives 12; `"99999999999999999999" 10 strtol` gives `INT64_MAX`; `"1e999" strtod` gives `inf`. `base` is truncated to `int` and not range-checked.
-
-- [ ] **Compile-to-C: shadowed builtins** - The `USR_` branch of `is_builtin_name` (`compiler.c:442`) matches by name. After `DEFINE times == ...`, `compile-to-c` still inlines the builtin `times`; `while` (`compiler.c:479`) is the same.
-
-- [ ] **Compile-to-C: inlined `while`** - It reads the condition as `.num` with no stack check (`compiler.c:505`). The runtime uses `CHECKSTACK` and `get_boolean`, so `-0.0` and, under NOBDW, `""` differ.
-
-- [ ] **Compile-to-C: name collisions** - `sanitize_name` maps `-` and `_` to `_` (`compiler.c:99, 125`). `DEFINE a-b == 1; a_b == 2.` emits `joy_word_a_b` twice. Names are also cut to 255 bytes (`compiler.c:184`).
-
-- [ ] **Compile-to-C: floats** - Constant folding can emit `nan`/`inf` (`compiler.c:340, 650`), which is not valid C. Top-level float literals use `%g` (`compiler.c:917`): `3.14159265358979` becomes `3.14159`.
-
-- [ ] **LSP transport** - The `Content-Length:` match is case-sensitive (`transport.c:28`). A missing header, a lowercase header, or `Content-Length: 0` returns NULL, which `main.c:41` treats as EOF. Header lines over 255 chars are split by `fgets`; a padded `Content-Length` then parses as 0.
-
-- [ ] **GC stress** - Under `-DJOY_GC_STRESS=ON`, `test2_regex` and `size_errors` fail with `false` assertions; cause not yet found. They pass in normal builds. `test2_gc`, `test2_matrix`, `test2_dict_gc`, `test2_vector_native` and `parallel_semantics` exceed 40 s, so they are unchecked; each collection copies the heap, so tests with many allocations are slow.
-
-- [ ] **Compile-to-C** - `tools/joy2c.py` is unused and maps 20 names to missing C symbols. Delete it; `compile-to-file` replaces it.
-
-- [ ] **Dictionaries** - Tables and keys are `malloc`'d and never freed. `dput` allocates a new table each call.
+- [ ] **GC stress** - With `-DJOY_GC_STRESS=ON -DJOY_SESSION=ON`, all four session tests fail (`session_persist` reports `bad node` on reopen); HEAD fails the same way, and they pass without stress. The non-session tests pass under stress, but `test2_dict_gc` takes 900 s and `parallel_semantics` 250 s. The earlier `test2_regex` and `size_errors` failures no longer reproduce.
 
 ## Medium
 
@@ -35,8 +19,6 @@
 - [ ] **Shared GC state** - Under NOBDW each `joy_create` context has its own node `gc_ctx` (`joy.c:84`). `GC_INIT` and the legacy `GC_malloc` API use one static `default_ctx` (`gc.c:72`), which kvec and builtins share. Under BDW the whole heap is shared. The `joy.c:57` comment overstates the sharing for node memory.
 
 - [ ] **factor.c** - `values = realloc(values, ...)` is unchecked in the `v[`/`m[[` readers (`factor.c:180, 238`). On OOM it leaks the old block and writes through NULL. The `strdup` at `factor.c:53` is also unchecked.
-
-- [ ] **Compile-to-C: cbuf_printf** - `cbuf_printf` formats into `char tmp[1024]` (`compiler.c:49`). Only `%s` with long identifiers reaches it (lines 187, 381, 977): a 1500-char word name truncates a comment and breaks the generated C. String literals are emitted per character and are unaffected.
 
 - [ ] **LSP lifecycle** - `initialized`/`shutdown_requested` (`server.c:20`) are written, never read. Requests before `initialize` are handled. `main.c:55` returns 0; the spec requires 1 when `exit` arrives without `shutdown`.
 

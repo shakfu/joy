@@ -48,11 +48,32 @@ static void cbuf_append(CompilerBuf* b, const char* s) {
 
 static void cbuf_printf(CompilerBuf* b, const char* fmt, ...) {
     va_list args;
-    char tmp[1024];
+    int n;
     va_start(args, fmt);
-    vsnprintf(tmp, sizeof(tmp), fmt, args);
+    n = vsnprintf(NULL, 0, fmt, args);
     va_end(args);
-    cbuf_append(b, tmp);
+    if (n < 0)
+        return;
+    cbuf_ensure(b, (size_t)n + 1);
+    va_start(args, fmt);
+    vsnprintf(b->data + b->len, (size_t)n + 1, fmt, args);
+    va_end(args);
+    b->len += (size_t)n;
+}
+
+/*
+ * Formats d as a C double literal that round-trips. NaN and infinities have
+ * no literal; `-0` without a point would be the integer 0.
+ */
+static const char* c_double(char* buf, size_t n, double d) {
+    if (isnan(d))
+        return "NAN";
+    if (isinf(d))
+        return d > 0 ? "INFINITY" : "(-INFINITY)";
+    snprintf(buf, n, "%.17g", d);
+    if (!strpbrk(buf, ".e"))
+        strncat(buf, ".0", n - strlen(buf) - 1);
+    return buf;
 }
 
 /* Track collected user functions */
@@ -83,18 +104,20 @@ static int try_fold_constants(Compiler* c, Index* p, int indent);
 static void collect_user_func(Compiler* c, int ent_idx);
 static void collect_user_funcs_from_body(Compiler* c, Index body);
 
-/* Sanitize Joy name to valid C identifier */
-static void sanitize_name(const char* name, char* out, size_t outlen) {
-    size_t i = 0, j = 0;
-
-    /* Prefix with joy_word_ */
-    const char* prefix = "joy_word_";
-    while (*prefix && j < outlen - 1)
-        out[j++] = *prefix++;
+/*
+ * Sanitize Joy name to valid C identifier. The symbol-table index keeps
+ * names unique: `a-b` and `a_b` both sanitize to `a_b`, and long names are
+ * truncated.
+ */
+static void sanitize_name(int ent_idx, const char* name, char* out,
+                          size_t outlen) {
+    size_t i = 0;
+    int n = snprintf(out, outlen, "joy_word_%d_", ent_idx);
+    size_t j = n < 0 ? 0 : (size_t)n < outlen ? (size_t)n : outlen - 1;
 
     while (name[i] && j < outlen - 1) {
         char c = name[i++];
-        if (isalnum(c)) {
+        if (isalnum((unsigned char)c)) {
             out[j++] = c;
         } else if (c == '-') {
             out[j++] = '_';
@@ -181,7 +204,7 @@ static void emit_user_func(Compiler* c, int ent_idx) {
     if (!ent.is_user || !ent.u.body) return;
 
     char cname[256];
-    sanitize_name(ent.name, cname, sizeof(cname));
+    sanitize_name(ent_idx, ent.name, cname, sizeof(cname));
 
     /* Emit function definition */
     cbuf_printf(&c->funcs, "/* User-defined: %s */\n", ent.name);
@@ -210,7 +233,7 @@ static void emit_user_func_declarations(Compiler* c) {
     for (int i = 0; i < c->user_func_count; i++) {
         Entry ent = vec_at(env->symtab, c->user_funcs[i]);
         char cname[256];
-        sanitize_name(ent.name, cname, sizeof(cname));
+        sanitize_name(c->user_funcs[i], ent.name, cname, sizeof(cname));
         cbuf_printf(&c->fwd, "static void %s(pEnv env);\n", cname);
     }
     cbuf_append(&c->fwd, "\n");
@@ -336,10 +359,12 @@ static void emit_quotation_build(Compiler* c, Index list, int depth, int indent)
                        (long long)nodevalue(p).num, depth);
             break;
 
-        case FLOAT_:
-            cbuf_printf(&c->out, "_q%d = FLOAT_NEWNODE(%.17g, _q%d);\n", depth,
-                       nodevalue(p).dbl, depth);
+        case FLOAT_: {
+            char fbuf[40];
+            cbuf_printf(&c->out, "_q%d = FLOAT_NEWNODE(%s, _q%d);\n", depth,
+                       c_double(fbuf, sizeof(fbuf), nodevalue(p).dbl), depth);
             break;
+        }
 
         case BOOLEAN_:
             cbuf_printf(&c->out, "_q%d = BOOLEAN_NEWNODE(%d, _q%d);\n", depth,
@@ -374,7 +399,7 @@ static void emit_quotation_build(Compiler* c, Index list, int depth, int indent)
             if (ent.is_user && ent.u.body) {
                 /* Collect this user function for emission */
                 collect_user_func(c, ent_idx);
-                sanitize_name(ent.name, cname, sizeof(cname));
+                sanitize_name(ent_idx, ent.name, cname, sizeof(cname));
                 cbuf_printf(&c->out, "_q%d = ANON_FUNCT_NEWNODE(%s, _q%d);\n",
                            depth, cname, depth);
             } else {
@@ -440,8 +465,9 @@ static int is_builtin_name(Compiler* c, Index n, const char* name) {
     pEnv env = c->env;
 
     if (nodetype(n) == USR_) {
+        /* A user word named like a builtin shadows it */
         Entry ent = vec_at(env->symtab, nodevalue(n).ent);
-        return strcmp(ent.name, name) == 0;
+        return !ent.is_user && strcmp(ent.name, name) == 0;
     }
 
     if (nodetype(n) == ANON_FUNCT_) {
@@ -502,7 +528,9 @@ static int try_emit_while(Compiler* c, Index* pp, int indent) {
     emit_indent(c, indent + 2);
     cbuf_append(&c->out, "{\n");
     emit_indent(c, indent + 3);
-    cbuf_printf(&c->out, "int _while_result_%d = nodevalue(env->stck).num;\n", loop_id);
+    cbuf_append(&c->out, "if (!env->stck) { execerror(env, \"non-empty stack\", \"while\"); return; }\n");
+    emit_indent(c, indent + 3);
+    cbuf_printf(&c->out, "int _while_result_%d = joy_truth(env, env->stck);\n", loop_id);
     emit_indent(c, indent + 3);
     cbuf_append(&c->out, "POP(env->stck);\n");
     emit_indent(c, indent + 3);
@@ -647,7 +675,9 @@ static void emit_folded_constant(Compiler* c, int is_float, double dval, int64_t
     if (is_bool) {
         cbuf_printf(&c->out, "NULLARY(BOOLEAN_NEWNODE, %d);  /* folded */\n", ival ? 1 : 0);
     } else if (is_float) {
-        cbuf_printf(&c->out, "NULLARY(FLOAT_NEWNODE, %.17g);  /* folded */\n", dval);
+        char fbuf[40];
+        cbuf_printf(&c->out, "NULLARY(FLOAT_NEWNODE, %s);  /* folded */\n",
+                    c_double(fbuf, sizeof(fbuf), dval));
     } else {
         cbuf_printf(&c->out, "NULLARY(INTEGER_NEWNODE, %lldLL);  /* folded */\n", (long long)ival);
     }
@@ -913,9 +943,12 @@ static void emit_term(Compiler* c, Index n, int indent) {
                    (long long)nodevalue(n).num);
         break;
 
-    case FLOAT_:
-        cbuf_printf(&c->out, "NULLARY(FLOAT_NEWNODE, %g);\n", nodevalue(n).dbl);
+    case FLOAT_: {
+        char fbuf[40];
+        cbuf_printf(&c->out, "NULLARY(FLOAT_NEWNODE, %s);\n",
+                    c_double(fbuf, sizeof(fbuf), nodevalue(n).dbl));
         break;
+    }
 
     case BOOLEAN_:
         cbuf_printf(&c->out, "NULLARY(BOOLEAN_NEWNODE, %d);\n",
@@ -968,7 +1001,7 @@ static void emit_term(Compiler* c, Index n, int indent) {
             /* Collect this user function for emission */
             collect_user_func(c, ent_idx);
             char cname[256];
-            sanitize_name(ent.name, cname, sizeof(cname));
+            sanitize_name(ent_idx, ent.name, cname, sizeof(cname));
             cbuf_printf(&c->out, "%s(env);\n", cname);
         } else {
             /* Fallback: lookup at runtime */

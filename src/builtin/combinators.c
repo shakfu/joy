@@ -365,6 +365,9 @@ void times_(pEnv env)
 Q2  OK  2700  while  :  [B] [D]  ->  ...
 While executing B yields true executes D.
 */
+/* Exported for compiled code, which cannot include builtin_macros.h */
+int joy_truth(pEnv env, Index node) { return get_boolean(env, node); }
+
 void while_(pEnv env)
 {
     int result;

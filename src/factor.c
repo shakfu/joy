@@ -38,10 +38,9 @@ static int readdict(pEnv env, int ch, int* rv)
     khash_t(Dict)* d;
     char* key;
     Index value;
-    khint_t k;
     int ret;
 
-    env->stck = DICT_NEWNODE(kh_init(Dict), env->stck);
+    env->stck = DICT_NEWNODE(dict_create(env), env->stck);
     if (env->scanner.sym == USR_) { /* {:} */
         ch = getsym(env, ch);
         if (env->scanner.sym != '}')
@@ -59,8 +58,8 @@ static int readdict(pEnv env, int ch, int* rv)
         ch = getsym(env, ch);
         value = newnode2(env, env->stck, 0);
         d = nodevalue(nextnode1(env->stck)).dict;
-        k = kh_put(Dict, d, key, &ret);
-        kh_value(d, k) = value;
+        dict_set(env, d, key, value);
+        free(key);
         POP(env->stck);
     }
     if (env->scanner.sym != '}')

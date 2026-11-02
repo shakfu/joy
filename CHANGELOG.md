@@ -16,8 +16,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `examples/compiled` builds with `compile-to-file` instead of `tools/joy2c.py`.
 
+### Removed
+
+- `tools/joy2c.py`. `compile-to-file` replaces it; 20 of its name mappings pointed at C symbols that do not exist.
+
 ### Fixed
 
+- **Dictionary tables were never freed**, and `dput`, `ddel` and `dmerge` copy one per call. Every table is now registered; a collection frees those that no live node reached. Copies used to share keys, so each table now owns its keys. A table only in a C local during a collection is freed; creation sites keep new tables on a node or within a reservation.
+- **Regex `\D`, `\W` and `\S` inside a bracket** expanded to a nested `[^...]`, so `[\D]` became `[[^0-9]]` and matched nothing useful. POSIX ERE cannot express a negated class inside a bracket, so such a bracket is now rewritten as an explicit byte set (C locale). Collating elements in such a bracket are an error. The bracket scanner also ended a bracket at the `]` of `[:alpha:]`.
+- **`strtol` and `strtod` accepted partial and out-of-range input**: `"12abc" 10 strtol` gave 12 and overflow saturated silently. Both now raise an error unless the whole string, apart from surrounding whitespace, converts in range. `strtol` rejects bases other than 0 and 2..36.
+- **`compile-to-c`**:
+  - User words named `while` or `times` were inlined as the builtin.
+  - Inlined `while` read its condition as an `int` from `.num`, so `-0.0` and values above 2^32 gave the wrong branch. It now uses the runtime's truth test (`joy_truth`) and checks for an empty stack.
+  - `a-b` and `a_b` produced the same C function. Function names now include the symbol-table index (`joy_word_N_name`).
+  - Folded NaN/Inf emitted `nan`/`inf`, which is not C; float literals used `%g` and lost precision.
+  - `cbuf_printf` truncated output at 1024 bytes.
+- **`joy-lsp` exited on a lowercase, missing, zero or over-long `Content-Length` header.** Header names now match case-insensitively. A bad header skips one message: the server resyncs on the next `Content-Length` it finds.
 - **`regex-split` and `regex-sub-all` dropped input at empty matches**: they advanced past the next character without copying it, so `"abc" "x*" regex-split` gave four empty strings. `regex-find-all` stopped at the first empty match. All three now resume one character after an empty match, as JS and Python do; `regex-split` ignores empty matches at a segment start or the string end, so it gives `["a" "b" "c"]`. `^` no longer matches where a later search starts mid-line.
 - **`gmtime`/`localtime`** dereferenced NULL for times outside `struct tm`; they now raise an error.
 - **`casting`** to a string or bignum read any value as a NUL-terminated string, past the 8-byte node value. Non-string sources now raise an error.

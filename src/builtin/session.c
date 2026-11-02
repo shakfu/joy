@@ -746,8 +746,7 @@ void session_diff_(pEnv env)
     sqlite3_stmt* stmt;
     Index node;
     khash_t(Dict)* dict;
-    khint_t k;
-    int ret, rc;
+    int rc;
 
     ONEPARAM("session-diff");
     STRING("session-diff");
@@ -808,22 +807,19 @@ void session_diff_(pEnv env)
     exec_sql(env, current->db, "DETACH DATABASE other", NULL, "session-diff");
 
     /* The dict goes on the stack first, for a GC to rewrite its values */
-    env->stck = DICT_NEWNODE(kh_init(Dict), env->stck);
+    env->stck = DICT_NEWNODE(dict_create(env), env->stck);
 
     node = LIST_NEWNODE(reverse_list(env, DMP1), 0);
     dict = nodevalue(env->stck).dict;
-    k = kh_put(Dict, dict, strdup("added"), &ret);
-    kh_val(dict, k) = node;
+    dict_set(env, dict, "added", node);
 
     node = LIST_NEWNODE(reverse_list(env, DMP2), 0);
     dict = nodevalue(env->stck).dict;
-    k = kh_put(Dict, dict, strdup("modified"), &ret);
-    kh_val(dict, k) = node;
+    dict_set(env, dict, "modified", node);
 
     node = LIST_NEWNODE(reverse_list(env, DMP3), 0);
     dict = nodevalue(env->stck).dict;
-    k = kh_put(Dict, dict, strdup("removed"), &ret);
-    kh_val(dict, k) = node;
+    dict_set(env, dict, "removed", node);
 
     POP(env->dump3);
     POP(env->dump2);
@@ -976,7 +972,7 @@ void sql_(pEnv env)
     env->dump1 = LIST_NEWNODE(0, env->dump1); /* rows */
     while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
         /* Each row becomes a dict, rooted while its values allocate */
-        khash_t(Dict)* dict = kh_init(Dict);
+        khash_t(Dict)* dict = dict_create(env);
         Index row;
         int c;
 
@@ -986,8 +982,6 @@ void sql_(pEnv env)
             const char* col_name = sqlite3_column_name(stmt, c);
             int type = sqlite3_column_type(stmt, c);
             Index val = 0;
-            khint_t k;
-            int ret;
 
             switch (type) {
             case SQLITE_INTEGER:
@@ -1009,8 +1003,7 @@ void sql_(pEnv env)
                 break;
             }
 
-            k = kh_put(Dict, dict, strdup(col_name), &ret);
-            kh_val(dict, k) = val;
+            dict_set(env, dict, col_name, val);
         }
 
         row = DICT_NEWNODE(dict, DMP1);

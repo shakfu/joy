@@ -464,6 +464,7 @@ typedef struct Env {
     Index gc_reserved; /* ensure_capacity promised no GC below this index */
 #endif
     void* gc_dicts_seen; /* dictionary tables rewritten by this collection */
+    void* dict_tables;   /* all dictionary tables; unreached ones are freed */
     Node* parent_memory; /* root environment's memory, in parallel tasks: holds symbol bodies */
     Index conts, dump, dump1, dump2, dump3, dump4, dump5, inits;
     Index mem_low;      /* start of definition space (was global in utils.c) */
@@ -594,6 +595,7 @@ void fatal(char* str);
 void abortexecution_(pEnv env, int num);
 /* interp.c */
 void exec_term(pEnv env, Index n);
+int joy_truth(pEnv env, Index node); /* condition value, as `while` reads it */
 void exec_term_protected(pEnv env, Index n, void (*cleanup)(pEnv, void*),
                          void* arg);
 /* scan.c */
@@ -614,6 +616,9 @@ void inimem1(pEnv env, int status);
 void inimem2(pEnv env);
 void printnode(pEnv env, Index p);
 void gc_collect(pEnv env);
+struct kh_Dict_s* dict_create(pEnv env);
+void dict_set(pEnv env, struct kh_Dict_s* d, const char* key, Index value);
+void dict_destroy_all(pEnv env);
 void ensure_capacity(pEnv env, int num);
 char *check_strdup(char *str);
 void *check_malloc(size_t leng);

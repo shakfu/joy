@@ -197,14 +197,12 @@ static Index parse_object(pEnv env, const char **p)
     khash_t(Dict)* d;
     char* key;
     Index value;
-    khint_t k;
-    int ret;
 
     if (**p != '{')
         return 0;
     (*p)++;  /* skip '{' */
 
-    d = kh_init(Dict);
+    d = dict_create(env);
 
     skip_ws(p);
     if (**p == '}') {
@@ -232,8 +230,7 @@ static Index parse_object(pEnv env, const char **p)
         if (!value)
             return 0;
 
-        k = kh_put(Dict, d, strdup(key), &ret); /* see dict_copy */
-        kh_value(d, k) = value;
+        dict_set(env, d, key, value);
 
         skip_ws(p);
         if (**p == '}') {

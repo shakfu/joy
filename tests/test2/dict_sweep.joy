@@ -1,0 +1,24 @@
+(*
+    A collection frees dictionary tables that no live node reaches. Each
+    check allocates garbage dictionaries until collections run, then reads a
+    live one. Each table owns its keys, so a freed source must not take the
+    keys of its copy with it.
+*)
+DEFINE base == {"a": 1 "b": 2}.
+
+(* Live on the stack *)
+{"x": 1} 3000 [{"t": 1} "u" 2 dput pop] times "x" dget 1 =.
+
+(* In definition space, which a collection does not copy *)
+base 3000 [{"t": 1} "u" 2 dput pop] times "b" dget 2 =.
+
+(* Nested as a value *)
+{"in": {"q": 7}} 3000 [{"t": 1} pop] times "in" dget "q" dget 7 =.
+
+(* In a variable *)
+{"v": 5} [Dv] assign 3000 [{"t": 1} pop] times Dv "v" dget 5 =.
+
+(* Keys of a copy outlive the source table *)
+{"a": 1} "b" 2 dput 3000 [{"t": 1} "u" 2 dput pop] times "a" dget 1 =.
+{"a": 1} {"b": 2} dmerge 3000 [{"t": 1} pop] times dkeys size 2 =.
+{"a": 1 "b": 2} "b" ddel 3000 [{"t": 1} pop] times "a" dget 1 =.

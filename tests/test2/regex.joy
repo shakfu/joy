@@ -172,3 +172,12 @@
 "aXa" "^a" regex-find-all ["a"] equal.
 "aXa" "^a" "_" regex-sub-all "_Xa" =.
 "a\na" "^a" regex-find-all ["a" "a"] equal.
+
+(* ===== Negated shortcuts and POSIX classes inside brackets ===== *)
+
+"a1b" "[\\D]+" regex-find-all ["a" "b"] equal.
+"a-b_c9" "[^\\W_]+" regex-find-all ["a" "b" "c9"] equal.
+"a-1" "[\\D-]+" regex-find-all ["a-"] equal.
+"x 1y" "[^\\S\\d]" regex-find-all [" "] equal.
+"a1:b" "[[:alpha:]\\d]+" regex-find-all ["a1" "b"] equal.
+"a]b" "[]a]+" regex-find-all ["a]"] equal.

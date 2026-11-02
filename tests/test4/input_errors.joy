@@ -14,3 +14,18 @@ newstack "abc" "" typeof casting "abc" =.
 newstack stdin -1 fread.
 stack size 2 =.
 newstack stdin 0 fread [] equal.
+newstack "a1" "[[:bogus:]\\D]" regex-find-all.
+stack size 2 =.
+newstack "12abc" 10 strtol.
+stack size 2 =.
+newstack "99999999999999999999" 10 strtol.
+stack size 2 =.
+newstack "10" 99 strtol.
+stack size 2 =.
+newstack "1e999" strtod.
+stack size 1 =.
+newstack "1.5xyz" strtod.
+stack size 1 =.
+newstack "" strtod.
+stack size 1 =.
+newstack " 42 " 10 strtol 42 =.

@@ -17,11 +17,11 @@ def frame(body):
     return b"Content-Length: %d\r\n\r\n" % len(data) + data
 
 
-def run(*bodies):
-    """Send framed messages, then shutdown/exit; return (exit code, replies)."""
+def run(*bodies, raw=b""):
+    """Send raw bytes, framed messages, then shutdown/exit; return (exit code, replies)."""
     tail = [{"jsonrpc": "2.0", "id": 999, "method": "shutdown"},
             {"jsonrpc": "2.0", "method": "exit"}]
-    data = b"".join(frame(b) for b in list(bodies) + tail)
+    data = raw + b"".join(frame(b) for b in list(bodies) + tail)
     proc = subprocess.run([JOY_LSP], input=data, capture_output=True, timeout=30)
     replies, out = [], proc.stdout
     while out:
@@ -93,6 +93,22 @@ def test_surrogate_pair_decodes_to_utf8():
     [reply] = [r for r in replies if r.get("id") == 2]
     assert "\U0001F600" in reply["result"]["contents"]["value"]
 
+
+
+def test_header_framing_variants():
+    init = json.dumps(initialize()).encode()
+    cases = {
+        "lowercase name": b"content-length: %d\r\n\r\n" % len(init) + init,
+        "padded value": b"Content-Length:" + b" " * 300 + b"%d\r\n\r\n" % len(init) + init,
+        "long other header": b"X-Foo: " + b"a" * 300 + b"\r\n" + frame(init),
+        "zero length": b"Content-Length: 0\r\n\r\n" + frame(init),
+        # The unread body joins the next header line; the server resyncs on it
+        "missing length": b"Content-Type: x\r\n\r\n" + b'{"id": 5}' + frame(init),
+    }
+    for name, raw in cases.items():
+        code, replies = run(raw=raw)
+        assert_alive(code, replies)
+        assert [r["id"] for r in replies if "result" in r] == [1, 999], name
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:

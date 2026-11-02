@@ -9,6 +9,7 @@
 #include "runtime.h"
 #include "builtin_macros.h"
 
+#include <ctype.h>
 #include <regex.h>
 
 /* Maximum number of capture groups */
@@ -25,114 +26,254 @@
 #define EXPAND_s_CLASS " \t\n\r\f\v"
 #define EXPAND_S       "[^ \t\n\r\f\v]"
 
-/* Helper: preprocess pattern to expand Perl-style shortcuts to POSIX */
-static char* preprocess_pattern(const char* pattern)
+typedef struct {
+    char* s;
+    size_t len, cap;
+    int oom;
+} PatBuf;
+
+static void pat_put(PatBuf* b, const char* s, size_t n)
 {
-    /* First pass: calculate output size */
-    size_t out_len = 0;
+    if (b->oom)
+        return;
+    if (b->len + n + 1 > b->cap) {
+        size_t cap = (b->len + n + 1) * 2;
+        char* t = realloc(b->s, cap);
+        if (!t) {
+            b->oom = 1;
+            return;
+        }
+        b->s = t;
+        b->cap = cap;
+    }
+    memcpy(b->s + b->len, s, n);
+    b->len += n;
+    b->s[b->len] = '\0';
+}
+
+static void pat_putc(PatBuf* b, char c) { pat_put(b, &c, 1); }
+
+/* Byte membership for a shortcut letter (d, w, s and their negations) */
+static int shortcut_has(char k, int c)
+{
+    int in;
+    switch (k | 0x20) {
+    case 'd': in = c >= '0' && c <= '9'; break;
+    case 'w': in = isalnum(c) || c == '_'; break;
+    default:  in = c == ' ' || (c >= '\t' && c <= '\r'); break;
+    }
+    return (k & 0x20) ? in : !in; /* upper case negates */
+}
+
+/* Byte membership for a POSIX class name such as "alpha"; -1 if unknown */
+static int posix_class_has(const char* name, size_t n, int c)
+{
+    static const struct { const char* name; int (*fn)(int); } classes[] = {
+        {"alnum", isalnum}, {"alpha", isalpha}, {"blank", isblank},
+        {"cntrl", iscntrl}, {"digit", isdigit}, {"graph", isgraph},
+        {"lower", islower}, {"print", isprint}, {"punct", ispunct},
+        {"space", isspace}, {"upper", isupper}, {"xdigit", isxdigit},
+    };
+    size_t i;
+    for (i = 0; i < sizeof(classes) / sizeof(classes[0]); i++)
+        if (strlen(classes[i].name) == n && !strncmp(classes[i].name, name, n))
+            return classes[i].fn(c) != 0;
+    return -1;
+}
+
+/*
+ * Rewrites the bracket members [p, end) as an explicit byte set. POSIX has
+ * no way to put a negated class such as \D inside a bracket, so the set is
+ * computed here. Returns 0 on success, -1 for unsupported members.
+ */
+static int emit_byte_set(PatBuf* b, const char* p, const char* end, int neg)
+{
+    unsigned char set[256] = { 0 };
+    int c, lo, n = 0;
+
+    while (p < end) {
+        if (p[0] == '[' && p[1] == ':') {
+            const char* name = p + 2;
+            const char* close = strstr(name, ":]");
+            if (!close || close >= end)
+                return -1;
+            for (c = 1; c < 256; c++) {
+                int in = posix_class_has(name, (size_t)(close - name), c);
+                if (in < 0)
+                    return -1;
+                set[c] |= in;
+            }
+            p = close + 2;
+        } else if (p[0] == '[' && (p[1] == '.' || p[1] == '=')) {
+            return -1;
+        } else if (p[0] == '\\' && p + 1 < end && strchr("dDwWsS", p[1])) {
+            for (c = 1; c < 256; c++)
+                set[c] |= shortcut_has(p[1], c);
+            p += 2;
+        } else if (p + 2 < end && p[1] == '-' && p[2] != ']') {
+            for (c = (unsigned char)p[0]; c <= (unsigned char)p[2]; c++)
+                set[c] = 1;
+            p += 3;
+        } else {
+            set[(unsigned char)*p++] = 1;
+        }
+    }
+    set[0] = 0; /* patterns are NUL-terminated */
+    if (neg)
+        for (c = 1; c < 256; c++)
+            set[c] = !set[c];
+    for (c = 1; c < 256; c++)
+        n += set[c];
+    if (n == 0)
+        return -1;
+    if (n == 1 && set['^']) {
+        pat_put(b, "\\^", 2);
+        return 0;
+    }
+    /* ']' must come first, '^' must not, '-' must come last */
+    pat_putc(b, '[');
+    if (set[']'])
+        pat_putc(b, ']');
+    for (c = 1; c < 256; c++) {
+        if (!set[c] || c == ']' || c == '^' || c == '-')
+            continue;
+        lo = c;
+        while (c + 1 < 256 && set[c + 1] && c + 1 != ']' && c + 1 != '^'
+               && c + 1 != '-')
+            c++;
+        pat_putc(b, (char)lo);
+        if (c - lo >= 2)
+            pat_putc(b, '-');
+        if (c > lo)
+            pat_putc(b, (char)c);
+    }
+    if (set['^'])
+        pat_putc(b, '^');
+    if (set['-'])
+        pat_putc(b, '-');
+    pat_putc(b, ']');
+    return 0;
+}
+
+/* True if the bracket members [p, end) include \D, \W or \S */
+static int has_negated_shortcut(const char* p, const char* end)
+{
+    for (; p + 1 < end; p++)
+        if (*p == '\\') {
+            if (strchr("DWS", p[1]))
+                return 1;
+            p++;
+        }
+    return 0;
+}
+
+/* Returns the closing ']' of the bracket opening at p, or NULL */
+static const char* bracket_end(const char* p)
+{
+    const char* q = p + 1;
+    if (*q == '^')
+        q++;
+    if (*q == ']')
+        q++; /* a leading ']' is a member */
+    while (*q && *q != ']') {
+        if (q[0] == '[' && (q[1] == ':' || q[1] == '.' || q[1] == '=')) {
+            char close[3] = { q[1], ']', '\0' };
+            const char* e = strstr(q + 2, close);
+            if (!e)
+                return NULL;
+            q = e + 2;
+        } else if (q[0] == '\\' && q[1]) {
+            q += 2;
+        } else {
+            q++;
+        }
+    }
+    return *q ? q : NULL;
+}
+
+/*
+ * Expands Perl-style shortcuts (\d \w \s and negations) to POSIX ERE.
+ * Returns a malloc'd pattern, or NULL with *err set.
+ */
+static char* preprocess_pattern(const char* pattern, const char** err)
+{
+    PatBuf b = { NULL, 0, 0, 0 };
     const char* p = pattern;
-    int in_class = 0;  /* Track if inside [...] */
 
-    while (*p) {
-        if (*p == '[' && !in_class) {
-            in_class = 1;
-            out_len++;
-            p++;
-        } else if (*p == ']' && in_class) {
-            in_class = 0;
-            out_len++;
-            p++;
-        } else if (*p == '\\' && p[1]) {
-            switch (p[1]) {
-                case 'd':
-                    out_len += in_class ? sizeof(EXPAND_d_CLASS) - 1 : sizeof(EXPAND_d) - 1;
-                    p += 2;
-                    break;
-                case 'D':
-                    /* \D inside class is complex - just use the standalone form */
-                    out_len += sizeof(EXPAND_D) - 1;
-                    p += 2;
-                    break;
-                case 'w':
-                    out_len += in_class ? sizeof(EXPAND_w_CLASS) - 1 : sizeof(EXPAND_w) - 1;
-                    p += 2;
-                    break;
-                case 'W':
-                    out_len += sizeof(EXPAND_W) - 1;
-                    p += 2;
-                    break;
-                case 's':
-                    out_len += in_class ? sizeof(EXPAND_s_CLASS) - 1 : sizeof(EXPAND_s) - 1;
-                    p += 2;
-                    break;
-                case 'S':
-                    out_len += sizeof(EXPAND_S) - 1;
-                    p += 2;
-                    break;
-                case '\\':
-                    out_len += 2;
-                    p += 2;
-                    break;
-                default:
-                    out_len += 2;
-                    p += 2;
-                    break;
+    *err = "memory";
+    pat_put(&b, "", 0);
+    while (*p && !b.oom) {
+        if (*p == '[') {
+            const char* end = bracket_end(p);
+            const char* q = p + 1;
+            int neg = *q == '^';
+            if (!end) { /* unterminated: let regcomp report it */
+                pat_put(&b, p, strlen(p));
+                break;
             }
-        } else {
-            out_len++;
-            p++;
-        }
-    }
-
-    /* Allocate and build output */
-    char* result = GC_malloc_atomic(out_len + 1);
-    char* out = result;
-    p = pattern;
-    in_class = 0;
-
-    while (*p) {
-        if (*p == '[' && !in_class) {
-            in_class = 1;
-            *out++ = *p++;
-        } else if (*p == ']' && in_class) {
-            in_class = 0;
-            *out++ = *p++;
-        } else if (*p == '\\' && p[1]) {
-            const char* expand = NULL;
-            switch (p[1]) {
-                case 'd': expand = in_class ? EXPAND_d_CLASS : EXPAND_d; break;
-                case 'D': expand = EXPAND_D; break;
-                case 'w': expand = in_class ? EXPAND_w_CLASS : EXPAND_w; break;
-                case 'W': expand = EXPAND_W; break;
-                case 's': expand = in_class ? EXPAND_s_CLASS : EXPAND_s; break;
-                case 'S': expand = EXPAND_S; break;
-            }
-            if (expand) {
-                size_t len = strlen(expand);
-                memcpy(out, expand, len);
-                out += len;
-                p += 2;
+            q += neg;
+            if (has_negated_shortcut(q, end)) {
+                if (emit_byte_set(&b, q, end, neg) < 0) {
+                    free(b.s);
+                    *err = "supported bracket with \\D, \\W or \\S";
+                    return NULL;
+                }
             } else {
-                /* Keep other escape sequences as-is */
-                *out++ = *p++;
-                *out++ = *p++;
+                pat_put(&b, p, (size_t)(q - p));
+                while (q < end) {
+                    const char* x = NULL;
+                    if (q[0] == '\\' && q[1] == 'd') x = EXPAND_d_CLASS;
+                    else if (q[0] == '\\' && q[1] == 'w') x = EXPAND_w_CLASS;
+                    else if (q[0] == '\\' && q[1] == 's') x = EXPAND_s_CLASS;
+                    if (x) {
+                        pat_put(&b, x, strlen(x));
+                        q += 2;
+                    } else {
+                        pat_putc(&b, *q++);
+                    }
+                }
+                pat_putc(&b, ']');
             }
+            p = end + 1;
+        } else if (*p == '\\' && p[1]) {
+            const char* x = NULL;
+            switch (p[1]) {
+            case 'd': x = EXPAND_d; break;
+            case 'D': x = EXPAND_D; break;
+            case 'w': x = EXPAND_w; break;
+            case 'W': x = EXPAND_W; break;
+            case 's': x = EXPAND_s; break;
+            case 'S': x = EXPAND_S; break;
+            }
+            if (x)
+                pat_put(&b, x, strlen(x));
+            else
+                pat_put(&b, p, 2); /* keep other escapes as-is */
+            p += 2;
         } else {
-            *out++ = *p++;
+            pat_putc(&b, *p++);
         }
     }
-    *out = '\0';
-
-    return result;
+    if (b.oom) {
+        free(b.s);
+        return NULL;
+    }
+    return b.s;
 }
 
 /* Helper: compile regex with error handling */
 static int compile_regex(pEnv env, const char* pattern, regex_t* re, const char* op)
 {
-    /* Preprocess to expand Perl-style shortcuts */
-    char* expanded = preprocess_pattern(pattern);
+    const char* err;
+    char* expanded = preprocess_pattern(pattern, &err);
+    int ret;
 
-    int ret = regcomp(re, expanded, REG_EXTENDED | REG_NEWLINE);
+    if (!expanded) {
+        execerror(env, (char*)err, (char*)op);
+        return -1;
+    }
+    ret = regcomp(re, expanded, REG_EXTENDED | REG_NEWLINE);
+    free(expanded);
     if (ret != 0) {
         char errbuf[256];
         regerror(ret, re, errbuf, sizeof(errbuf));

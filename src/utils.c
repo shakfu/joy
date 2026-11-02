@@ -168,8 +168,8 @@ KHASH_SET_INIT_INT64(DictSeen)
 
 /*
  * Dictionary values are node indices, so a collection must rewrite them. Nodes
- * made by dup share one table: rewrite each table once per collection. In
- * place over a new table per node, because tables are never freed.
+ * made by dup share one table: rewrite each table once per collection. The
+ * tables rewritten are the live ones; sweep_dicts frees the rest.
  */
 static void forward_dict_values(pEnv env, khash_t(Dict)* d)
 {
@@ -185,6 +185,104 @@ static void forward_dict_values(pEnv env, khash_t(Dict)* d)
     for (k = kh_begin(d); k != kh_end(d); ++k)
         if (kh_exist(d, k))
             kh_value(d, k) = copy(env, kh_value(d, k));
+}
+
+/* A new, empty table, registered so that a collection can free it */
+khash_t(Dict)* dict_create(pEnv env)
+{
+    khash_t(Dict)* d = kh_init(Dict);
+    int ret;
+
+    if (!env->dict_tables)
+        env->dict_tables = kh_init(DictSeen);
+    if (!d || !env->dict_tables)
+        fatal("memory exhausted");
+    kh_put(DictSeen, env->dict_tables, (khint64_t)(uintptr_t)d, &ret);
+    if (ret < 0)
+        fatal("memory exhausted");
+    return d;
+}
+
+/* Sets key to value. Each table owns its keys: copies would share them. */
+void dict_set(pEnv env, khash_t(Dict)* d, const char* key, Index value)
+{
+    khint_t k;
+    int ret;
+    char* own;
+
+    k = kh_put(Dict, d, key, &ret);
+    if (ret < 0) {
+        execerror(env, "memory", "dictionary");
+        return;
+    }
+    if (ret > 0) { /* new key: replace the borrowed pointer */
+        if ((own = strdup(key)) == NULL) {
+            kh_del(Dict, d, k);
+            execerror(env, "memory", "dictionary");
+            return;
+        }
+        kh_key(d, k) = own;
+    }
+    kh_value(d, k) = value;
+}
+
+static void dict_free(khash_t(Dict)* d)
+{
+    khint_t k;
+
+    for (k = kh_begin(d); k != kh_end(d); ++k)
+        if (kh_exist(d, k))
+            free((char*)kh_key(d, k));
+    kh_destroy(Dict, d);
+}
+
+/* Frees every table, for a context that is going away */
+void dict_destroy_all(pEnv env)
+{
+    khash_t(DictSeen)* all = env->dict_tables;
+    khint_t k;
+
+    if (!all)
+        return;
+    for (k = kh_begin(all); k != kh_end(all); ++k)
+        if (kh_exist(all, k))
+            dict_free((khash_t(Dict)*)(uintptr_t)kh_key(all, k));
+    kh_destroy(DictSeen, all);
+    env->dict_tables = NULL;
+}
+
+/*
+ * Frees the tables that no live node reached in this collection. Definitions
+ * are not copied, so their tables are visited here. A DICT_NEWNODE that
+ * triggered this collection holds its new table only in env->bucket.
+ */
+static void sweep_dicts(pEnv env)
+{
+    khash_t(DictSeen)* all = env->dict_tables;
+    khash_t(DictSeen)* seen = env->gc_dicts_seen;
+    Index n;
+    khint_t k;
+    int ret;
+
+    if (!all)
+        return;
+    for (n = 1; n < env->mem_low; n++) {
+        Operator op = env->memory[n].op;
+        if (op == DICT_)
+            forward_dict_values(env, env->memory[n].u.dict);
+        else if (op == STRING_ || op == BIGNUM_) {
+            /* Skip the nodes that hold the rest of the string */
+            int size = env->memory[n].len + 1 - (int)sizeof(Types);
+            if (size > 0)
+                n += (size + sizeof(Node) - 1) / sizeof(Node);
+        }
+    }
+    kh_put(DictSeen, seen, (khint64_t)(uintptr_t)env->bucket.dict, &ret);
+    for (k = kh_begin(all); k != kh_end(all); ++k)
+        if (kh_exist(all, k) && kh_get(DictSeen, seen, kh_key(all, k)) == kh_end(seen)) {
+            dict_free((khash_t(Dict)*)(uintptr_t)kh_key(all, k));
+            kh_del(DictSeen, all, k);
+        }
 }
 
 /*
@@ -456,6 +554,7 @@ static void gc1(pEnv env, Index *l, Index *r)
 
     if (env->variable_busy) /* also copy variables, if there are any */
         scan_roots(env);
+    sweep_dicts(env);
 }
 
 static void gc2(pEnv env)

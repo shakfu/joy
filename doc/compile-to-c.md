@@ -203,18 +203,18 @@ Generates:
 
 ```c
 /* User-defined function declarations */
-static void joy_word_square(pEnv env);
-static void joy_word_cube(pEnv env);
+static void joy_word_N_square(pEnv env);
+static void joy_word_M_cube(pEnv env);
 
 /* User-defined: square */
-static void joy_word_square(pEnv env)
+static void joy_word_N_square(pEnv env)
 {
     dup_(env);
     mul_(env);
 }
 
 /* User-defined: cube */
-static void joy_word_cube(pEnv env)
+static void joy_word_M_cube(pEnv env)
 {
     dup_(env);
     dup_(env);
@@ -224,7 +224,7 @@ static void joy_word_cube(pEnv env)
 
 void _joy_compiled_entry_(pEnv env)
 {
-    /* ... uses joy_word_square and joy_word_cube ... */
+    /* ... uses joy_word_N_square and joy_word_M_cube ... */
 }
 ```
 
@@ -299,15 +299,15 @@ DEFINE odd? == [0 =] [false] [1 - even?] ifte.
 
 ## Name Mangling
 
-Joy names are converted to valid C identifiers:
+Joy names are converted to valid C identifiers. `N` is the word's symbol-table index; it keeps names unique, because `a-b` and `a_b` both become `a_b`:
 
 | Joy Name | C Name |
 |----------|--------|
-| `square` | `joy_word_square` |
-| `sum-of-squares` | `joy_word_sum_of_squares` |
-| `list?` | `joy_word_list_p` |
-| `++` | `joy_word__plus_plus` |
-| `<>` | `joy_word__lt_gt` |
+| `square` | `joy_word_N_square` |
+| `sum-of-squares` | `joy_word_N_sum_of_squares` |
+| `list?` | `joy_word_N_list_p` |
+| `++` | `joy_word_N__plus_plus` |
+| `<>` | `joy_word_N__lt_gt` |
 
 ## Limitations
 
