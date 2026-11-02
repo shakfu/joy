@@ -34,6 +34,8 @@ DEFINE my_mixed == [1 "hi" 2.5 true].
 DEFINE my_set == {1 2 3}.
 DEFINE my_char == 'A.
 DEFINE my_dict == [["name" "Joy"] ["version" 1]] >dict.
+(* Reuses a builtin's symbol entry *)
+DEFINE rotate == [7 8 9].
 
 "Defined values in session.\n" putchars.
 session-close.
@@ -103,11 +105,11 @@ echo "Step 3: Verifying loaded values after a garbage collection..."
 RESULT=$($JOY <<'EOF'
 "test_persist" session.
 0 [300000 <] [succ] while pop.
-my_int my_list my_quot my_string my_nested [] cons cons cons cons cons .
+my_int my_list my_quot my_string my_nested rotate [] cons cons cons cons cons cons .
 session-close.
 EOF
 )
-EXPECTED='[42 [1 2 3 4 5] [dup *] "hello world" [[1 2] [3 4] [5 6]]]'
+EXPECTED='[42 [1 2 3 4 5] [dup *] "hello world" [[1 2] [3 4] [5 6]] [7 8 9]]'
 if ! echo "$RESULT" | grep -qxF "$EXPECTED"; then
     echo "$RESULT"
     echo ""

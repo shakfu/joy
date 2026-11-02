@@ -467,9 +467,9 @@ static void scan_roots(pEnv env)
      */
     for (i = vec_size(env->symtab) - 1; i > 0; i--) {
         ent = vec_at(env->symtab, i);
-        if (!ent.is_user) /* stop at builtins */
-            break;
-        if (ent.is_root && ent.u.body) {
+        /* No early stop at builtins: a runtime definition can reuse a
+           builtin's entry (a session defining rotate) */
+        if (ent.is_user && ent.is_root && ent.u.body) {
             ent.u.body = copy(env, ent.u.body);
             vec_at(env->symtab, i) = ent;
         }

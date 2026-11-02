@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `doc/dev/memory-rules.md`: the rules C code must follow to keep node indices, strings, dictionaries and runtime bindings valid across collections.
+
 - `-DJOY_GC_STRESS=ON` collects at every allocation. A plain test only catches a GC bug when a collection happens to land in the right place; a test written to sweep the heap passed on the unfixed code.
 
 - **FFI**: `ffi` and `ffi-call` call C functions in shared libraries through libffi, under `-DJOY_FFI=ON`. A callable is a plain quotation, not a new node type, so it needs no GC support and survives a session reload. See `doc/ffi.md`.
@@ -26,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **The node heap grew 1.8x per collection with constant live data.** Before collecting, `newnode` and `ensure_capacity` doubled the heap to fit a worst-case copy, and that doubled size became the next heap; `gc2` took back only 10%. `N [[1 2] [3] concat pop] times` peaked at 434 MB for N=3e6; it now stays under 2 MB. The to-space is now sized for the worst case only, and after a collection the heap holds 4x the surviving nodes; a heap that must grow at least doubles. Building a 2M-element list peaks 6% higher (554 MB vs 521 MB).
 
+- **A session definition named after a builtin was corrupted by the next collection.** It reuses the builtin's symbol entry, and `scan_roots` stopped at the first builtin entry, so the body was never copied. The scan now covers the whole table (335 entries at startup).
 - **`fgets` returned a truncated line when `realloc` failed**, and the BDW path did not check `GC_realloc`. Both now raise an error. A line of 2 GiB or more is an error too: `newnode` stores string lengths in an `int`.
 - **Vector and matrix literals wrote through NULL** when their buffer `realloc` failed. They now report the error like other malformed literals. A failed key `strdup` in a dictionary literal raises the same error as `dict_set`.
 - **`joy_memory_used` returned the cumulative allocation count** (`stats.nodes`), and **`joy_memory_max` the smallest free-node count** seen after loading definitions (`stats.avail`). They now return the nodes in use and the heap capacity, matching `__memoryindex` and `__memorymax` and their header comments.
