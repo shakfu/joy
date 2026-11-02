@@ -97,6 +97,25 @@ if echo "$RESULT" | grep -q "FAIL"; then
     exit 1
 fi
 
+# Step 3: loaded bodies live in the heap, so they must survive a collection
+echo ""
+echo "Step 3: Verifying loaded values after a garbage collection..."
+RESULT=$($JOY <<'EOF'
+"test_persist" session.
+0 [300000 <] [succ] while pop.
+my_int my_list my_quot my_string my_nested [] cons cons cons cons cons .
+session-close.
+EOF
+)
+EXPECTED='[42 [1 2 3 4 5] [dup *] "hello world" [[1 2] [3 4] [5 6]]]'
+if ! echo "$RESULT" | grep -qxF "$EXPECTED"; then
+    echo "$RESULT"
+    echo ""
+    echo "=== TEST FAILED: expected $EXPECTED ==="
+    rm -rf "$TESTDIR"
+    exit 1
+fi
+
 echo ""
 echo "=== ALL TESTS PASSED ==="
 

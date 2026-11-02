@@ -9,7 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - `-DJOY_GC_STRESS=ON` collects at every allocation. A plain test only catches a GC bug when a collection happens to land in the right place; a test written to sweep the heap passed on the unfixed code.
+
 - **FFI**: `ffi` and `ffi-call` call C functions in shared libraries through libffi, under `-DJOY_FFI=ON`. A callable is a plain quotation, not a new node type, so it needs no GC support and survives a session reload. See `doc/ffi.md`.
+
 - **Dictionary literals**: `{"k": v}` and the empty `{:}`, so dictionaries print in a form that reads back. An empty dictionary now prints as `{:}`, because `{}` reads as the empty set. Sessions can reload dictionaries.
 
 ### Changed
@@ -23,56 +25,104 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - **The node heap grew 1.8x per collection with constant live data.** Before collecting, `newnode` and `ensure_capacity` doubled the heap to fit a worst-case copy, and that doubled size became the next heap; `gc2` took back only 10%. `N [[1 2] [3] concat pop] times` peaked at 434 MB for N=3e6; it now stays under 2 MB. The to-space is now sized for the worst case only, and after a collection the heap holds 4x the surviving nodes; a heap that must grow at least doubles. Building a 2M-element list peaks 6% higher (554 MB vs 521 MB).
+
+- **Session definitions were lost at the first collection**: definitions loaded by `session`, `restore`, `session-merge` and `session-take` live in the heap, above the definition space the collector keeps, but were not marked as roots. They are now roots, like `assign` variables. Loading also held the saved stack in a local while parsing, and `restore`, `session-merge` and `session-take` printed a name that pointed into the freed node arena.
+
 - **A collection gave every live string an extra node**: `copy_one` counted a string's first node twice. The old heap doubling hid this; a to-space sized to the worst case overflowed in `__manual_list`.
+
 - **Dictionary tables were never freed**, and `dput`, `ddel` and `dmerge` copy one per call. Every table is now registered; a collection frees those that no live node reached. Copies used to share keys, so each table now owns its keys. A table only in a C local during a collection is freed; creation sites keep new tables on a node or within a reservation.
+
 - **Regex `\D`, `\W` and `\S` inside a bracket** expanded to a nested `[^...]`, so `[\D]` became `[[^0-9]]` and matched nothing useful. POSIX ERE cannot express a negated class inside a bracket, so such a bracket is now rewritten as an explicit byte set (C locale). Collating elements in such a bracket are an error. The bracket scanner also ended a bracket at the `]` of `[:alpha:]`.
+
 - **`strtol` and `strtod` accepted partial and out-of-range input**: `"12abc" 10 strtol` gave 12 and overflow saturated silently. Both now raise an error unless the whole string, apart from surrounding whitespace, converts in range. `strtol` rejects bases other than 0 and 2..36.
+
 - **`compile-to-c`**:
   - User words named `while` or `times` were inlined as the builtin.
+
   - Inlined `while` read its condition as an `int` from `.num`, so `-0.0` and values above 2^32 gave the wrong branch. It now uses the runtime's truth test (`joy_truth`) and checks for an empty stack.
+
   - `a-b` and `a_b` produced the same C function. Function names now include the symbol-table index (`joy_word_N_name`).
+
   - Folded NaN/Inf emitted `nan`/`inf`, which is not C; float literals used `%g` and lost precision.
+
   - `cbuf_printf` truncated output at 1024 bytes.
+
 - **`joy-lsp` exited on a lowercase, missing, zero or over-long `Content-Length` header.** Header names now match case-insensitively. A bad header skips one message: the server resyncs on the next `Content-Length` it finds.
+
 - **`regex-split` and `regex-sub-all` dropped input at empty matches**: they advanced past the next character without copying it, so `"abc" "x*" regex-split` gave four empty strings. `regex-find-all` stopped at the first empty match. All three now resume one character after an empty match, as JS and Python do; `regex-split` ignores empty matches at a segment start or the string end, so it gives `["a" "b" "c"]`. `^` no longer matches where a later search starts mid-line.
+
 - **`gmtime`/`localtime`** dereferenced NULL for times outside `struct tm`; they now raise an error.
+
 - **`casting`** to a string or bignum read any value as a NUL-terminated string, past the 8-byte node value. Non-string sources now raise an error.
+
 - **`fread`** truncated its count to `int` and passed negative counts to `malloc`; `4294967298 fread` read 2 bytes. Negative counts and failed allocations now raise an error.
+
 - **`-DJOY_PARALLEL=ON` did not compile, and was unsafe once it did.** Tasks wrote to the shared symbol table and allocated through the single default GC context. Legacy GC calls now use the running task's context. A task that errors, needs a shared side effect, or returns a lazy sequence, dictionary or file is discarded, and the combinator replays sequentially. This choice over raising an error keeps results independent of list length and build flags. See `doc/parallel.md`.
+
 - **Parallel combinators**: results were held unrooted across parent allocation; a GC while copying a symbol body made `exec_term` read a stale index; vector and matrix results dangled after their task ended; `preduce` swapped operands, which reversed `concat`.
+
 - **`pfilter`** read empty strings as true on both paths: `newnode` overwrites only the bytes a string needs, so `u.num` includes stale pointer bytes.
+
 - **Lazy sequence constructors and `json>` broke when a GC ran inside them**, giving `bad node` errors or crashes that depended on heap layout, even on the length of the file path. `LazyData` holds indices that a GC cannot find until a node refers to it. `json>` held partial lists and a pointer into its string node. Both now reserve their nodes first.
+
 - **Dictionary values were lost at the first GC after they were stored**: they are node indices, and the collector did not rewrite them. `"a" dget` then returned wrong values `dput`, `ddel` and `dmerge` also reserve nodes first, because a collector cannot find a new table until a node refers to it.
+
 - **Dictionary keys were freed while in use**: keys came from the GC, and the `malloc`'d table that held them is not scanned.
+
 - **`session-diff`** held finished lists unrooted while building the next one.
+
 - **Embedding**: the GC never scanned the C stack, because its bound was a static variable. Each outermost `joy_eval_*` call now sets the bound from its own frame.
+
 - **`compile-to-c`**: a symbol without a body inside a quotation failed to link; it is now data.
+
 - **`compile-to-c`**: inlined `while` kept the stack in a C local, which a GC invalidated.
+
 - **`tools/fmt_joy.py`** changed programs: it dropped `:` and unknown characters, and split `$"..."`, `v[`, `m[` and numeric char escapes. It also treated comments as nested, unlike the scanner, and dropped blank lines.
+
 - **`tools/gen_docs.py`** missed `.`-terminated definitions and read definitions inside comments.
+
 - `flatten` is defined once, in `lib/seqlib.joy`. The `lib/mapreduce.joy` copy behaved the same.
+
 - **Test harness executed no test2 files.** The CLI runs only its first filename argument; later ones become `argv`. `run_test.sh` passed `inilib.joy` first, so all 174 registered tests loaded the library and passed without running. The runner now includes `usrlib.joy` and the test from stdin, in the test's directory. Six tests then failed: four lacked `agglib` definitions; `all2.joy` and `matrix.joy` had wrong expectations (exact float equality after `inv`).
+
 - **Conservative GC freed live vector/matrix payloads.** Nodes live in a `calloc`'d arena that the collector never scanned, so an allocation that triggered a collection could free a `MatrixData` still referenced by a node. glibc then wrote its free-list pointer over `rows`/`cols`. The arena (and the old arena during a copying GC) is now a registered root.
+
 - **`let`, `match` and `cases` bindings were not GC roots**, so a collection inside the body left names pointing at moved nodes (`[7 8 9] [n] [200000 [[1 2 3] pop] times n] let` gave `[]`). An error inside the body also left the names rebound. Bindings are now roots, saved bodies live on the dump, and an error restores them; `debug-trace`, `debug-step` and `profile` restore their flags the same way.
+
 - **`scan_roots` stopped at the first variable ever assigned**, not the lowest-indexed one, so a later `assign` to an older symbol was not GC-copied.
+
 - **Integer arithmetic** wraps instead of overflowing; `INT64_MIN -1 /` (and `div`, `rem`) no longer dies with SIGFPE. `trunc` of an out-of-range float is an error. Wrapping over erroring keeps existing results unchanged.
+
 - **Vector/matrix constructors** reject sizes whose element count exceeds `INT_MAX`; `(int)(n*n)` truncation made `3037000500 meye` write out of bounds. All allocations are checked.
+
 - **`compile-to-c`**: `=` mapped to `equal_` and several names to functions that do not exist; nested quotations were silently dropped; `div` was folded to one result; integer comparisons were folded as doubles; inlining never applied to builtins but did apply to user words named like them.
+
 - **`joy-lsp`**: use-after-free in diagnostics for MISSING nodes (any unterminated definition). The JSON parser now caps nesting, rejects malformed input with `-32700`, and decodes surrogate pairs.
+
 - **Sessions**: a failed open no longer leaves a half-open session; SQLite errors raise runtime errors and detach attached databases; `restore` and `snapshot` run in a transaction, so a failed insert no longer deletes all symbols.
+
 - `m[]` now reads back as the empty matrix it prints as.
+
 - **Lazy sequences broke on garbage collection.** `drop`, `take`, `force` and `rest` advanced a C-local `LazyData*` that no node referenced, so a GC left its state and generator indices stale (`0 [1 +] iterate 300 drop first` raised "two parameters needed for +"). The sequence now stays on the stack and is stepped in place.
+
 - **`>list` on a matrix** held list indices across per-row allocations; `10000 3 nmones >list` returned 3868 rows. Nodes are now reserved before any index or payload pointer is taken.
+
 - Executing a bad node (a stale index after GC) counts as an error, and `run_test.sh` fails on it even with `ALLOW_ERRORS`. Before, such corruption printed a warning and the test passed.
 
 ### Changed
 
 - **linenoise updated** from upstream `06552a1` to `16c6c78` (`ext/linenoise/VERSION`). The REPL gains bracketed paste (a pasted multi-line `DEFINE` is one entry, and history keeps it), completion of the word at the cursor, and no fixed 4 KB line limit. `tools/sync_linenoise.sh` repeats the update from a linenoise checkout.
+
 - **REPL runs every statement on a line.** It stopped at the first `.` and left the rest queued, to run later behind the next line's input; `DEFINE a == 7. a .` printed nothing after the definition. Each line now gets a sentinel ` . `, and a `.` read with the pushback buffer empty ends the line. Checking only for an empty buffer would block on stdin when blanks or a comment follow the last `.`. An error now discards the rest of its line.
+
 - Ctrl-C in the REPL discards the line instead of exiting; Ctrl-D still exits.
+
 - The REPL highlighting theme is selectable with `JOY_THEME`; the default is now `one-dark` (was linenoise's `monokai`). An unknown name lists the themes.
+
 - `joy` exits with status 1 if any runtime or syntax error was reported.
+
 - CI runs on push and pull request, runs tests in Release, and adds `JOY_SESSION`, `JOY_BLAS`, `JOY_PARALLEL` (allowed to fail) and `joy-lsp` ASan jobs.
+
 - 62 previously unregistered test2 files, the parallel tests (through the assertion runner) and the session scripts run under ctest.
 
 ### [1.45]
@@ -81,15 +131,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **LSP server** - Language Server Protocol implementation for editor integration
   - Standalone `joy-lsp` binary communicating via stdin/stdout JSON-RPC
+
   - **Autocompletion**: Prefix-matches against 318 builtins and document definitions, with signatures and docs
+
   - **Hover documentation**: Markdown-formatted signature + description for builtins, definition body for user symbols
+
   - **Go-to-definition**: Navigate to user-defined symbol definitions within the document
+
   - **Document symbols**: Outline view of all definitions in a file
+
   - **Diagnostics**: Real-time syntax error reporting from tree-sitter ERROR/MISSING nodes
+
   - Full document sync (re-parses on every change, Joy files are small)
+
   - No joycore dependency — links only against tree-sitter-joy for fast startup
+
   - Build-time codegen: `tools/gen_lsp_builtins.py` extracts builtin database from `src/builtin/*.c` doc comments
+
   - Build: `make joy-lsp`
+
   - Works with any LSP-compatible editor (VSCode, Neovim, Emacs, Helix, etc.)
 
 ---
@@ -101,30 +161,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Compile-to-C enhancements** - Extended Joy-to-C compiler with constant folding, loop inlining, user functions, and file output
   - **Constant folding**: Evaluate constant expressions at compile time
     - Arithmetic: `2 3 +` compiles to just `5`, not push-push-add
+
     - Chained operations: `2 3 + 4 *` folds to `20`
+
     - Stack operations: `5 dup *` folds to `25`
+
     - Comparisons: `10 3 <` folds to `false`
+
     - Unary ops: `5 neg abs` folds through `-5` to `5`
+
     - Float support: `3.14 2.0 *` folds to `6.28`
+
     - Supported ops: `+ - * / rem div max min < <= > >= = != and or xor not neg abs succ pred sign dup`
+
   - **Loop inlining**: `while` and `times` loops are compiled to native C loops instead of interpreter calls
+
     ```joy
     [5 dup *] compile-to-c.
     (* Generates: for (int64_t _i = 0; _i < n; _i++) { ... } *)
     ```
+
   - **User-defined function support**: Functions defined with `DEFINE` are compiled as separate C functions
     - Automatic dependency resolution: referenced user functions are included
+
     - Recursive functions supported with forward declarations
+
     - Mutual recursion handled correctly
+
     ```joy
     DEFINE square == dup *.
     DEFINE sum-of-squares == [square] map 0 [+] fold.
     [[1 2 3] sum-of-squares] compile-to-c.
     (* Generates separate C functions for square and sum_of_squares *)
     ```
+
   - **File output**: `compile-to-file` writes compiled C directly to a file
     - Syntax: `[quotation] "filename.c" compile-to-file`
+
     - Produces complete, standalone C program ready to compile
+
     ```joy
     [10 [1 -] [dup 1 >] while pop] "/tmp/countdown.c" compile-to-file.
     (* Creates /tmp/countdown.c with full main() and runtime setup *)
@@ -132,21 +207,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Code formatter** - Auto-format Joy source files
   - `tools/fmt_joy.py` - Python script to format Joy code
+
   - Consistent spacing: single space between tokens, no space inside `[]` or `{}`
+
   - Proper indentation: 4 spaces within LIBRA/DEFINE blocks, extra indent for continuation lines
+
   - Preserves comments and blank lines between sections
+
   - Options: `--check` (verify formatting), `--diff` (show changes), `-i` (in-place edit)
+
   - Usage: `python tools/fmt_joy.py lib/*.joy --check`
 
 - **Documentation generator** - Extract and format library documentation
   - `tools/gen_docs.py` - Python script to generate markdown from Joy library files
+
   - Extracts `(* ... *)` comments and associates them with definitions
+
   - Organizes by file and section headers
+
   - Supports inline comments and multi-line documentation
+
   - Usage: `python tools/gen_docs.py lib/*.joy -o doc/library.md`
 
 - **Profiler** - Track per-symbol call counts and timing for performance analysis
   - `profile` - Execute quotation with profiling, print timing report:
+
     ```joy
     DEFINE fib == [2 <] [] [1 - dup 1 - fib swap fib +] ifte.
     [20 fib] profile.
@@ -159,19 +244,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
                      fib      21891        45.66         6.23
     *)
     ```
+
   - Manual profiling control:
     - `profile-start` - Begin collecting profile data (clears previous)
+
     - `profile-stop` - Stop collecting
+
     - `profile-report` - Print formatted report
+
     - `profile-reset` - Clear all data
+
   - Programmatic access:
     - `profile-data` - Returns list of `[name calls total-ns self-ns]` entries
+
   - Timing precision: Uses platform-specific high-resolution clocks (nanoseconds)
+
   - Self-time calculation: Distinguishes time in function vs. time in nested calls
+
   - Minimal overhead: Single branch check when profiling disabled
 
 - **Interactive debugger/stepper** - Trace and step through Joy program execution
   - `debug-trace` - Execute quotation with full trace output showing stack and pending operations:
+
     ```joy
     [1 2 + 3 *] debug-trace.
     (*
@@ -183,35 +277,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
     9
     *)
     ```
+
   - `debug-step` - Interactive single-step execution with commands:
     - `s` or Enter: Step to next operation
+
     - `c`: Continue to next breakpoint or completion
+
     - `q`: Quit execution
+
   - Breakpoint management:
     - `breakpoint` - Set breakpoint on named symbol: `"myfunction" breakpoint`
+
     - `clear-breakpoints` - Remove all breakpoints
+
     - `show-breakpoints` - List current breakpoints: `show-breakpoints` -> `["foo" "bar"]`
+
   - Breakpoints trigger step mode when hit, displaying `[break: name]` message
+
   - Documentation: [doc/debugger.md](doc/debugger.md)
 
 - **Lazy sequences** - Potentially infinite sequences with thunk-based evaluation
   - New `LAZY_` type with four kinds: iterate, repeat, cycle, range
+
   - Constructors:
     - `iterate` - Generate sequence by repeated application: `0 [1 +] iterate` -> 0, 1, 2, 3, ...
+
     - `replicate` - Infinite repetition of value: `42 replicate` -> 42, 42, 42, ...
+
     - `cycle` - Infinite cycling through list: `[1 2 3] cycle` -> 1, 2, 3, 1, 2, 3, ...
+
     - `lazy-range` - Numeric range: `1 10 lazy-range` or `1 lazy-range` (infinite)
+
   - Operations:
     - `take` - Materialize first N elements: `0 [1 +] iterate 5 take` -> `[0 1 2 3 4]`
+
     - `force` - Same as take, explicit materialization
+
     - `first` - Get current value: `0 [1 +] iterate first` -> `0`
+
     - `rest` - Advance sequence: `0 [1 +] iterate rest first` -> `1`
+
     - `drop` - Skip N elements: `0 [1 +] iterate 100 drop first` -> `100`
+
     - `null` - Check if finite sequence exhausted
+
   - Type predicate: `lazy` - Test if value is lazy sequence
+
   - Safety: No accidental infinite materialization; `force`/`take` require explicit count
+
   - Prints as `<lazy:iterate>`, `<lazy:repeat>`, `<lazy:cycle>`, `<lazy:range>`
+
   - Examples:
+
     ```joy
     (* Powers of 2 *)
     1 [2 *] iterate 8 take.  (* -> [1 2 4 8 16 32 64 128] *)
@@ -223,37 +340,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Regular expression operations** - Pattern matching on strings using POSIX Extended Regular Expressions
   - `regex-match` - Test if pattern matches: `"hello" "h.*" regex-match` -> `true`
+
   - `regex-find` - Find first match: `"hello world" "[a-z]+" regex-find` -> `"hello"`
+
   - `regex-find-all` - Find all matches: `"a1b2" "[0-9]" regex-find-all` -> `["1" "2"]`
+
   - `regex-split` - Split by pattern: `"a,b,c" "," regex-split` -> `["a" "b" "c"]`
+
   - `regex-sub` - Replace first match: `"aaa" "a" "b" regex-sub` -> `"baa"`
+
   - `regex-sub-all` - Replace all matches: `"aaa" "a" "b" regex-sub-all` -> `"bbb"`
+
   - `regex-groups` - Extract capture groups: `"2026-01-31" "([0-9]+)-([0-9]+)-([0-9]+)" regex-groups` -> `["2026-01-31" "2026" "01" "31"]`
+
   - Perl-style shortcuts supported: `\d`, `\D`, `\w`, `\W`, `\s`, `\S` (expanded to POSIX equivalents)
 
 - **Persistent SQLite-backed sessions** - Store and restore symbol definitions across Joy sessions
   - Enable with `-DJOY_SESSION=ON` in CMake (requires SQLite3, default: OFF)
+
   - Automatic persistence: DEFINE operations write-through to database
+
   - Snapshot/restore: Save and restore session state to named checkpoints
+
   - Session management: List, merge, diff, and selectively copy between sessions
+
   - SQL queries: Execute raw SQL on session data for advanced introspection
+
   - Operators:
     - `session` - Open/create persistent session: `"myproj" session.`
+
     - `session-close` - Close current session
+
     - `sessions` - List available sessions (*.joy.db files)
+
     - `snapshot` - Save current state: `"v1" snapshot.`
+
     - `restore` - Restore to snapshot: `"v1" restore.`
+
     - `snapshots` - List available snapshots
+
     - `session-merge` - Merge another session into current
+
     - `session-diff` - Compare sessions (returns dict with added/modified/removed)
+
     - `session-take` - Copy specific symbol from another session
+
     - `sql` - Execute SQL query: `"SELECT * FROM symbols" [] sql.`
+
   - Uses SQLite WAL mode for better concurrency
+
   - Generator scripts detect `[SESSION]` marker for conditional compilation
 
 ### Fixed
 
 - **Dictionaries unusable with `let` combinator** - The `DICT_` type was missing from the `exec_term` switch statement in `src/interp.c`, causing "valid factor needed for exec_term" errors when dictionaries were bound to names via `let`. Now dictionaries work correctly with local bindings:
+
   ```joy
   [["name" "Bob"] ["score" 100]] >dict [d] [d "name" dget] let.
   (* -> "Bob" *)
@@ -261,13 +402,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Session deserialization only worked for integers/floats** - Complex values (lists, quotations, dicts, sets, strings, characters) were stored correctly but returned as strings when reopening a session. The Joy parser couldn't be used during session load because it corrupted the main scanner state.
   - **Solution:** Save/restore scanner state and use `fmemopen()` to create an isolated FILE* from the serialized string
+
   - **All value types now persist correctly:**
     - Lists (including nested): `[1 2 3]`, `[[1 2] [3 4]]`
+
     - Quotations (executable after restore): `[dup *]`
+
     - Strings, characters: `"hello"`, `'A`
+
     - Sets: `{1 2 3}`
+
     - Dictionaries: `{"key": value}`
+
     - Booleans: `true`, `false`
+
   - Tests: `tests/test_session_persist.sh`, `tests/test_session_snapshot.sh`
 
 ---
@@ -278,9 +426,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **`JOY_NATIVE_TYPES` compile option** - Make native vector/matrix types optional (default: ON)
   - Enable with `-DJOY_NATIVE_TYPES=ON` (default), disable with `-DJOY_NATIVE_TYPES=OFF`
+
   - When disabled: `v[...]` and `m[[...]]` syntax not recognized, native type builtins excluded
+
   - Guarded components: scanner literals, parser cases, GC handling, display, BLAS operations
+
   - Pattern follows existing `JOY_BLAS` and `JOY_PARALLEL` options
+
   - Docstring marker `[NATIVE]` for code generators to emit `#ifdef` guards
 
 ### Fixed
@@ -297,27 +449,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Native contiguous vector and matrix types** - Eliminate linked-list conversion overhead for BLAS operations
   - New types: `VECTOR_` (contiguous double array) and `MATRIX_` (row-major contiguous storage)
+
   - Literal syntax: `v[1 2 3]` for vectors, `m[[1 2][3 4]]` for matrices
+
   - Type predicates: `vector?`, `matrix?`
+
   - Conversion operators:
     - `>vec` - Convert numeric list to native vector: `[1 2 3] >vec -> v[1.0 2.0 3.0]`
+
     - `>mat` - Convert list of lists to native matrix: `[[1 2][3 4]] >mat -> m[[1.0 2.0][3.0 4.0]]`
+
     - `>list` - Convert native type back to list: `v[1 2 3] >list -> [1.0 2.0 3.0]`
+
   - Native BLAS operations (no conversion overhead):
     - `ndot` - Native dot product: `v[1 2 3] v[4 5 6] ndot -> 32.0`
+
     - `nmv` - Native matrix-vector multiply: `m[[1 0][0 1]] v[3 4] nmv -> v[3.0 4.0]`
+
     - `nmm` - Native matrix multiply: `m[[1 2][3 4]] m[[1 0][0 1]] nmm -> m[[1.0 2.0][3.0 4.0]]`
+
   - Native creation functions:
     - `nvzeros`, `nvones` - Create native vectors: `3 nvzeros -> v[0.0 0.0 0.0]`
+
     - `nmzeros`, `nmones` - Create native matrices: `2 2 nmzeros -> m[[0.0 0.0][0.0 0.0]]`
+
     - `nmeye` - Create native identity matrix: `3 nmeye -> m[[1.0 0.0 0.0][0.0 1.0 0.0][0.0 0.0 1.0]]`
+
   - Performance: Native dot product is ~3x faster than list-based (eliminates O(n) list traversal)
+
   - Tests: `tests/test2/vector_native.joy` (28 test cases)
 
 ### Changed
 
 - Repurposed `LIST_PRIME_` (type index 13) as `VECTOR_` to fit within NOBDW 4-bit opcode limit
+
 - Added `MATRIX_` at type index 15
+
 - Updated `casting` builtin to reject `VECTOR_` and `MATRIX_` types (require special allocation)
 
 ---
@@ -328,37 +495,60 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Dictionary type** - Key-value data structure using khash (`src/builtin/dict.c`)
   - `dempty` - Create empty dictionary
+
   - `dput` - Insert or update key-value pair: `dict "key" value dput -> dict'`
+
   - `dget` - Get value by key (error if missing): `dict "key" dget -> value`
+
   - `dgetd` - Get value with default: `dict "key" default dgetd -> value`
+
   - `dhas` - Check if key exists: `dict "key" dhas -> bool`
+
   - `ddel` - Delete key: `dict "key" ddel -> dict'`
+
   - `dkeys` - Get all keys: `dict dkeys -> [keys...]`
+
   - `dvals` - Get all values: `dict dvals -> [values...]`
+
   - `dsize` - Get entry count: `dict dsize -> int`
+
   - `>dict` - Create from assoc list: `[["k1" v1] ["k2" v2]] >dict -> dict`
+
   - `dict>` - Convert to assoc list: `dict dict> -> [["k1" v1] ...]`
+
   - `dmerge` - Merge two dicts: `dict1 dict2 dmerge -> dict'`
+
   - Tests: `tests/test2/dict.joy` (24 test cases)
 
 - **JSON support** - Parse and emit JSON (`src/builtin/json.c`)
   - `json>` - Parse JSON string to Joy value: `"[1,2,3]" json> -> [1 2 3]`
+
   - `>json` - Emit Joy value as JSON string: `[1 2 3] >json -> "[1,2,3]"`
+
   - Type mapping: object<->dict, array<->list, string<->string, number<->int/float, true/false<->bool
+
   - Handles nested structures, escape sequences, Unicode
+
   - Tests: `tests/test2/json.joy` (26 test cases)
 
 - **String interpolation** - Embed expressions in strings (`src/scan.c`)
   - Syntax: `$"Hello ${expr}!"` - expressions in `${...}` are evaluated and converted to strings
+
   - Example: `$"2+2=${2 2 +}"` -> `"2+2=4"`
+
   - Example: `$"pi=${3.14159}"` -> `"pi=3.14159"`
+
   - Supports integers, floats, strings, booleans, user-defined symbols, operators
+
   - Multiple interpolations: `$"a=${1}b=${2}"` -> `"a=1b=2"`
+
   - Literal `$` preserved when not followed by `{`: `$"$100"` -> `"$100"`
+
   - Tests: `tests/test2/strinterp.joy` (18 test cases)
 
 - **String conversion operators** (`src/builtin/tostring.c`)
   - `toString` - Convert any value to its string representation: `42 toString -> "42"`
+
   - `unquoted` - Convert to string without quotes for strings: `42 unquoted -> "42"`, `"hi" unquoted -> "hi"`
 
 ---
@@ -369,50 +559,67 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **SIMD vectorization** - Enabled `#pragma omp simd` directives via `-fopenmp-simd` compiler flag
   - Applies to vector operations in `src/builtin/vector.c`
+
   - Works independently of full OpenMP parallel support (`-DJOY_PARALLEL`)
+
   - Enables auto-vectorization for element-wise operations on modern CPUs
 
 - **Optional BLAS support** - Build-time option for hardware-optimized linear algebra
   - Enable with `-DJOY_BLAS=ON` in CMake
+
   - macOS: Uses Apple Accelerate framework (vecLib/BLAS)
+
   - Linux: Uses OpenBLAS, Intel MKL, or system BLAS via `FindBLAS`
+
   - `mm` (matrix multiply) uses `cblas_dgemm` for matrices >= 32x32 (4-8x speedup)
+
   - Graceful fallback to SIMD-optimized manual implementation below threshold
+
   - Note: `mv` and Level 1 ops use SIMD only (list-to-array conversion negates BLAS benefit)
 
 - **Contiguous matrix type exploration** - Design document for future consideration
   - `doc/contiguous_matrix_exploration.md` - Analysis of native array types for Joy
+
   - Would enable full BLAS performance for all operations (10-50x projected speedup)
 
 - **Local bindings (`let` combinator)** - Bind stack values to names within quotation
   - Syntax: `X1 X2 ... Xn [name1 name2 ... namen] [body] let -> result`
+
   - Binds n values from stack to names, executes body, restores original bindings
+
   - Example: `10 20 [aa bb] [aa bb + aa bb - *] let` -> `-300`
+
   - Simplifies complex stack manipulation into readable, math-like expressions
+
   - Limitation: Names must be user symbols, not builtins (`i` and `x` are reserved; other letters work)
+
   - Tests: `tests/test2/let.joy` (12 test cases)
 
 - **Pattern matching (`match` and `cases` combinators)** - Match and destructure values
   - `match`: `value [pattern] [action] match -> result | false`
+
   - `cases`: `value [[pat1] [act1]] [[pat2] [act2]] ... cases -> result`
+
   - Patterns support: literals, wildcards (`_`), variables, empty list (`[]`), cons patterns (`[h : t]`), exact list patterns (`[a b c]`)
+
   - Variables are bound during action execution and restored afterward
+
   - Example: `5 [n] [n n *] match` -> `25`
+
   - Example: `[1 2 3] [[h : t]] [h t] match` -> `1 [2 3]`
+
   - Example: `DEFINE fact == [[[0] [1]] [[n] [n 1 - fact n *]]] cases.`
+
   - Tests: `tests/test2/match.joy` (30 test cases), `tests/test2/cases.joy` (28 test cases)
 
 ### Fixed
 
 - **GC invalidates local Index variables during list construction** - Critical bug fix
-  - **Symptom:** Repeated vector operations on 500+ element lists failed with
-    "numeric list needed for v+" on second/third operation
-  - **Root Cause:** `build_float_list()` and `build_int_list()` stored `Index`
-    values in local C variables (`head`, `tail`). When `newnode()` triggered GC
-    mid-loop, these local variables became stale (GC only updates `env->stck`,
-    `env->prog`, `env->dump*`, not C stack variables)
-  - **Fix:** Added `ensure_capacity(env, num)` in `src/utils.c` that pre-triggers
-    GC before any local Index variables are created
+  - **Symptom:** Repeated vector operations on 500+ element lists failed with "numeric list needed for v+" on second/third operation
+
+  - **Root Cause:** `build_float_list()` and `build_int_list()` stored `Index` values in local C variables (`head`, `tail`). When `newnode()` triggered GC mid-loop, these local variables became stale (GC only updates `env->stck`, `env->prog`, `env->dump*`, not C stack variables)
+
+  - **Fix:** Added `ensure_capacity(env, num)` in `src/utils.c` that pre-triggers GC before any local Index variables are created
 
 ---
 
@@ -422,28 +629,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Vector operations** - Vectorized operators on numeric lists (`src/builtin/vector.c`)
   - Element-wise: `v+`, `v-`, `v*`, `v/` - arithmetic on pairs of numeric lists
+
   - Scalar: `vscale` - multiply all elements by a scalar
+
   - Linear algebra: `dot` - dot product, `cross` - cross product (3D)
+
   - Reductions: `vsum`, `vprod`, `vmin`, `vmax`, `vmean` - reduce list to single value
+
   - Norms: `vnorm` - Euclidean magnitude, `vnormalize` - unit vector
+
   - Creation: `vzeros`, `vones`, `vrange`, `vlinspace` - generate numeric lists
+
 - **Matrix operations** - 2D array operations on lists of lists
   - Element-wise: `m+`, `m-`, `m*`, `m/` - arithmetic on pairs of matrices
+
   - Scalar: `mscale` - multiply all elements by a scalar
+
   - Linear algebra: `mm` (matmul), `mv` (matrix-vector), `transpose`
+
   - Properties: `det` (determinant), `inv` (inverse), `trace`
+
   - Creation: `meye` - identity matrix
+
 - `doc/vector_impl.md` - Implementation documentation for vector/matrix operations
+
 - `tests/test2/vector.joy` - Test suite for vector operations (42 assertions)
+
 - `tests/test2/matrix.joy` - Test suite for matrix operations (26 assertions)
+
 - **Extended parallel combinators** (`src/builtin/parallel.c`)
   - `pfilter` - Parallel filter: `[list] [predicate] pfilter -> [filtered]`
+
   - `preduce` - Parallel tree reduction: `[list] [binary-op] preduce -> result`
 
 ### Changed
 
 - Architecture refactoring - consolidated builtin macro headers into `src/builtin/builtin_macros.h`
+
 - Fixed `gen_table.py` to scan grouped builtin files instead of individual files
+
 - Added `include/joy/joy.h` public API header for embedding
 
 ---
@@ -453,27 +677,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - `doc/parallel.md` - User guide and design document for parallel execution (updated with 7 practical examples)
+
 - `include/parallel.h` - Infrastructure for parallel execution (env cloning, task structures, result copying)
+
 - `pmap` combinator - Parallel map: `[list] [quotation] pmap -> [results]`
+
 - `pfork` combinator - Parallel fork/join: `X [P1] [P2] pfork -> R1 R2`
+
 - `JOY_PARALLEL` CMake option - Enable parallel combinators with OpenMP support
+
 - `env->mem_low`, `env->memoryindex`, `env->memorymax` - Memory tracking fields moved to Env struct for context isolation
+
 - `env->old_memory` - GC working memory pointer moved to Env struct
+
 - `env->stack_bottom` - Per-context stack bound for future parallel GC support
+
 - `GC_Context` struct - Per-context state for conservative GC (gc.c), enabling independent garbage collectors
+
 - `gc_ctx_create()`, `gc_ctx_destroy()` - Create/destroy independent GC contexts
+
 - `gc_ctx_malloc()`, `gc_ctx_malloc_atomic()`, `gc_ctx_realloc()`, `gc_ctx_strdup()` - Context-aware allocation functions
+
 - `gc_ctx_collect()` - Trigger garbage collection on a specific context
+
 - `gc_ctx_set_stack_bottom()` - Set stack bounds for context-specific stack scanning
+
 - `gc_ctx_get_gc_no()`, `gc_ctx_get_memory_use()`, `gc_ctx_get_free_bytes()` - Context-aware statistics
+
 - `gc_get_default_context()` - Access the global default GC context
+
 - `env->gc_ctx` - Per-Joy-context conservative GC context pointer in Env struct
+
 - `GC_CTX_MALLOC()`, `GC_CTX_MALLOC_ATOMIC()`, `GC_CTX_REALLOC()`, `GC_CTX_STRDUP()` - Convenience macros for context-aware allocation (fall back to global GC if `gc_ctx` is NULL)
+
 - `check_malloc()` - Safe malloc wrapper with null pointer check
+
 - `check_strdup()` - Safe strdup wrapper with null pointer check
+
 - `count()` - Pre-calculates nodes needed before garbage collection
+
 - `fatal()` - Fatal error handler in core library (error.c)
+
 - `TEST_MALLOC_RETURN` define - Portable malloc return value checking (replaces `_MSC_VER` guards)
+
 - `ALLOW_SYSTEM_CALLS` define - Explicit control over system() call availability
 
 ### Changed
@@ -482,61 +728,89 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Phase 1 - NOBDW Copying GC**: Per-context state instead of global variables, enabling independent memory management for multiple Joy contexts
   - `utils.c` - Refactored `inimem1()`, `inimem2()`, `copy()`, `gc1()`, `gc2()`, `newnode()`, `count()`, `my_memoryindex()`, `my_memorymax()` to use `env->*` fields
+
   - `gc1()` now accepts `Index *l, Index *r` parameters to preserve list and next pointers during garbage collection
+
   - `newnode()` uses `count()` to ensure sufficient memory before triggering GC
+
   - `newnode2()` uses `check_strdup()` instead of raw strdup with manual null check
 
 - **Phase 2 - Conservative GC API**: Context-aware API for gc.c - all internal functions now operate on explicit `GC_Context*` parameter
   - `gc.c` - Refactored internal functions (`ctx_mark_ptr()`, `ctx_mark_stk()`, `ctx_scan()`, `ctx_remind()`, `ctx_mem_block()`, `ctx_forget()`)
+
   - Legacy API (`GC_malloc()`, `GC_gcollect()`, etc.) now wraps context-aware API using global default context
 
 - **Phase 3 - Per-Joy-Context Integration**: Added `gc_ctx` field to Env struct, enabling per-Joy-context conservative GC
   - `joy.c` - Creates per-context GC in `joy_create()`, destroys in `joy_destroy()`
+
   - `scan.c`, `symbol.c`, `module.c`, `interp.c`, `undefs.c`, `intern.c` - Updated to use `GC_CTX_*` macros
+
   - Macros fall back to global GC when `gc_ctx` is NULL for backward compatibility with CLI
 
 - **Phase 4 - Parallel Combinators**: Added `pmap` and `pfork` combinators with OpenMP support
   - `include/parallel.h` - Infrastructure for parallel execution (env cloning, result copying)
+
   - `src/builtin/pmap.c` - Parallel map combinator (`[list] [quotation] pmap -> [results]`)
+
   - `src/builtin/pfork.c` - Parallel fork/join combinator (`X [P1] [P2] pfork -> R1 R2`)
+
   - `CMakeLists.txt` - Added `JOY_PARALLEL` option with OpenMP support (macOS via libomp, Linux native)
 
 - **Phase 5 - Parallel Execution**: Implemented actual parallel execution using OpenMP
   - `pmap` uses `#pragma omp parallel for` for lists with 4+ elements
+
   - `pfork` uses `#pragma omp parallel sections` for concurrent branch execution
+
   - Each parallel task gets a cloned environment with isolated GC context
+
   - Deep copying of inputs/quotations to child contexts and results back to parent
+
   - Graceful fallback to sequential execution for small lists or allocation failures
 
 #### Other Changes
 
 - `inimem1()`, `gc1()`, `gc2()`, `newnode()` use `TEST_MALLOC_RETURN` instead of `_MSC_VER` for portable memory checking
+
 - `scan.c` uses `ALLOW_SYSTEM_CALLS` instead of `WINDOWS_S` for shell escape control
+
 - Test runner now loads `lib/inilib.joy` first to set up library search paths
 
 ### Fixed
 
 - GC parameter preservation - parameters passed to `newnode()` are now safely copied during garbage collection
+
 - Test infrastructure - tests using `libload` (numlib, etc.) now work correctly (178/178 tests pass)
+
 - **Stack overflow in `copy_node_to_parent`** - Converted recursive linked list traversal to iteration, fixing crashes with 130,000+ node results
+
 - **Stack overflow in GC `copy` function** - Same fix applied to garbage collector, fixing crashes during GC on long lists
+
 - **Stack overflow in `copy_body_from_parent`** - Converted recursive traversal to iteration in `src/interp.c`, completing the pattern across all copy functions
+
 - **All combinators now work in parallel** - `times`, `while`, `step`, `linrec`, `binrec`, `genrec`, `primrec`, `tailrec`, `condlinrec`, `condnestrec`, `treestep`, `treerec`, `treegenrec` all verified working in `pmap`/`pfork`
 
 ### Added
 
 - `tests/parallel_stress.joy` - 16 stress tests for parallel execution (up to 100,000 iterations)
+
 - `tests/parallel_benchmark.joy` - Joy benchmark comparing `pmap` vs `map` (CPU time)
+
 - `tests/parallel_benchmark.sh` - Shell benchmark measuring wall clock time
+
 - `doc/parallel_fixes.md` - Technical documentation of parallel execution fixes
+
 - `doc/parallel_performance.md` - Performance guide documenting when `pmap` is faster than `map`
 
 ### Upstream Sync
 
 Core changes from [Wodan58/Joy](https://github.com/Wodan58/Joy) Patch Tuesday V (2026-01-13):
+
 - Portable pointer handling with `pointer_t` type abstraction
+
 - Improved memory safety with checked allocation wrappers
+
 - GC improvements for parameter preservation during collection
+
 - Configurable system call control
 
 ## [1.37]
@@ -544,6 +818,7 @@ Core changes from [Wodan58/Joy](https://github.com/Wodan58/Joy) Patch Tuesday V 
 ### Added
 
 - Tab completion in REPL
+
 - Linenoise library for line editing
 
 ### Fixed
@@ -553,5 +828,7 @@ Core changes from [Wodan58/Joy](https://github.com/Wodan58/Joy) Patch Tuesday V 
 ### Changed
 
 - Restructured test output to build directory
+
 - Moved source files to `src/` directory structure
+
 - Added embedding examples in `examples/`

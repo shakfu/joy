@@ -180,10 +180,10 @@ static Index deserialize_value(pEnv env, const char* str)
 
     /* Complex value: use full parser with isolated scanner state */
 
-    /* Save scanner state - we need to save struct values, not pointers */
+    /* Save scanner state - we need to save struct values, not pointers.
+       The stack and dump stay live: a collection during the parse must see
+       them, so the parse pushes onto them instead of starting from empty. */
     EnvScanner saved_scanner = env->scanner;
-    Index saved_stck = env->stck;
-    Index saved_dump = env->dump;
 
     /* Save pushback and tokens state (the actual pointer values) */
     void* saved_pushback = env->pushback;
@@ -192,8 +192,6 @@ static Index deserialize_value(pEnv env, const char* str)
     /* Initialize fresh vectors for parsing - use NULL for lazy init by vec_push */
     env->pushback = NULL;
     env->tokens = NULL;
-    env->stck = 0;
-    env->dump = 0;
 
     /* Wrap the body in brackets to parse as a quotation */
     size_t wrapped_len = strlen(str) + 4;  /* "[" + str + "]" + "\n" + null */
@@ -207,8 +205,6 @@ static Index deserialize_value(pEnv env, const char* str)
         env->pushback = saved_pushback;
         env->tokens = saved_tokens;
         env->scanner = saved_scanner;
-        env->stck = saved_stck;
-        env->dump = saved_dump;
         return STRING_NEWNODE(GC_strdup(str), 0);
     }
 
@@ -229,12 +225,11 @@ static Index deserialize_value(pEnv env, const char* str)
 
     if (env->scanner.sym == '[') {
         ch = getsym(env, ch);  /* Move past '[' */
-        ch = readterm(env, ch);  /* Parse the contents */
+        ch = readterm(env, ch);  /* Parse the contents; pushes one list */
 
-        if (env->scanner.sym == ']' && env->stck) {
-            /* Successfully parsed - extract the list contents */
+        if (env->scanner.sym == ']')
             result = nodevalue(env->stck).lis;
-        }
+        POP(env->stck);
     }
     (void)ch;  /* Suppress unused warning */
 
@@ -244,8 +239,6 @@ static Index deserialize_value(pEnv env, const char* str)
     env->pushback = saved_pushback;
     env->tokens = saved_tokens;
     env->scanner = saved_scanner;
-    env->stck = saved_stck;
-    env->dump = saved_dump;
 
     /* If parsing failed, fall back to storing as string */
     if (!result) {
@@ -337,9 +330,10 @@ static void load_symbols_from_db(pEnv env)
         int index = lookup(env, (char*)name);
         if (index > 0) {
             Entry ent = vec_at(env->symtab, index);
-            ent.is_user = 1;
+            ent.is_user = ent.is_root = 1; /* heap body: scan_roots copies it */
             ent.u.body = body;
             vec_at(env->symtab, index) = ent;
+            env->variable_busy = 1;
         }
     }
     if (rc != SQLITE_DONE)
@@ -554,7 +548,7 @@ void restore_(pEnv env)
 
     ONEPARAM("restore");
     STRING("restore");
-    name = GETSTRING(env->stck);
+    name = GC_strdup(GETSTRING(env->stck)); /* the reload collects */
     POP(env->stck);
 
     if (!s || !s->persistent) {
@@ -668,7 +662,7 @@ void session_merge_(pEnv env)
 
     ONEPARAM("session-merge");
     STRING("session-merge");
-    source_name = GETSTRING(env->stck);
+    source_name = GC_strdup(GETSTRING(env->stck)); /* the reload collects */
     POP(env->stck);
 
     if (!target || !target->persistent) {
@@ -848,7 +842,7 @@ void session_take_(pEnv env)
     POP(env->stck);
 
     STRING("session-take");
-    source_name = GETSTRING(env->stck);
+    source_name = GC_strdup(GETSTRING(env->stck)); /* the reload collects */
     POP(env->stck);
 
     if (!current || !current->persistent) {
@@ -892,9 +886,10 @@ void session_take_(pEnv env)
         int index = lookup(env, symbol_name);
         if (index > 0) {
             Entry ent = vec_at(env->symtab, index);
-            ent.is_user = 1;
+            ent.is_user = ent.is_root = 1; /* heap body: scan_roots copies it */
             ent.u.body = body;
             vec_at(env->symtab, index) = ent;
+            env->variable_busy = 1;
         }
         rc = SQLITE_DONE;
     }

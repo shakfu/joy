@@ -4,8 +4,6 @@
 
 ## High
 
-- [ ] **GC stress** - With `-DJOY_GC_STRESS=ON -DJOY_SESSION=ON`, all four session tests fail (`session_persist` reports `bad node` on reopen); HEAD fails the same way, and they pass without stress. The non-session tests pass under stress, but `test2_dict_gc` takes 900 s and `parallel_semantics` 250 s. The earlier `test2_regex` and `size_errors` failures no longer reproduce.
-
 ## Medium
 
 - [ ] **fgets** - `fgets_` (`io.c:76-86`) doubles its buffer without a cap on newline-free input. The BDW `GC_realloc` path is unchecked.
@@ -73,6 +71,8 @@
   - `session-keep`, `session-info`, `session-gc`, `session-export`, `session-clone`
 
 ## Low
+
+- [ ] **GC stress runtime** - Under `-DJOY_GC_STRESS=ON`, `test2_dict_gc` takes 900 s and `parallel_semantics` 250 s; everything else finishes in seconds. A CI stress job would need a longer timeout or to skip both.
 
 - [ ] **Compare** - Orders `FILE_`/`DICT_` pointers with `<` (`builtin_macros.h:280-289`). UB by C11 6.5.8p5, benign on flat-memory targets; compare via `uintptr_t`.
 

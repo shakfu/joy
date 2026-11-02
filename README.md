@@ -81,7 +81,7 @@ Reduce a list using an associative binary operation with divide-and-conquer para
 
 **Benchmark results** (OMP_NUM_THREADS=8):
 
-```
+```text
 --- Heavy Work (100000 iterations) ---
 4 elements : map=0.015s pmap=0.013s  (pmap 13% faster)
 8 elements : map=0.026s pmap=0.020s  (pmap 23% faster)
@@ -94,6 +94,7 @@ Reduce a list using an associative binary operation with divide-and-conquer para
 **Rule of thumb:** Use `pmap` when each element takes >10ms to process.
 
 Run benchmarks:
+
 ```bash
 OMP_NUM_THREADS=8 bash tests/parallel_benchmark.sh
 ```
@@ -748,6 +749,7 @@ gcc -O3 -DNOBDW -I<joy>/include -I<joy>/build/generated -I<joy> \
 The compiler applies several optimizations:
 
 **Constant Folding** - Evaluates constant expressions at compile time:
+
 ```joy
 [2 3 + 4 *] compile-to-c.
 (* Compiles to just: NULLARY(INTEGER_NEWNODE, 20LL) *)
@@ -755,12 +757,14 @@ The compiler applies several optimizations:
 ```
 
 **Loop Inlining** - Compiles `while` and `times` to native C loops:
+
 ```joy
 [10 [1 -] times] compile-to-c.
 (* Generates: for (i = 0; i < 10; i++) { ... } *)
 ```
 
 **User Function Support** - Compiles DEFINE'd functions:
+
 ```joy
 DEFINE square == dup *.
 DEFINE sum-squares == 0 swap [square +] step.
@@ -771,11 +775,17 @@ DEFINE sum-squares == 0 swap [square +] step.
 ### Supported Operations
 
 The compiler supports most Joy builtins including:
+
 - Stack operations: `dup`, `pop`, `swap`, `over`, `pick`, etc.
+
 - Arithmetic: `+`, `-`, `*`, `/`, `rem`, `neg`, `abs`, etc.
+
 - Comparison: `<`, `<=`, `>`, `>=`, `=`, `!=`
+
 - Logic: `and`, `or`, `not`, `xor`
+
 - Combinators: `i`, `dip`, `map`, `fold`, `filter`, `times`, `while`, `ifte`, `branch`, etc.
+
 - List operations: `first`, `rest`, `cons`, `concat`, `size`, etc.
 
 See [doc/compile-to-c.md](doc/compile-to-c.md) for complete documentation.
@@ -840,7 +850,9 @@ profile-data.
 ### Understanding the Output
 
 - **Calls**: Number of times the symbol was invoked
+
 - **Total(ms)**: Wall-clock time including nested calls
+
 - **Self(ms)**: Time excluding time spent in called functions
 
 Self-time is useful for identifying where time is actually spent, while total time shows the cumulative cost of calling a function.
@@ -931,7 +943,9 @@ Execute SQL directly on session data:
 | `sql` | `"query" [params] -> [results]` | Execute SQL on session |
 
 **Notes:**
+
 - Requires building with `-DJOY_SESSION=ON` (requires SQLite3)
+
 - All value types persist correctly: lists, quotations, dicts, sets, strings, chars, booleans
 
 ### String Conversion Operators
@@ -1003,7 +1017,9 @@ cmake --build .
 ### Build with BLAS Support
 
 For optimized matrix operations on larger matrices:
+
 - **macOS**: Uses Apple Accelerate (built-in, no extra install needed)
+
 - **Linux**: `apt install libopenblas-dev` or similar
 
 ```bash
@@ -1015,7 +1031,9 @@ cmake --build .
 ### Build with Parallel Support
 
 Requires OpenMP:
+
 - **macOS**: `brew install libomp`
+
 - **Linux**: OpenMP is typically built into GCC/Clang
 
 ```bash
@@ -1027,7 +1045,9 @@ cmake --build .
 ### Build with Persistent Sessions
 
 Requires SQLite3:
+
 - **macOS**: Built-in (no extra install needed)
+
 - **Linux**: `apt install libsqlite3-dev`
 
 ```bash
@@ -1039,7 +1059,9 @@ cmake --build .
 ### Build with FFI
 
 Requires libffi:
+
 - **macOS**: `brew install libffi`
+
 - **Linux**: `apt install libffi-dev`
 
 MSVC builds are not supported. Without `-DJOY_FFI=ON`, `ffi` and `ffi-call` raise an error.
@@ -1095,7 +1117,7 @@ joy-lsp             # Start LSP server (for editor integration)
 
 ### Example Session
 
-```
+```text
 $ ./joy
 JOY - compiled ...
 -> [1 2 3 4 5] [dup *] pmap.
@@ -1115,12 +1137,14 @@ ctest -R ffi             # Run FFI tests (full coverage needs -DJOY_FFI=ON)
 ```
 
 A `-DJOY_GC_STRESS=ON` build collects at every allocation, to expose GC bugs. It is slow, so build only the `joy` target:
+
 ```bash
 cmake --build . --target joy
 ctest -R "test2_(gc_cases|lazy|json)$"
 ```
 
 Or manually:
+
 ```bash
 ./joy tests/parallel_test.joy
 ./joy tests/parallel_benchmark.joy
@@ -1143,15 +1167,23 @@ Or manually:
 The parallel implementation is built on five phases of GC context isolation:
 
 1. **Phase 1**: NOBDW copying GC per-context state
+
 2. **Phase 2**: Conservative GC context-aware API
+
 3. **Phase 3**: Per-Joy-context GC integration
+
 4. **Phase 4**: Parallel combinator infrastructure
+
 5. **Phase 5**: OpenMP parallel execution
 
 Each parallel task executes with:
+
 - Cloned environment with isolated GC context
+
 - Deep-copied input values and quotations
+
 - Independent error handling
+
 - Results copied back to parent context
 
 See [doc/parallel.md](doc/parallel.md) for detailed design documentation.
@@ -1177,10 +1209,15 @@ python tools/fmt_joy.py lib/numlib.joy
 ```
 
 Formatting rules:
+
 - Single space between tokens
+
 - No space inside `[]` or `{}`
+
 - 4-space indent within LIBRA/DEFINE blocks
+
 - Extra indent for multi-line definition continuations
+
 - Preserves comments and blank lines
 
 ### Documentation Generator
