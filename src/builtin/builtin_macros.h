@@ -816,6 +816,10 @@ static void decode_time(pEnv env, struct tm* t)
         INTEGER(NAME);                                                        \
         timval = nodevalue(env->stck).num;                                    \
         t = FUNC(&timval);                                                    \
+        if (!t) {                                                             \
+            execerror(env, "representable time", NAME);                      \
+            return;                                                           \
+        }                                                                     \
         wday = t->tm_wday;                                                    \
         if (wday == 0)                                                        \
             wday = 7;                                                         \

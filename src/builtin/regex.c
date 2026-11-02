@@ -155,6 +155,32 @@ static char* extract_match(pEnv env, const char* str, regmatch_t* match)
     return result;
 }
 
+/*
+ * Finds the next match at or after *pos, with offsets relative to str.
+ * After an empty match the search resumes one character later, so that
+ * iteration terminates and no input is skipped (the JS/Python rule).
+ */
+static int next_match(const regex_t* re, const char* str, size_t len,
+                      size_t* pos, size_t nmatch, regmatch_t* m)
+{
+    size_t i;
+    int flags;
+
+    if (*pos > len)
+        return 0;
+    /* `^` must not match mid-string, except after a newline (REG_NEWLINE) */
+    flags = (*pos == 0 || str[*pos - 1] == '\n') ? 0 : REG_NOTBOL;
+    if (regexec(re, str + *pos, nmatch, m, flags) != 0)
+        return 0;
+    for (i = 0; i < nmatch; i++)
+        if (m[i].rm_so != -1) {
+            m[i].rm_so += (regoff_t)*pos;
+            m[i].rm_eo += (regoff_t)*pos;
+        }
+    *pos = (size_t)m[0].rm_eo + (m[0].rm_eo == m[0].rm_so);
+    return 1;
+}
+
 /**
 Q0  OK  3300  regex-match\0regex_match  :  S S  ->  B
 Tests if the string (second on stack) matches the regex pattern (top of stack).
@@ -249,8 +275,7 @@ void regex_find_all_(pEnv env)
     char* str;
     regex_t re;
     regmatch_t matches[MAX_GROUPS];
-    int result;
-    const char* cursor;
+    size_t pos, len;
     Index list_head = 0;
     Index list_tail = 0;
     int count = 0;
@@ -266,15 +291,10 @@ void regex_find_all_(pEnv env)
         return;
 
     /* Count matches first for ensure_capacity */
-    cursor = str;
-    while (regexec(&re, cursor, 1, matches, 0) == 0) {
+    len = strlen(str);
+    pos = 0;
+    while (next_match(&re, str, len, &pos, 1, matches))
         count++;
-        if (matches[0].rm_eo == 0)
-            break;  /* Prevent infinite loop on zero-width match */
-        cursor += matches[0].rm_eo;
-        if (*cursor == '\0')
-            break;
-    }
 
 #ifdef NOBDW
     ensure_capacity(env, count * 2 + (int)(strlen(str) / sizeof(Node)) + 2);
@@ -283,16 +303,16 @@ void regex_find_all_(pEnv env)
 #endif
 
     /* Now collect matches */
-    cursor = str;
-    while ((result = regexec(&re, cursor, MAX_GROUPS, matches, 0)) == 0) {
+    pos = 0;
+    while (next_match(&re, str, len, &pos, MAX_GROUPS, matches)) {
         char* found;
         Index node;
 
         /* If there's a capture group, use it; otherwise use full match */
         if (re.re_nsub > 0 && matches[1].rm_so != -1) {
-            found = extract_match(env, cursor, &matches[1]);
+            found = extract_match(env, str, &matches[1]);
         } else {
-            found = extract_match(env, cursor, &matches[0]);
+            found = extract_match(env, str, &matches[0]);
         }
 
         if (found) {
@@ -308,13 +328,6 @@ void regex_find_all_(pEnv env)
                 list_tail = node;
             }
         }
-
-        /* Move cursor past this match */
-        if (matches[0].rm_eo == 0)
-            break;  /* Prevent infinite loop on zero-width match */
-        cursor += matches[0].rm_eo;
-        if (*cursor == '\0')
-            break;
     }
 
     regfree(&re);
@@ -332,7 +345,7 @@ void regex_split_(pEnv env)
     char* str;
     regex_t re;
     regmatch_t matches[1];
-    const char* cursor;
+    size_t pos, len;
     const char* segment_start;
     Index list_head = 0;
     Index list_tail = 0;
@@ -354,12 +367,19 @@ void regex_split_(pEnv env)
 #endif
 
     /* Collect segments */
-    cursor = str;
+    len = strlen(str);
+    pos = 0;
     segment_start = str;
 
-    while (regexec(&re, cursor, 1, matches, 0) == 0) {
+    while (next_match(&re, str, len, &pos, 1, matches)) {
+        /* An empty match splits only between two characters */
+        if (matches[0].rm_so == matches[0].rm_eo
+            && (str + matches[0].rm_so == segment_start
+                || (size_t)matches[0].rm_so == len))
+            continue;
+
         /* Extract segment before this match */
-        size_t seg_len = (size_t)((cursor + matches[0].rm_so) - segment_start);
+        size_t seg_len = (size_t)((str + matches[0].rm_so) - segment_start);
         char* segment = GC_malloc_atomic(seg_len + 1);
         memcpy(segment, segment_start, seg_len);
         segment[seg_len] = '\0';
@@ -376,17 +396,7 @@ void regex_split_(pEnv env)
             list_tail = node;
         }
 
-        /* Move past the match */
-        if (matches[0].rm_eo == 0) {
-            cursor++;
-            segment_start = cursor;
-        } else {
-            cursor += matches[0].rm_eo;
-            segment_start = cursor;
-        }
-
-        if (*cursor == '\0')
-            break;
+        segment_start = str + matches[0].rm_eo;
     }
 
     /* Add final segment */
@@ -481,7 +491,7 @@ void regex_sub_all_(pEnv env)
     regmatch_t matches[1];
     size_t repl_len;
     size_t str_len;
-    const char* cursor;
+    size_t pos, last;
     size_t match_count = 0;
     size_t total_match_len = 0;
     size_t result_len;
@@ -508,18 +518,10 @@ void regex_sub_all_(pEnv env)
     str_len = strlen(str);
 
     /* First pass: count matches and total matched length */
-    cursor = str;
-    while (regexec(&re, cursor, 1, matches, 0) == 0) {
+    pos = 0;
+    while (next_match(&re, str, str_len, &pos, 1, matches)) {
         match_count++;
         total_match_len += (size_t)(matches[0].rm_eo - matches[0].rm_so);
-
-        if (matches[0].rm_eo == 0) {
-            cursor++;
-        } else {
-            cursor += matches[0].rm_eo;
-        }
-        if (*cursor == '\0')
-            break;
     }
 
     if (match_count == 0) {
@@ -535,35 +537,23 @@ void regex_sub_all_(pEnv env)
     out = result;
 
     /* Second pass: build result */
-    cursor = str;
-    while (regexec(&re, cursor, 1, matches, 0) == 0) {
-        size_t prefix_len = (size_t)matches[0].rm_so;
+    pos = last = 0;
+    while (next_match(&re, str, str_len, &pos, 1, matches)) {
+        size_t prefix_len = (size_t)matches[0].rm_so - last;
 
         /* Copy prefix (text before match) */
-        memcpy(out, cursor, prefix_len);
+        memcpy(out, str + last, prefix_len);
         out += prefix_len;
 
         /* Copy replacement */
         memcpy(out, replacement, repl_len);
         out += repl_len;
-
-        /* Move cursor past match */
-        if (matches[0].rm_eo == 0) {
-            cursor++;
-        } else {
-            cursor += matches[0].rm_eo;
-        }
-
-        if (*cursor == '\0')
-            break;
+        last = (size_t)matches[0].rm_eo;
     }
 
     /* Copy remaining text after last match */
-    {
-        size_t remaining = strlen(cursor);
-        memcpy(out, cursor, remaining);
-        out += remaining;
-    }
+    memcpy(out, str + last, str_len - last);
+    out += str_len - last;
 
     *out = '\0';
 

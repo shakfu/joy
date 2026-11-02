@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **`regex-split` and `regex-sub-all` dropped input at empty matches**: they advanced past the next character without copying it, so `"abc" "x*" regex-split` gave four empty strings. `regex-find-all` stopped at the first empty match. All three now resume one character after an empty match, as JS and Python do; `regex-split` ignores empty matches at a segment start or the string end, so it gives `["a" "b" "c"]`. `^` no longer matches where a later search starts mid-line.
+- **`gmtime`/`localtime`** dereferenced NULL for times outside `struct tm`; they now raise an error.
+- **`casting`** to a string or bignum read any value as a NUL-terminated string, past the 8-byte node value. Non-string sources now raise an error.
+- **`fread`** truncated its count to `int` and passed negative counts to `malloc`; `4294967298 fread` read 2 bytes. Negative counts and failed allocations now raise an error.
 - **`-DJOY_PARALLEL=ON` did not compile, and was unsafe once it did.** Tasks wrote to the shared symbol table and allocated through the single default GC context. Legacy GC calls now use the running task's context. A task that errors, needs a shared side effect, or returns a lazy sequence, dictionary or file is discarded, and the combinator replays sequentially. This choice over raising an error keeps results independent of list length and build flags. See `doc/parallel.md`.
 - **Parallel combinators**: results were held unrooted across parent allocation; a GC while copying a symbol body made `exec_term` read a stale index; vector and matrix results dangled after their task ended; `preduce` swapped operands, which reversed `concat`.
 - **`pfilter`** read empty strings as true on both paths: `newnode` overwrites only the bytes a string needs, so `u.num` includes stale pointer bytes.

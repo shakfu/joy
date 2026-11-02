@@ -30,9 +30,14 @@ void casting_(pEnv env)
     }
 #endif
     POP(env->stck);
-    if (node.op == STRING_ || node.op == BIGNUM_)
-        node.u.str = strdup((char*)&nodevalue(env->stck));
-    else
+    if (node.op == STRING_ || node.op == BIGNUM_) {
+        /* Only string data has a terminator; other values would overread */
+        if (nodetype(env->stck) != STRING_ && nodetype(env->stck) != BIGNUM_) {
+            execerror(env, "string or bignum value", "casting");
+            return;
+        }
+        node.u.str = strdup(GETSTRING(env->stck));
+    } else
         node.u = nodevalue(env->stck);
     env->stck = newnode(env, node.op, node.u, nextnode1(env->stck));
     if (node.op == STRING_ || node.op == BIGNUM_)

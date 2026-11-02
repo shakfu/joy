@@ -189,6 +189,12 @@ add_test(NAME error_restore
                  ${CMAKE_SOURCE_DIR} ${TEST4_SOURCE_DIR}/error_restore.joy)
 set_tests_properties(error_restore PROPERTIES ENVIRONMENT "ALLOW_ERRORS=1")
 
+# Out-of-range gmtime/localtime, casting and fread inputs raise errors
+add_test(NAME input_errors
+         COMMAND ${CMAKE_SOURCE_DIR}/tools/run_test.sh ${JOY_EXECUTABLE}
+                 ${CMAKE_SOURCE_DIR} ${TEST4_SOURCE_DIR}/input_errors.joy)
+set_tests_properties(input_errors PROPERTIES ENVIRONMENT "ALLOW_ERRORS=1")
+
 # Oversized vector/matrix dimensions raise errors (native types only)
 if(JOY_NATIVE_TYPES)
   add_test(NAME size_errors

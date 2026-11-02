@@ -274,18 +274,27 @@ and returned as a list of I integers.
 */
 void fread_(pEnv env)
 {
-    int count;
+    int64_t num;
+    size_t count;
     unsigned char* buf;
 
     TWOPARAMS("fread");
     INTEGER("fread");
-    count = nodevalue(env->stck).num;
+    num = nodevalue(env->stck).num;
+    if (num < 0) {
+        execerror(env, "non-negative count", "fread");
+        return;
+    }
     POP(env->stck);
     ISFILE("fread");
-    buf = malloc(count);
+    /* malloc(0) may return NULL, so allocate at least one byte */
+    if ((uint64_t)num > SIZE_MAX || !(buf = malloc(num ? (size_t)num : 1))) {
+        execerror(env, "memory for count", "fread");
+        return;
+    }
     env->dump1 = LIST_NEWNODE(0, env->dump1);
-    for (count = fread(buf, 1, count, nodevalue(env->stck).fil) - 1;
-         count >= 0; count--)
+    count = fread(buf, 1, (size_t)num, nodevalue(env->stck).fil);
+    while (count-- > 0)
         DMP1 = INTEGER_NEWNODE(buf[count], DMP1);
     NULLARY(LIST_NEWNODE, DMP1);
     POP(env->dump1);

@@ -2,14 +2,6 @@
 
 ## Critical
 
-- [ ] **Time** - `UNMKTIME` (`builtin_macros.h:817`) dereferences a NULL `gmtime`/`localtime` result. `900000000000000000 gmtime` segfaults.
-
-- [ ] **casting** - `casting_` (`type.c:33`) `strdup`s the node value union for any type. `4702111234474983745 8 casting` reads past the 8-byte union. Under BDW it reads the string pointer's bytes even for string input.
-
-- [ ] **regex-split** - On a zero-width match (`regex.c:380`) the cursor skips a character and starts the next segment after it, so the character is lost. `"abc" "x*" regex-split` gives `["" "" "" ""]`. The loops at `regex.c:272, 313, 516, 551` use the same pattern. `regexec` on the cursor lacks `REG_NOTBOL`, so `^` can match mid-string (not tested).
-
-- [ ] **fread** - `fread_` (`io.c:277-285`) stores the int64 count in an `int`, with no negative check and no `malloc` NULL check. `4294967298 fread` reads 2 bytes; `-1 fread` is UB.
-
 ## High
 
 - [ ] **regex** - `\D`/`\W`/`\S` expand to `[^...]` even inside a bracket expression (`regex.c:51-71, 104-108`). `[\D]` becomes `[[^0-9]]`, so `"a1b" "[\\D]+"` does not match.

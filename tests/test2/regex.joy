@@ -157,3 +157,18 @@
 
 (* Normalize whitespace - using \s *)
 "hello    world" "\\s+" " " regex-sub-all "hello world" =.
+
+(* ===== Empty matches ===== *)
+
+(* An empty match splits between characters, never dropping input *)
+"abc" "x*" regex-split ["a" "b" "c"] equal.
+"a1b" "\\d*" regex-split ["a" "b"] equal.
+"a,b," "," regex-split ["a" "b" ""] equal.
+"abc" "x*" "-" regex-sub-all "-a-b-c-" =.
+"a1b" "\\d*" "-" regex-sub-all "-a--b-" =.
+"a1b22" "\\d*" regex-find-all ["" "1" "" "22" ""] equal.
+
+(* ^ matches only at the start of a line *)
+"aXa" "^a" regex-find-all ["a"] equal.
+"aXa" "^a" "_" regex-sub-all "_Xa" =.
+"a\na" "^a" regex-find-all ["a" "a"] equal.

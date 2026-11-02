@@ -1,0 +1,16 @@
+(*
+    Out-of-range inputs raise a runtime error instead of reading invalid
+    memory. Run with ALLOW_ERRORS=1. Each check shows the stack after the error.
+*)
+newstack 900000000000000000 gmtime.
+stack [900000000000000000] equal.
+newstack 900000000000000000 localtime.
+stack [900000000000000000] equal.
+newstack 4702111234474983745 "" typeof casting.
+stack [4702111234474983745] equal.
+newstack 1.5 "" typeof casting.
+stack [1.5] equal.
+newstack "abc" "" typeof casting "abc" =.
+newstack stdin -1 fread.
+stack size 2 =.
+newstack stdin 0 fread [] equal.
