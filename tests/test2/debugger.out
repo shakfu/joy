@@ -1,0 +1,11 @@
+usrlib  is loaded
+inilib  is loaded
+agglib  is loaded
+true
+true
+true
+true
+ : 1 2 +
+1 : 2 +
+1 2 : +
+true

@@ -5,63 +5,8 @@
 set(JOY_EXECUTABLE $<TARGET_FILE:joy>)
 set(CRASH_TEST_RUNNER "${CMAKE_SOURCE_DIR}/tools/run_crash_test.sh")
 set(TEST4_SOURCE_DIR "${CMAKE_SOURCE_DIR}/tests/test4")
-set(TEST4_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 
-# Macros for output generation (existing functionality).
-# These scripts raise errors on purpose, so the exit status is ignored.
-set(JOY_OUTPUT_RUNNER "${CMAKE_SOURCE_DIR}/tools/run_joy_output.cmake")
-
-macro(joy_output src args)
-add_custom_target(${src}.out ALL
-          WORKING_DIRECTORY ${TEST4_SOURCE_DIR}
-          DEPENDS joy ${TEST4_SOURCE_DIR}/${src}.joy
-          COMMAND ${CMAKE_COMMAND} -DJOY=${JOY_EXECUTABLE}
-                  -DOUT=${TEST4_OUTPUT_DIR}/${src}.out
-                  "-DARGS=${args}" ${ARGN} -P ${JOY_OUTPUT_RUNNER}
-          VERBATIM)
-endmacro(joy_output)
-
-macro(exe9 src)
-joy_output(${src} "${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe9)
-
-macro(exe8 src)
-joy_output(${src} "-x|${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe8)
-
-macro(exe7 src)
-joy_output(${src} "-t|${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe7)
-
-macro(exe6 src)
-joy_output(${src} "-kh|${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe6)
-
-macro(exe5 src)
-joy_output(${src} "-y|${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe5)
-
-macro(exe4 src)
-joy_output(${src} "-adegiluvw|${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe4)
-
-macro(exe3 src)
-joy_output(${src} "dummy|${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe3)
-
-macro(exe2 src)
-joy_output(${src} "" -DIN=${TEST4_SOURCE_DIR}/${src}.joy)
-endmacro(exe2)
-
-macro(exe1 src)
-joy_output(${src} "-s|${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe1)
-
-macro(exe0 src)
-joy_output(${src} "-p|${TEST4_SOURCE_DIR}/${src}.joy")
-endmacro(exe0)
-
-# Macros for CTest crash tests (verify no segfaults)
+# Crash tests: no signal, and output must match <test>.out if present
 macro(joy_crash_test src)
 add_test(NAME test4_${src}
          COMMAND ${CRASH_TEST_RUNNER} ${JOY_EXECUTABLE} ${TEST4_SOURCE_DIR}/${src}.joy
@@ -73,26 +18,6 @@ add_test(NAME test4_${src}
          COMMAND ${CRASH_TEST_RUNNER} ${JOY_EXECUTABLE} ${ARGN} ${TEST4_SOURCE_DIR}/${src}.joy
          WORKING_DIRECTORY ${TEST4_SOURCE_DIR})
 endmacro(joy_crash_test_flags)
-
-# Generate output files (existing functionality)
-exe9(factor)
-exe8(gcno)
-exe7(interp)
-exe6(main1)
-exe5(main2)
-exe4(main3)
-exe3(main4)
-exe2(main5)
-exe1(main6)
-exe9(module1)
-exe9(module2)
-exe0(scan1)
-exe9(scan2)
-exe9(symbol)
-exe9(forget)
-exe9(utils1)
-exe9(utils2)
-exe9(errors)
 
 # Compiled C tests for library API
 add_executable(test_api api.c)
@@ -113,6 +38,7 @@ joy_crash_test_flags(main3 -adegiluvw)
 joy_crash_test_flags(main6 -s)
 joy_crash_test(module1)
 joy_crash_test(module2)
+joy_crash_test(scan2)
 joy_crash_test_flags(scan1 -p)
 joy_crash_test(symbol)
 joy_crash_test(forget)

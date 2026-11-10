@@ -3,6 +3,6 @@
     version : 1.5
     date    : 03/22/24
 *)
-"test" "w" fopen fclose.
-"test" "dummy" frename.
-$ rm dummy
+"frename.tmp" "w" fopen fclose.
+"frename.tmp" "frename.dummy" frename.
+$ rm frename.dummy

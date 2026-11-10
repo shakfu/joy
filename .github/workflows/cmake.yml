@@ -207,4 +207,8 @@ jobs:
           echo "LSP sanitizer job failed"
           exit 1
         fi
+        if [ "${{ needs.build-windows.result }}" != "success" ]; then
+          echo "Windows build job failed"
+          exit 1
+        fi
         echo "All required checks passed!"

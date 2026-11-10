@@ -3,6 +3,6 @@
     version : 1.6
     date    : 03/22/24
 *)
-"test" "w" fopen "\"test\"\n" fputstring fclose.
-$ cat test
-$ rm test
+"fputstring.tmp" "w" fopen "\"test\"\n" fputstring fclose.
+$ cat fputstring.tmp
+$ rm fputstring.tmp

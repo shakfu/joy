@@ -82,12 +82,14 @@ void *check_malloc(size_t leng)
 /*
  * Nodes hold pointers to payloads (vectors, matrices, lazy data, dictionaries)
  * owned by the conservative GC, which does not scan the calloc'd node arenas.
- * Without this root, it frees payloads that live nodes still reference.
+ * Without this root, it frees payloads that live nodes still reference. The
+ * Env itself is marked too: an embedded one is calloc'd, not on the C stack.
  */
-static void mark_node_arenas(GC_Context* ctx, void* arg)
+void mark_env_roots(GC_Context* ctx, void* arg)
 {
     pEnv env = arg;
 
+    gc_ctx_mark_range(ctx, env, sizeof(Env));
     gc_ctx_mark_range(ctx, env->memory, env->memoryindex * sizeof(Node));
     if (env->old_memory)
         gc_ctx_mark_range(ctx, env->old_memory,
@@ -112,8 +114,8 @@ void inimem1(pEnv env, int status)
         if (!env->memory)
             fatal("memory exhausted");
 #endif
-        gc_ctx_set_root_fn(env->gc_ctx ? env->gc_ctx : gc_get_default_context(),
-                           mark_node_arenas, env);
+        gc_ctx_add_root_fn(env->gc_ctx ? env->gc_ctx : gc_get_default_context(),
+                           mark_env_roots, env);
     } else if (status) {
         env->stck = env->inits; /* reset the stack to initial */
         env->memoryindex = env->mem_low;  /* retain only definitions */

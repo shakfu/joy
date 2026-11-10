@@ -3,6 +3,7 @@
 # Usage: run_crash_test.sh <joy_executable> [flags] <test_file>
 # Exit code: 0 if interpreter doesn't crash (segfault), 1 otherwise
 # This runner tolerates runtime errors but not crashes
+# Output is also compared with <test>.out when it exists (see expect_output.sh)
 
 JOY_EXE="$1"
 shift
@@ -42,6 +43,9 @@ if [ $EXIT_CODE -gt 128 ]; then
     echo "$OUTPUT"
     exit 1
 fi
+
+source "$(dirname "$0")/expect_output.sh"
+expect_output "$TEST_FILE" "$OUTPUT" || exit 1
 
 echo "PASS"
 exit 0

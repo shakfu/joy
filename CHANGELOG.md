@@ -18,13 +18,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **Tests compare output with `<name>.out`** where one exists: 220 test2, 12 test4 and 3 parallel tests. Before, the committed `.out` files were never read, and the runners only searched for `false` and error lines, so output-only tests such as `fput` and `debugger` had no check. The files are regenerated with `usrlib.joy` loaded, as the runner does; 9 of the old ones recorded failing assertions. Tests whose output depends on time, randomness, the environment or the build have none. `JOY_UPDATE_EXPECTED=1 ctest` rewrites them.
+
+- **The embedding API runs strings like the interpreter.** With the default config, autoput prints and pops the top after each statement, a definition resets the stack, and the stack is unspecified after an error. Input that ends inside a statement returns `JOY_ERROR_SYNTAX`. See the `joy_eval_string` fixes below.
+
+- `gc.h`: `gc_ctx_add_root_fn` and `gc_ctx_remove_root_fn` replace `gc_ctx_set_root_fn`, so one heap can hold a root per context.
+
+- `ci-success` fails when the Windows build fails.
+
 - `examples/compiled` builds with `compile-to-file` instead of `tools/joy2c.py`.
 
 ### Removed
 
+- The build-time output targets in `tests/test2` and `tests/test4`. They wrote `.out` files to the build directory that nothing read.
+
 - `tools/joy2c.py`. `compile-to-file` replaces it; 20 of its name mappings pointed at C symbols that do not exist.
 
 ### Fixed
+
+- **An embedded context's vectors were freed by the shared GC.** Each `joy_create` context had its own GC heap for some strings, while `kvec` buffers and builtins used the shared default heap. That heap did not scan the context's `Env`, which is `calloc`'d, so a collection freed `pushback`, `symtab` and others, and the next eval crashed. Each heap also freed blocks referenced only from the other. All contexts now use the shared heap, each `Env` and its node arenas are a root, and `joy_destroy` removes it. One heap was chosen over rooting two: each would need the other's blocks as roots.
+
+- **An allocation outside an eval could return a freed block.** A collection triggered by the allocation itself, with no stack bound to scan, did not see the new block. `joy_create` hit this once contexts shared a heap. Automatic collections now wait until the stack can be scanned.
+
+- **`joy_eval_string` did not run like the interpreter.**
+  - It popped the top result instead of the program, so `"1 2 3."` left `2 1 [1 2 3]`. The `api.c` depth checks passed by coincidence.
+
+  - Definitions were not moved into definition space, so a node collection lost their bodies.
+
+  - It stopped at the first `.`. The rest of the string, and of a string that raised an error, ran at the start of a later eval.
+
+  - Autoput was ignored.
+
+  - A nested eval, from an I/O callback, read the outer eval's input and replaced its error handler.
+
+  It now runs `repl()`, and the scanner ends the eval where its own input ends.
+
+- **`joy_eval_file` crashed at end of file** as a context's first eval: it closed the caller's `FILE` and read `infile[-2]`. Later, it returned `JOY_ERROR_QUIT`. **`joy_load_stdlib` read nothing**: it only queued the file, which the next eval then read in the middle of its own input. Both now read to the end and return.
+
+- **The file tests shared one file named `test`**: `fput`, `fwrite`, `frename` and 5 others wrote, read and deleted it, so under `ctest -j` one could read or delete another's file. Each now uses `<name>.tmp`.
+
+- **`ungetch` pushed characters back into the file**, also when they came from the pushback, so in an embedded eval they were read from stdin. It now uses the pushback. The interpreter no longer echoes a blank line after each line under `setecho`.
 
 - **The node heap grew 1.8x per collection with constant live data.** Before collecting, `newnode` and `ensure_capacity` doubled the heap to fit a worst-case copy, and that doubled size became the next heap; `gc2` took back only 10%. `N [[1 2] [3] concat pop] times` peaked at 434 MB for N=3e6; it now stays under 2 MB. The to-space is now sized for the worst case only, and after a collection the heap holds 4x the surviving nodes; a heap that must grow at least doubles. Building a 2M-element list peaks 6% higher (554 MB vs 521 MB).
 

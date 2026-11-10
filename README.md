@@ -1136,6 +1136,14 @@ ctest -R parallel        # Run parallel tests only
 ctest -R ffi             # Run FFI tests (full coverage needs -DJOY_FFI=ON)
 ```
 
+A test with a `<name>.out` file next to its `.joy` file must reproduce that output exactly. Tests whose output depends on time, randomness, the environment or the build have no `.out` file. After an intended output change, regenerate the files and review the diff:
+
+```bash
+JOY_UPDATE_EXPECTED=1 ctest
+```
+
+To add a test to the comparison, create an empty `<name>.out` first.
+
 A `-DJOY_GC_STRESS=ON` build collects at every allocation, to expose GC bugs. It is slow, so build only the `joy` target:
 
 ```bash

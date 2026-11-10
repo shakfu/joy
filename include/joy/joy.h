@@ -97,19 +97,21 @@ JoyContext* joy_create(const JoyConfig* config);
 void joy_destroy(JoyContext* ctx);
 
 /*
- * Evaluate a string of Joy code.
+ * Evaluate a string of Joy code: every statement in it, in order. A
+ * definition resets the stack, as in the interpreter. After an error the
+ * rest of the string is dropped and the stack is unspecified.
  *
  * @param ctx  Interpreter context
  * @param source  Joy source code (must end with '.' terminator)
- * @return Result code
+ * @return Result code; JOY_ERROR_SYNTAX if the source ends inside a statement
  */
 JoyResult joy_eval_string(JoyContext* ctx, const char* source);
 
 /*
- * Evaluate Joy code from a file.
+ * Evaluate Joy code from a file, to its end, like joy_eval_string.
  *
  * @param ctx  Interpreter context
- * @param fp   File pointer to read from
+ * @param fp   File pointer to read from; it is left open
  * @param filename  Filename for error messages (may be NULL)
  * @return Result code
  */

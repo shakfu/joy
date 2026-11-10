@@ -3,6 +3,7 @@
 # Usage: run_test.sh <joy_executable> <source_dir> [flags] <test_file>
 # Exit code: 0 if all assertions pass (only 'true' lines), 1 otherwise
 # ALLOW_ERRORS=1: runtime errors are expected; only assertions are checked
+# Output is also compared with <test>.out when it exists (see expect_output.sh)
 
 JOY_EXE="$1"
 shift
@@ -84,6 +85,9 @@ if [ -n "$ALLOW_ERRORS" ] && [ "$(echo "$OUTPUT" | tail -n 1)" != "true" ]; then
     echo "$OUTPUT"
     exit 1
 fi
+
+source "$(dirname "$0")/expect_output.sh"
+expect_output "$TEST_FILE" "$OUTPUT" || exit 1
 
 echo "PASS"
 exit 0

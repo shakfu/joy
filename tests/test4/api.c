@@ -35,6 +35,54 @@ static int tests_passed = 0;
 #define ASSERT_NE(a, b) ASSERT((a) != (b))
 #define ASSERT_STR_EQ(a, b) ASSERT(strcmp((a), (b)) == 0)
 
+/* Custom I/O test state */
+static char output_buffer[1024];
+static size_t output_pos = 0;
+
+static void test_write_string(void* user_data, const char* s)
+{
+    (void)user_data;
+    size_t len = strlen(s);
+    if (output_pos + len < sizeof(output_buffer)) {
+        memcpy(output_buffer + output_pos, s, len);
+        output_pos += len;
+        output_buffer[output_pos] = '\0';
+    }
+}
+
+static void test_write_char(void* user_data, int ch)
+{
+    (void)user_data;
+    if (output_pos + 1 < sizeof(output_buffer)) {
+        output_buffer[output_pos++] = (char)ch;
+        output_buffer[output_pos] = '\0';
+    }
+}
+
+static JoyIO capture_io = {
+    .write_char = test_write_char,
+    .write_string = test_write_string,
+};
+
+/* A context whose output goes to output_buffer, without autoput */
+static JoyContext* capture_create(void)
+{
+    JoyConfig config = { .io = &capture_io, .enable_autoput = 0 };
+
+    output_buffer[0] = '\0';
+    output_pos = 0;
+    return joy_create(&config);
+}
+
+/* Evaluate source and return what it wrote */
+static const char* eval_output(JoyContext* ctx, const char* source)
+{
+    output_buffer[0] = '\0';
+    output_pos = 0;
+    ASSERT_EQ(joy_eval_string(ctx, source), JOY_OK);
+    return output_buffer;
+}
+
 /* Test version API */
 TEST(version)
 {
@@ -85,22 +133,180 @@ TEST(config)
 /* Test simple evaluation */
 TEST(eval_simple)
 {
-    JoyContext* ctx = joy_create(NULL);
+    JoyContext* ctx = capture_create();
     ASSERT(ctx != NULL);
 
-    /* Test: 2 3 + . should push 2, push 3, add them (5), then print/pop (empty stack) */
-    JoyResult r = joy_eval_string(ctx, "2 3 + .");
-    ASSERT_EQ(r, JOY_OK);
-    /* After "2 3 + ." the stack should have 1 element (5) since . is a terminator, not executed */
+    /* '.' ends the statement; the program is not left on the stack */
+    ASSERT_EQ(joy_eval_string(ctx, "2 3 + ."), JOY_OK);
     ASSERT_EQ(joy_stack_depth(ctx), 1);
+    ASSERT_STR_EQ(eval_output(ctx, "stack put."), "[5]");
 
     joy_destroy(ctx);
+}
+
+/* With autoput, each statement prints and pops the top of the stack */
+TEST(eval_autoput)
+{
+    JoyConfig config = { .io = &capture_io, .enable_autoput = 1 };
+    JoyContext* ctx = joy_create(&config);
+    ASSERT(ctx != NULL);
+
+    ASSERT_STR_EQ(eval_output(ctx, "2 3 + . 4 ."), "5\n4\n");
+    ASSERT(joy_stack_empty(ctx));
+
+    joy_destroy(ctx);
+}
+
+/* Every statement in the string runs, also after a definition */
+TEST(eval_statements)
+{
+    JoyContext* ctx = capture_create();
+    ASSERT(ctx != NULL);
+
+    ASSERT_STR_EQ(eval_output(ctx, "1 put. 2 put."), "12");
+    ASSERT_STR_EQ(eval_output(ctx, "DEFINE sq == dup * . 3 sq put."), "9");
+    /* Input that ends without '.' is an error and runs nothing later */
+    ASSERT_EQ(joy_eval_string(ctx, "1 2 +"), JOY_ERROR_SYNTAX);
+    joy_stack_clear(ctx);
+    ASSERT_STR_EQ(eval_output(ctx, "7 put."), "7");
+    /* Blank input and comments are fine */
+    ASSERT_STR_EQ(eval_output(ctx, ""), "");
+    ASSERT_STR_EQ(eval_output(ctx, " (* comment *) "), "");
+
+    joy_destroy(ctx);
+}
+
+/* After an error, the rest of the string is dropped, not run later */
+TEST(eval_error_drops_rest)
+{
+    JoyContext* ctx = capture_create();
+    ASSERT(ctx != NULL);
+
+    ASSERT_NE(joy_eval_string(ctx, "1 0 / . 5 put."), JOY_OK);
+    joy_stack_clear(ctx);
+    ASSERT_STR_EQ(eval_output(ctx, "6 put."), "6");
+
+    joy_destroy(ctx);
+}
+
+/* Definitions are kept by the node collector */
+TEST(definitions_survive_gc)
+{
+    JoyContext* ctx = capture_create();
+    ASSERT(ctx != NULL);
+
+    ASSERT_EQ(joy_eval_string(ctx, "DEFINE sq == dup * ."), JOY_OK);
+    size_t before = joy_gc_count(ctx);
+    ASSERT_EQ(joy_eval_string(ctx, "1 20000 [[1 2] [3] concat pop] times pop. gc."), JOY_OK);
+    ASSERT(joy_gc_count(ctx) > before);
+    ASSERT_STR_EQ(eval_output(ctx, "3 sq put."), "9");
+
+    joy_destroy(ctx);
+}
+
+/* Two live contexts keep separate definitions and stacks */
+TEST(two_contexts)
+{
+    JoyContext* a = capture_create();
+    JoyContext* b = capture_create();
+    ASSERT(a != NULL && b != NULL);
+
+    ASSERT_EQ(joy_eval_string(a, "DEFINE f == 1 + . 10."), JOY_OK);
+    ASSERT_EQ(joy_eval_string(b, "DEFINE f == 2 * . 10."), JOY_OK);
+    ASSERT_EQ(joy_eval_string(a, "1 30000 [[1] [2] concat pop] times pop."), JOY_OK);
+    ASSERT_STR_EQ(eval_output(a, "f put."), "11");
+    ASSERT_STR_EQ(eval_output(b, "f put."), "20");
+    joy_destroy(a);
+    /* b's vectors and strings survive collections after a is gone */
+    ASSERT_EQ(joy_eval_string(b, "1 30000 [\"ab\" \"cd\" concat pop] times."), JOY_OK);
+    ASSERT_STR_EQ(eval_output(b, "21 f put."), "42");
+
+    joy_destroy(b);
+}
+
+/* A file is read to its end and stays open for the caller */
+TEST(eval_file)
+{
+    JoyContext* ctx = capture_create();
+    FILE* fp = tmpfile();
+    ASSERT(ctx != NULL && fp != NULL);
+
+    fputs("DEFINE sq == dup * .\n3 sq put.\n4 sq put.", fp); /* no final newline */
+    rewind(fp);
+    ASSERT_EQ(joy_eval_file(ctx, fp, "test"), JOY_OK);
+    ASSERT_STR_EQ(output_buffer, "916");
+    ASSERT_EQ(fgetc(fp), EOF); /* still open */
+    fclose(fp);
+    ASSERT_STR_EQ(eval_output(ctx, "5 sq put."), "25");
+
+    joy_destroy(ctx);
+}
+
+/* joy_load_stdlib reads the whole library before returning */
+TEST(load_stdlib)
+{
+    const char* path = "api_stdlib.tmp";
+    FILE* fp = fopen(path, "w");
+    ASSERT(fp != NULL);
+    fputs("DEFINE triple == 3 * .\n", fp);
+    fclose(fp);
+
+    JoyContext* ctx = capture_create();
+    ASSERT(ctx != NULL);
+    ASSERT_EQ(joy_load_stdlib(ctx, path), JOY_OK);
+    remove(path);
+    ASSERT_STR_EQ(eval_output(ctx, "5 triple put."), "15");
+    ASSERT_EQ(joy_load_stdlib(ctx, "no-such-library.joy"), JOY_ERROR_IO);
+
+    joy_destroy(ctx);
+}
+
+/* An eval from an output callback reads only its own input */
+static JoyContext* nested_ctx;
+static int nested_done;
+
+static void nested_eval_once(void)
+{
+    if (!nested_done) {
+        nested_done = 1;
+        ASSERT_EQ(joy_eval_string(nested_ctx, "3 put."), JOY_OK);
+    }
+}
+
+static void nested_write_string(void* user_data, const char* s)
+{
+    test_write_string(user_data, s);
+    nested_eval_once();
+}
+
+static void nested_write_char(void* user_data, int ch)
+{
+    test_write_char(user_data, ch);
+    nested_eval_once();
+}
+
+TEST(nested_eval)
+{
+    JoyIO io = { .write_char = nested_write_char, .write_string = nested_write_string };
+    JoyConfig config = { .io = &io, .enable_autoput = 0 };
+
+    output_buffer[0] = '\0';
+    output_pos = 0;
+    nested_done = 0;
+    nested_ctx = joy_create(&config);
+    ASSERT(nested_ctx != NULL);
+    ASSERT_EQ(joy_eval_string(nested_ctx, "1 put. 2 put."), JOY_OK);
+    ASSERT_STR_EQ(output_buffer, "132");
+    /* The outer error handler is restored after the nested eval */
+    ASSERT_NE(joy_eval_string(nested_ctx, "+ ."), JOY_OK);
+
+    joy_destroy(nested_ctx);
 }
 
 /* Test stack operations */
 TEST(stack_ops)
 {
-    JoyContext* ctx = joy_create(NULL);
+    JoyContext* ctx = capture_create();
     ASSERT(ctx != NULL);
 
     /* Stack starts empty */
@@ -204,21 +410,15 @@ TEST(memory_stats)
     joy_destroy(ctx);
 }
 
-/* Test sequential context creation
- * NOTE: Currently disabled - the internal memory management uses static
- * variables, so creating a new context after destroying one doesn't work
- * correctly. This is a known limitation that would require significant
- * refactoring to fix.
- */
+/* Contexts can be created and destroyed repeatedly */
 TEST(multiple_contexts)
 {
-    /* Just verify we can create one context */
-    JoyContext* ctx = joy_create(NULL);
-    ASSERT(ctx != NULL);
-    joy_eval_string(ctx, "1 2 3 .");
-    ASSERT_EQ(joy_stack_depth(ctx), 3);
-    /* Don't destroy - leave for process cleanup */
-    /* TODO: Fix memory management to allow context recreation */
+    for (int i = 0; i < 20; i++) {
+        JoyContext* ctx = capture_create();
+        ASSERT(ctx != NULL);
+        ASSERT_EQ(joy_eval_string(ctx, "1 2 3 ."), JOY_OK);
+        joy_destroy(ctx);
+    }
 }
 
 /* Test definitions persist */
@@ -239,30 +439,6 @@ TEST(definitions)
     ASSERT_EQ(joy_stack_depth(ctx), 1);
 
     joy_destroy(ctx);
-}
-
-/* Custom I/O test state */
-static char output_buffer[1024];
-static size_t output_pos = 0;
-
-static void test_write_string(void* user_data, const char* s)
-{
-    (void)user_data;
-    size_t len = strlen(s);
-    if (output_pos + len < sizeof(output_buffer)) {
-        memcpy(output_buffer + output_pos, s, len);
-        output_pos += len;
-        output_buffer[output_pos] = '\0';
-    }
-}
-
-static void test_write_char(void* user_data, int ch)
-{
-    (void)user_data;
-    if (output_pos + 1 < sizeof(output_buffer)) {
-        output_buffer[output_pos++] = (char)ch;
-        output_buffer[output_pos] = '\0';
-    }
 }
 
 /* Test custom I/O callbacks */
@@ -287,9 +463,8 @@ TEST(custom_io)
     JoyContext* ctx = joy_create(&config);
     ASSERT(ctx != NULL);
 
-    /* The '.' operator prints top of stack, output should go to our buffer */
-    joy_eval_string(ctx, "42 . .");
-    ASSERT(strstr(output_buffer, "42") != NULL);
+    joy_eval_string(ctx, "42 put.");
+    ASSERT_STR_EQ(output_buffer, "42");
 
     joy_destroy(ctx);
 }
@@ -302,12 +477,25 @@ int main(void)
 
     RUN_TEST(version);
     RUN_TEST(result_strings);
-    /* Tests below create/destroy contexts - only run first few due to
-     * memory management limitations with context recreation */
     RUN_TEST(create_destroy);
+    RUN_TEST(config);
     RUN_TEST(eval_simple);
+    RUN_TEST(eval_autoput);
+    RUN_TEST(eval_statements);
+    RUN_TEST(eval_error_drops_rest);
     RUN_TEST(stack_ops);
     RUN_TEST(errors);
+    RUN_TEST(autoput);
+    RUN_TEST(echo);
+    RUN_TEST(memory_stats);
+    RUN_TEST(multiple_contexts);
+    RUN_TEST(definitions);
+    RUN_TEST(definitions_survive_gc);
+    RUN_TEST(two_contexts);
+    RUN_TEST(eval_file);
+    RUN_TEST(load_stdlib);
+    RUN_TEST(nested_eval);
+    RUN_TEST(custom_io);
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

@@ -1,0 +1,30 @@
+usrlib  is loaded
+inilib  is loaded
+agglib  is loaded
+run time error: representable time needed for gmtime
+true
+run time error: representable time needed for localtime
+true
+run time error: string or bignum value needed for casting
+true
+run time error: string or bignum value needed for casting
+true
+true
+run time error: non-negative count needed for fread
+true
+true
+run time error: supported bracket with \D, \W or \S needed for regex-find-all
+true
+run time error: numeric string needed for strtol
+true
+run time error: integer in range needed for strtol
+true
+run time error: base 0 or 2..36 needed for strtol
+true
+run time error: float in range needed for strtod
+true
+run time error: numeric string needed for strtod
+true
+run time error: numeric string needed for strtod
+true
+true

@@ -3,5 +3,5 @@
     version : 1.5
     date    : 03/21/24
 *)
-"test" "w" fopen fclose.
-"test" fremove.
+"fremove.tmp" "w" fopen fclose.
+"fremove.tmp" fremove.

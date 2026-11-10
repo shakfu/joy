@@ -6,7 +6,13 @@
 
 ## Medium
 
-- [ ] **Shared GC state** - Under NOBDW each `joy_create` context has its own node `gc_ctx` (`joy.c:84`). `GC_INIT` and the legacy `GC_malloc` API use one static `default_ctx` (`gc.c:72`), which kvec and builtins share. Under BDW the whole heap is shared. The `joy.c:57` comment overstates the sharing for node memory.
+- [ ] **Output bypasses I/O callbacks** - `putchars` and about 60 other writes in `src/builtin/{internal,io,session,profiler}.c` call `printf`/`putchar` directly, so an embedder's `write_char`/`write_string` never see them. `put` goes through `src/iolib.c`.
+
+- [ ] **include in joy_eval_string** - An included file is read after the rest of the string: the string is in the pushback, which `getch` reads first. `joy_load_stdlib` and `joy_eval_file` are not affected.
+
+- [ ] **Nested eval with DEFINE** - A definition in an eval run from an I/O callback calls `inimem1(env, 1)`, which resets the node heap under the outer statement that is still running.
+
+- [ ] **Result codes** - A runtime error returns `JOY_ERROR_ABORT`; `JOY_ERROR_RUNTIME`, `JOY_ERROR_TYPE` and `JOY_ERROR_STACK_UNDERFLOW` are never returned.
 
 - [ ] **LSP positions** - Columns are bytes, sent and received unchanged (`diagnostics.c:29`, `document.c:131, 242`). There is no `positionEncoding` negotiation, so non-ASCII lines are off.
 
@@ -25,11 +31,13 @@
 
 - [ ] **Tree-sitter vendoring** - `tree-sitter-joy/src` and `ext/tree-sitter-joy` are identical copies. `CMakeLists.txt:146` builds only `ext/`, so a regenerated grammar is not used until copied.
 
-- [ ] **Stale `.out` files** - About 228 `tests/test2/*.out` and 17 `tests/test4/*.out` are committed but never compared; `run_test.sh` only greps for `false`/errors. 18 test2 and 5 test4 files differ from a local build, some from clock/random output. `let`, `match`, `vector`, `regex`, `lazy`, `cases`, `debugger` have none. Either diff them in the runner or delete them.
+- [ ] **CI lint** - The `lint` job in `.github/workflows/cmake.yml` cannot fail: `|| echo`, `continue-on-error`, and stderr to `/dev/null`. It checks only the first 20 files. There is no `.clang-format`, and `src/` does not pass the default style (374 diagnostics in `compiler.c` alone), so making it blocking needs a style file and a reformat. `ext/` and the generated parsers should be excluded.
 
-- [ ] **CI lint** - The `lint` job in `.github/workflows/cmake.yml` cannot fail: `|| echo`, `continue-on-error`, and stderr to `/dev/null`. It checks only the first 20 files. `ci-success` does not check `needs.lint.result` or `build-windows`.
+- [ ] **argv.joy** - Not registered and never run: the runner includes tests from stdin, so `argv 0 at` is not the file name.
 
-- [ ] **argv.joy** - Not registered (`tests/test2/CMakeLists.txt:443`): the runner includes tests from stdin, so `argv 0 at` is not the file name. `exe9(argv)` generates unchecked output.
+- [ ] **lib/ test outputs** - `lib/CMakeLists.txt` writes `jp-joytst`, `laztst`, `grmtst` and 13 others to the build directory at build time. Nothing checks them.
+
+- [ ] **Shell-dependent output** - `tests/test4/scan1.joy` has no `.out`: `$ ls` lists a directory other tests write to, and `$ TECO`'s error differs between macOS `sh` and dash.
 
 - [ ] **HTTP client** - Basic HTTP requests
   - `"https://api.example.com" http-get` -> response

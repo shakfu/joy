@@ -8,7 +8,7 @@ This document describes the parallel execution implementation in the Joy interpr
 |-------|-------------|--------|
 | Phase 1 | NOBDW GC Context Isolation | Complete |
 | Phase 2 | Conservative GC Context Isolation | Complete |
-| Phase 3 | Per-Joy-Context GC Integration | Complete |
+| Phase 3 | Per-Joy-Context GC Integration | Reverted: `joy_create` contexts share one GC heap |
 | Phase 4 | Parallel Combinator Infrastructure | Complete |
 | Phase 5 | OpenMP Parallel Execution | Complete |
 | Phase 6 | User-Defined Symbol Support | Complete |

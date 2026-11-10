@@ -1,13 +1,11 @@
+usrlib  is loaded
+inilib  is loaded
+agglib  is loaded
 echo 1 =.
-
 true
 2 setecho.
-
 	echo 2 =.
-	
 true
 	3 setecho.
-	
   11	echo 3 =.
-  11	
 true

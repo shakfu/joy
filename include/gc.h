@@ -27,6 +27,13 @@
 /* Forward declaration for khash - actual type defined in gc.c */
 struct kh_Backup_s;
 
+struct GC_Context;
+
+typedef struct GC_Root {
+    void (*fn)(struct GC_Context* ctx, void* arg);
+    void* arg;
+} GC_Root;
+
 /*
  * GC_Context - Per-context garbage collector state
  *
@@ -39,8 +46,8 @@ typedef struct GC_Context {
     uint64_t lower;             /* lower bound of heap pointers */
     uint64_t upper;             /* upper bound of heap pointers */
     char* stack_bottom;         /* bottom of C stack for this context */
-    void (*root_fn)(struct GC_Context* ctx, void* arg); /* marks extra roots */
-    void* root_arg;
+    struct GC_Root* roots;      /* callbacks that mark extra roots */
+    size_t nroots, maxroots;
 #ifdef COUNT_COLLECTIONS
     size_t gc_no;               /* number of garbage collections */
     size_t memory_use;          /* bytes currently allocated */
@@ -61,7 +68,8 @@ void fatal(char* str);
 GC_Context* gc_ctx_create(void);
 void gc_ctx_destroy(GC_Context* ctx);
 void gc_ctx_set_stack_bottom(GC_Context* ctx, char* bottom);
-void gc_ctx_set_root_fn(GC_Context* ctx, void (*fn)(GC_Context*, void*), void* arg);
+void gc_ctx_add_root_fn(GC_Context* ctx, void (*fn)(GC_Context*, void*), void* arg);
+void gc_ctx_remove_root_fn(GC_Context* ctx, void (*fn)(GC_Context*, void*), void* arg);
 void gc_ctx_mark_range(GC_Context* ctx, const void* start, size_t size);
 
 void* gc_ctx_malloc(GC_Context* ctx, size_t size);

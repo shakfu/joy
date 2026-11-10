@@ -1,3 +1,6 @@
-"numlib"
-false
+usrlib  is loaded
+inilib  is loaded
+agglib  is loaded
+numlib  is loaded
+true
 true

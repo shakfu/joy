@@ -210,7 +210,8 @@ typedef enum {
     POSTPONE
 } Flags;
 
-typedef enum { ABORT_NONE, ABORT_RETRY, ABORT_QUIT } Abort;
+/* ABORT_EOI: the input of an embedded eval (joy.c) has ended */
+typedef enum { ABORT_NONE, ABORT_RETRY, ABORT_QUIT, ABORT_EOI } Abort;
 
 /* types			*/
 typedef unsigned char Operator; /* opcode / datatype */
@@ -426,7 +427,14 @@ typedef struct EnvScanner {
     int startpos;                         /* position of token start */
     int endpos;                           /* position of token end */
     Operator sym;                         /* current symbol */
+    /* Embedded eval (joy.c): input ends at level endlevel with endpush chars
+     * left in pushback, when drained (EVAL_STRING) or at EOF (EVAL_FILE) */
+    unsigned char endmode;
+    int endlevel;
+    int endpush;
 } EnvScanner;
+
+enum { EVAL_NONE, EVAL_STRING, EVAL_FILE };
 
 typedef struct Env {
     jmp_buf error_jmp; /* error recovery point */
@@ -471,7 +479,7 @@ typedef struct Env {
     Index memoryindex;  /* next free node index (was global in utils.c) */
     size_t memorymax;   /* total capacity of memory array (was static in utils.c) */
     char* stack_bottom; /* bottom of C stack for this context (was global) */
-    GC_Context* gc_ctx; /* per-context conservative GC (Phase 3) */
+    GC_Context* gc_ctx; /* a parallel task's GC; NULL: the shared heap */
 #endif
     Index prog, stck;
 #ifdef COMPILER
@@ -613,6 +621,7 @@ void mem_index(pEnv env);
 void mem_max(pEnv env);
 #ifdef NOBDW
 void inimem1(pEnv env, int status);
+void mark_env_roots(GC_Context* ctx, void* arg);
 void inimem2(pEnv env);
 void printnode(pEnv env, Index p);
 void gc_collect(pEnv env);
@@ -725,15 +734,8 @@ void session_persist_symbol(pEnv env, const char* name, Index body);
 #endif
 
 /*
- * Context-aware GC allocation macros (Phase 3)
- *
- * These macros provide convenient access to per-context GC allocation.
- * In NOBDW mode, they use env->gc_ctx if available, otherwise fall back
- * to global GC. This allows code to work with both the public API
- * (joy_create) and the internal CLI which uses Env directly.
- *
- * Note: kvec.h macros still use global GC_malloc/GC_realloc directly.
- * Full context isolation for vectors requires additional work.
+ * GC allocation through env->gc_ctx when set (a parallel task), otherwise
+ * the shared heap, like kvec.h and the legacy GC_malloc calls.
  */
 #ifdef NOBDW
 #define GC_CTX_MALLOC(env, size) \

@@ -1,7 +1,8 @@
 /*
  * The conservative GC must scan the embedder-side C stack during an eval: a
  * block held only in a C local must survive a collection. The write callback
- * runs inside the eval, like any builtin with a GC-owned local.
+ * runs inside the eval, like any builtin with a GC-owned local. Later evals
+ * must still find the context's vectors.
  */
 #include <stdio.h>
 #include <string.h>
@@ -60,7 +61,10 @@ int main(void)
     }
     if (joy_eval_string(ctx, "1 put.") != JOY_OK)
         fprintf(stderr, "eval failed: %s\n", joy_error_message(ctx));
+    /* The context's vectors are reached only from its calloc'd Env */
+    int later = joy_eval_string(ctx, "DEFINE sq == dup * . 3 sq.") == JOY_OK
+                && joy_stack_depth(ctx) == 1;
     joy_destroy(ctx);
-    printf("checked=%d survived=%d\n", checked, survived);
-    return checked == 1 && survived == 1 ? 0 : 1;
+    printf("checked=%d survived=%d later=%d\n", checked, survived, later);
+    return checked == 1 && survived == 1 && later ? 0 : 1;
 }

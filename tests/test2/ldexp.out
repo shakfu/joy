@@ -1,4 +1,16 @@
-"prelib"
+usrlib  is loaded
+inilib  is loaded
+agglib  is loaded
+warning: overwriting inbuilt 'app1'
+warning: overwriting inbuilt 'app2'
+warning: overwriting inbuilt 'app3'
+warning: overwriting inbuilt 'app4'
+warning: overwriting inbuilt 'app11'
+warning: overwriting inbuilt 'app12'
+warning: overwriting inbuilt 'fputstring'
+warning: overwriting inbuilt 'fold'
+warning: overwriting inbuilt 'enconcat'
+prelib  is loaded
 true
 true
-false
+true

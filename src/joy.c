@@ -48,31 +48,20 @@ const char* joy_version(void)
     return version_string;
 }
 
-/* Track number of active contexts for proper cleanup */
-static int active_context_count = 0;
-
 /*
  * Create a new interpreter context.
  *
- * Note: Due to internal memory management using static variables,
- * only one context should be active at a time. Creating multiple
- * contexts is supported but they share memory state.
+ * Contexts have separate node heaps but share the conservative GC heap,
+ * which holds vectors, strings and payloads. Each context's Env is a root.
  */
 JoyContext* joy_create(const JoyConfig* config)
 {
-    active_context_count++;
-
     JoyContext* ctx = calloc(1, sizeof(JoyContext));
     if (!ctx)
         return NULL;
 
     pEnv env = &ctx->env;
 
-    /*
-     * Initialize global GC once on first context creation.
-     * This is needed even in NOBDW mode because kvec.h macros use
-     * GC_malloc directly (not through env->gc_ctx).
-     */
     static int gc_initialized = 0;
     if (!gc_initialized) {
         GC_INIT();
@@ -80,12 +69,8 @@ JoyContext* joy_create(const JoyConfig* config)
     }
 
 #ifdef NOBDW
-    /* Create per-context GC (Phase 3) */
-    env->gc_ctx = gc_ctx_create();
-    if (!env->gc_ctx) {
-        free(ctx);
-        return NULL;
-    }
+    /* Roots the Env before the vectors below are allocated in the GC heap */
+    inimem1(env, 0);
 #endif
 
     /* Initialize scanner state */
@@ -104,9 +89,7 @@ JoyContext* joy_create(const JoyConfig* config)
     /* Initialize symbol table */
     inisymboltable(env);
 
-    /* Initialize memory */
 #ifdef NOBDW
-    inimem1(env, 0);
     inimem2(env);
 #endif
 
@@ -154,8 +137,6 @@ void joy_destroy(JoyContext* ctx)
     if (!ctx)
         return;
 
-    active_context_count--;
-
     /* Free hash tables */
     if (ctx->env.hash)
         kh_destroy(Symtab, ctx->env.hash);
@@ -170,19 +151,85 @@ void joy_destroy(JoyContext* ctx)
         free(ctx->env.memory);
         ctx->env.memory = NULL;
     }
-    /* Destroy per-context conservative GC (Phase 3) */
-    if (ctx->env.gc_ctx) {
-        gc_ctx_destroy(ctx->env.gc_ctx);
-        ctx->env.gc_ctx = NULL;
-    }
+    /* Its vectors and strings become garbage in the shared GC heap */
+    gc_ctx_remove_root_fn(gc_get_default_context(), mark_env_roots, &ctx->env);
 #endif
 
-    /*
-     * Note: Symbol table strings and vectors use GC-managed memory,
-     * so they don't need explicit freeing. The GC handles cleanup.
-     */
-
     free(ctx);
+}
+
+/*
+ * Run repl on the input of one eval: what it pushed back, or the file it
+ * reads or includes. The scanner raises ABORT_EOI where that input ends, so
+ * the eval reads neither stdin nor the unread input of an outer eval (a
+ * nested eval comes from an I/O callback). Unread input is discarded.
+ */
+static JoyResult run_input(JoyContext* ctx, int mode, int pushed_from,
+                           const char* include_path)
+{
+    pEnv env = &ctx->env;
+    EnvScanner* scan = &env->scanner;
+    unsigned char outer_mode = scan->endmode;
+    Operator outer_sym = scan->sym;
+    int outer_level = scan->endlevel;
+    int outer_push = scan->endpush;
+    jmp_buf outer_jmp;
+    JoyResult result;
+    int err;
+
+    memcpy(outer_jmp, env->error_jmp, sizeof(jmp_buf));
+    scan->endmode = mode;
+    scan->endlevel = scan->ilevel;
+    scan->endpush = pushed_from;
+    scan->sym = '.'; /* input that ends after a '.' ends cleanly */
+    err = setjmp(env->error_jmp);
+    if (!err) {
+        if (include_path && include(env, (char*)include_path))
+            err = -1;
+        else
+            repl(env); /* returns only from a bytecode run */
+    }
+    switch (err) {
+    case 0:
+        result = JOY_OK;
+        break;
+    case -1:
+        result = JOY_ERROR_IO;
+        break;
+    case ABORT_EOI:
+        result = JOY_OK;
+        if (scan->sym != '.') {
+            joy_report_error(env, JOY_ERROR_SYNTAX, "syntax error: input ends before '.'\n");
+            result = JOY_ERROR_SYNTAX;
+        }
+        break;
+    case ABORT_QUIT:
+        result = JOY_ERROR_QUIT;
+        break;
+    default:
+        result = JOY_ERROR_ABORT;
+        break;
+    }
+    while (scan->ilevel > scan->endlevel) {
+        fclose(scan->srcfile);
+        scan->srcfile = scan->infile[--scan->ilevel].fp;
+        scan->linenum = scan->infile[scan->ilevel].line;
+        scan->srcfilename = scan->infile[scan->ilevel].name;
+    }
+    if (vec_size(env->pushback) > scan->endpush)
+        vec_setsize(env->pushback, scan->endpush);
+    /* The stack is unspecified after an error; the dumps must be empty. A
+     * nested eval leaves them: the outer statement is still running. */
+    if (result != JOY_OK && ctx->eval_depth == 1)
+        env->conts = env->dump = env->dump1 = env->dump2 = env->dump3 =
+            env->dump4 = env->dump5 = 0;
+    scan->endmode = outer_mode;
+    scan->sym = outer_sym;
+    scan->endlevel = outer_level;
+    scan->endpush = outer_push;
+    memcpy(env->error_jmp, outer_jmp, sizeof(jmp_buf));
+    ctx->last_result = result;
+    return result;
 }
 
 /*
@@ -190,128 +237,60 @@ void joy_destroy(JoyContext* ctx)
  */
 static JoyResult eval_string(JoyContext* ctx, const char* source)
 {
-    if (!ctx || !source)
-        return JOY_ERROR_RUNTIME;
-
     pEnv env = &ctx->env;
-    int err;
+    size_t i;
+    int base;
 
-    /* Set up error recovery */
-    err = setjmp(env->error_jmp);
-    if (err == ABORT_QUIT) {
-        ctx->last_result = JOY_ERROR_QUIT;
-        return JOY_ERROR_QUIT;
-    }
-    if (err == ABORT_RETRY) {
-        ctx->last_result = JOY_ERROR_ABORT;
-        return JOY_ERROR_ABORT;
-    }
-
-    /* Set up source as if from stdin by using pushback.
-     * Add trailing spaces so getsym doesn't read past end into srcfile. */
-    vec_push(env->pushback, ' ');
-    vec_push(env->pushback, ' ');
-    size_t len = strlen(source);
-    for (size_t i = len; i > 0; i--) {
-        vec_push(env->pushback, source[i - 1]);
-    }
-
-    /* Initialize line buffer if not already done */
-    if (!env->scanner.srcfile) {
+    if (!env->scanner.srcfile)
         inilinebuffer(env);
-    }
-
-    /* Parse and evaluate */
-    int ch = getch(env);
-    ch = getsym(env, ch);
-
-    while (env->scanner.sym != '.') {
-        if (env->scanner.sym == LIBRA || env->scanner.sym == HIDE || env->scanner.sym == MODULE_ ||
-            env->scanner.sym == PRIVATE || env->scanner.sym == PUBLIC || env->scanner.sym == CONST_) {
-            ch = compound_def(env, ch);
-            /* compound_def may leave sym as '.', check before continuing */
-            if (env->scanner.sym == '.')
-                break;
-            ch = getsym(env, ch);
-        } else {
-            ch = readterm(env, ch);
-            if (env->stck) {
-                exec_term(env, nodevalue(env->stck).lis);
-                env->stck = nextnode1(env->stck);
-            }
-            /* readterm reads until terminator, check if it's '.' */
-            if (env->scanner.sym == '.')
-                break;
-            ch = getsym(env, ch);
-        }
-    }
-
-    ctx->last_result = JOY_OK;
-    return JOY_OK;
+    base = vec_size(env->pushback);
+    vec_push(env->pushback, '\n'); /* ends the last token before the input */
+    for (i = strlen(source); i > 0; i--)
+        vec_push(env->pushback, source[i - 1]);
+    return run_input(ctx, EVAL_STRING, base, NULL);
 }
 
 /*
- * Evaluate Joy code from a file.
+ * Evaluate Joy code from a file. The file stands in for the current input
+ * level and stays open: it belongs to the caller.
  */
 static JoyResult eval_file(JoyContext* ctx, FILE* fp, const char* filename)
 {
-    if (!ctx || !fp)
-        return JOY_ERROR_IO;
-
     pEnv env = &ctx->env;
-    int err;
+    EnvScanner* scan = &env->scanner;
+    FILE* outer_fp;
+    char* outer_name;
+    int outer_line, outer_pos;
+    JoyResult result;
 
-    /* Set up error recovery */
-    err = setjmp(env->error_jmp);
-    if (err == ABORT_QUIT) {
-        ctx->last_result = JOY_ERROR_QUIT;
-        return JOY_ERROR_QUIT;
-    }
-    if (err == ABORT_RETRY) {
-        ctx->last_result = JOY_ERROR_ABORT;
-        return JOY_ERROR_ABORT;
-    }
-
-    /* Set up source file */
-    env->scanner.srcfile = fp;
-    env->scanner.srcfilename = (char*)filename;
-    env->scanner.linenum = 0;
-    env->scanner.linepos = 0;
-    env->scanner.linebuf[0] = 0;
-
-    /* Use repl to process the file */
-    repl(env);
-
-    ctx->last_result = JOY_OK;
-    return JOY_OK;
+    if (!scan->srcfile)
+        inilinebuffer(env);
+    outer_fp = scan->srcfile;
+    outer_name = scan->srcfilename;
+    outer_line = scan->linenum;
+    outer_pos = scan->linepos;
+    scan->srcfile = scan->infile[scan->ilevel].fp = fp;
+    scan->srcfilename = (char*)(filename ? filename : "file");
+    scan->linenum = scan->linepos = 0;
+    result = run_input(ctx, EVAL_FILE, vec_size(env->pushback), NULL);
+    scan->srcfile = scan->infile[scan->ilevel].fp = outer_fp;
+    scan->srcfilename = outer_name;
+    scan->linenum = outer_line;
+    scan->linepos = outer_pos;
+    return result;
 }
 
 /*
- * Load the standard library.
+ * Load the standard library: read it to the end, like an included file.
  */
 static JoyResult load_stdlib(JoyContext* ctx, const char* lib_path)
 {
-    if (!ctx)
-        return JOY_ERROR_RUNTIME;
-
     pEnv env = &ctx->env;
-    int err;
 
-    /* Set up error recovery */
-    err = setjmp(env->error_jmp);
-    if (err != 0) {
-        ctx->last_result = JOY_ERROR_IO;
-        return JOY_ERROR_IO;
-    }
-
-    const char* path = lib_path ? lib_path : "usrlib.joy";
-    if (include(env, (char*)path) != 0) {
-        ctx->last_result = JOY_ERROR_IO;
-        return JOY_ERROR_IO;
-    }
-
-    ctx->last_result = JOY_OK;
-    return JOY_OK;
+    if (!env->scanner.srcfile)
+        inilinebuffer(env);
+    return run_input(ctx, EVAL_STRING, vec_size(env->pushback),
+                     lib_path ? lib_path : "usrlib.joy");
 }
 
 /*
@@ -325,9 +304,6 @@ static void enter_eval(JoyContext* ctx, char* frame)
     if (ctx->eval_depth++ == 0) {
         bottom_of_stack = frame; /* read by GC_gcollect */
         gc_ctx_set_stack_bottom(gc_get_default_context(), frame);
-#ifdef NOBDW
-        gc_ctx_set_stack_bottom(ctx->env.gc_ctx, frame);
-#endif
     }
 }
 
@@ -336,9 +312,6 @@ static void leave_eval(JoyContext* ctx)
     if (--ctx->eval_depth == 0) {
         bottom_of_stack = NULL;
         gc_ctx_set_stack_bottom(gc_get_default_context(), NULL);
-#ifdef NOBDW
-        gc_ctx_set_stack_bottom(ctx->env.gc_ctx, NULL);
-#endif
     }
 }
 

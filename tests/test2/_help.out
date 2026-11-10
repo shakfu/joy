@@ -1,3 +1,7 @@
-#treerec #treegenrec #genrec __memoryindex __settracegc __manual_list 
-__latex_manual __html_manual _help __memorymax __dump __symtabindex 
-__symtabmax __ANON_FUNCT __USR __COPIED __ILLEGAL 
+usrlib  is loaded
+inilib  is loaded
+agglib  is loaded
+_agglib _inilib 1.returned _usrlib #treerec #treegenrec #genrec 
+__memoryindex __settracegc __manual_list __latex_manual __html_manual 
+_help __memorymax __dump __symtabindex __symtabmax __ANON_FUNCT __USR 
+__COPIED __ILLEGAL 

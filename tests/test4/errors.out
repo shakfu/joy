@@ -1,0 +1,15 @@
+run time error: aggregate parameter needed for concat
+run time error: aggregate parameter needed for drop
+run time error: aggregate parameter needed for filter
+run time error: aggregate parameter needed for first
+run time error: aggregate parameter needed for map
+run time error: different type needed for not
+run time error: different type needed for primrec
+run time error: aggregate parameter needed for rest
+run time error: aggregate parameter needed for size
+run time error: different type needed for small
+run time error: aggregate parameter needed for split
+run time error: aggregate parameter needed for step
+run time error: aggregate parameter needed for take
+run time error: aggregate parameter needed for uncons
+run time error: aggregate parameter needed for unswons

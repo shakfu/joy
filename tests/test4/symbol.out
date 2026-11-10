@@ -1,0 +1,4 @@
+warning: empty compound definition
+symbol.joy:25:
+             ^
+             END or period '.' expected in compound definition

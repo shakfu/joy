@@ -1,3 +1,6 @@
+usrlib  is loaded
+inilib  is loaded
+agglib  is loaded
 
  file type	:  ->  FILE:.
 The type of references to open I/O streams,
@@ -47,8 +50,7 @@ Pushes largest integer (platform dependent). Typically it is 32 bits.
 helpdetail	:  [ S1 S2 .. ]  ->.
 [IMPURE] Gives brief help on each symbol S in the list.
 sum  ==
-    
+    0 [+] fold
 
 dummy  ==
     
-

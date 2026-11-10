@@ -269,7 +269,9 @@ static void ctx_remind(GC_Context* ctx, char* ptr, size_t size, int flags)
      * garbage collector. The threshold is set to twice the number of items
      * currently in use, allowing 100% growth between collections.
      */
-    if (ctx->max_items < kh_size(mem)) {
+    /* Without a stack bound, the new block and other C locals are not
+     * roots: an embedder allocates outside joy_eval_* (joy_create) */
+    if (ctx->max_items < kh_size(mem) && ctx->stack_bottom) {
         gc_ctx_collect(ctx);
         ctx->max_items = kh_size(mem) * GROW_FACTOR;
     }
@@ -364,6 +366,7 @@ void gc_ctx_destroy(GC_Context* ctx)
                 free((void*)kh_key(mem, key));
         kh_destroy(Backup, mem);
     }
+    free(ctx->roots);
     free(ctx);
 }
 
@@ -379,13 +382,40 @@ void gc_ctx_set_stack_bottom(GC_Context* ctx, char* bottom)
 /*
  * Register a callback that marks roots outside the stack, such as memory
  * allocated with plain malloc that holds pointers to collected blocks.
+ * Registering the same pair twice has no effect.
  */
-void gc_ctx_set_root_fn(GC_Context* ctx, void (*fn)(GC_Context*, void*), void* arg)
+void gc_ctx_add_root_fn(GC_Context* ctx, void (*fn)(GC_Context*, void*), void* arg)
 {
-    if (ctx) {
-        ctx->root_fn = fn;
-        ctx->root_arg = arg;
+    size_t i;
+    GC_Root* roots;
+
+    if (!ctx)
+        return;
+    for (i = 0; i < ctx->nroots; i++)
+        if (ctx->roots[i].fn == fn && ctx->roots[i].arg == arg)
+            return;
+    if (ctx->nroots == ctx->maxroots) {
+        size_t max = ctx->maxroots ? 2 * ctx->maxroots : 4;
+        if ((roots = realloc(ctx->roots, max * sizeof(GC_Root))) == 0)
+            fatal("memory exhausted");
+        ctx->roots = roots;
+        ctx->maxroots = max;
     }
+    ctx->roots[ctx->nroots].fn = fn;
+    ctx->roots[ctx->nroots++].arg = arg;
+}
+
+void gc_ctx_remove_root_fn(GC_Context* ctx, void (*fn)(GC_Context*, void*), void* arg)
+{
+    size_t i;
+
+    if (!ctx)
+        return;
+    for (i = 0; i < ctx->nroots; i++)
+        if (ctx->roots[i].fn == fn && ctx->roots[i].arg == arg) {
+            ctx->roots[i] = ctx->roots[--ctx->nroots];
+            return;
+        }
 }
 
 /*
@@ -477,6 +507,7 @@ char* gc_ctx_strdup(GC_Context* ctx, const char* str)
 void gc_ctx_collect(GC_Context* ctx)
 {
     jmp_buf env;
+    size_t i;
     void (*volatile m)(GC_Context*) = ctx_mark_stk;
 
     if (!ctx)
@@ -485,8 +516,8 @@ void gc_ctx_collect(GC_Context* ctx)
     memset(&env, 0, sizeof(jmp_buf));
     setjmp(env);
     (*m)(ctx);
-    if (ctx->root_fn)
-        ctx->root_fn(ctx, ctx->root_arg);
+    for (i = 0; i < ctx->nroots; i++)
+        ctx->roots[i].fn(ctx, ctx->roots[i].arg);
 #ifdef SCAN_BSS_MEMORY
     ctx_mark_bss(ctx);
 #endif

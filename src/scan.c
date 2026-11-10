@@ -48,9 +48,17 @@ int getch(pEnv env)
     int ch;
 
 again:
-    if (vec_size(env->pushback))
+    if (vec_size(env->pushback) > env->scanner.endpush)
         return vec_pop(env->pushback);
+    if (env->scanner.endmode == EVAL_STRING
+        && env->scanner.ilevel == env->scanner.endlevel)
+        abortexecution_(env, ABORT_EOI);
     if ((ch = joy_getc(env, env->scanner.srcfile)) == EOF) {
+        if (env->scanner.endmode && env->scanner.ilevel == env->scanner.endlevel) {
+            /* A newline first ends a last token that a '.' follows */
+            env->scanner.endmode = EVAL_STRING;
+            return '\n';
+        }
         if (!env->scanner.ilevel)
             abortexecution_(env, ABORT_QUIT);
         fclose(env->scanner.srcfile);
@@ -109,15 +117,13 @@ again:
 }
 
 /*
- * ungetch unreads a character.
+ * ungetch unreads a character. It goes to the pushback, not the file: it may
+ * have come from the pushback. Rereading it from there does not count it
+ * again in the line number, position or echo.
  */
 void ungetch(pEnv env, int ch)
 {
-    if (ch == '\n')
-        env->scanner.linenum--; /* about to unread newline */
-    ungetc(ch, env->scanner.srcfile);
-    if (env->scanner.linepos > 0)
-        env->scanner.linepos--; /* read too far, push back */
+    vec_push(env->pushback, ch);
 }
 
 /*

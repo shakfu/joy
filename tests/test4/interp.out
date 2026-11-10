@@ -1,7 +1,13 @@
  : "hello" 0 casting call
 "hello" : 0 casting call
 "hello" 0 : casting call
+interp.joy:9:
+            ^
+            a factor cannot begin with this symbol
  : call
+interp.joy:9:
+            ^
+            a factor cannot begin with this symbol
 
  : 0 setundeferror
 0 : setundeferror

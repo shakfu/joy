@@ -1,18 +1,74 @@
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+scan2.joy:7:
+           ^
+           a factor cannot begin with this symbol
+scan2.joy:9:
+           ^
+           a factor cannot begin with this symbol
 include
 "scan2.joy"
+run time error: fewer include files needed for include
+run time error: fewer include files needed for include

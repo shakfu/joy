@@ -1,0 +1,14 @@
+usrlib  is loaded
+inilib  is loaded
+agglib  is loaded
+run time error: size in range needed for meye
+true
+run time error: size in range needed for vzeros
+true
+run time error: size in range needed for vrange
+true
+run time error: size in range needed for nmzeros
+true
+run time error: size in range needed for nmm
+true
+true
