@@ -15,7 +15,6 @@ struct JoyContext {
     JoyIO* io;           /* custom I/O callbacks */
     JoyResult last_result;
     size_t gc_count;
-    int eval_depth;      /* nested eval calls, from I/O callbacks */
 };
 
 /* Version string - uses macro from joy.h */
@@ -173,6 +172,7 @@ static JoyResult run_input(JoyContext* ctx, int mode, int pushed_from,
     Operator outer_sym = scan->sym;
     int outer_level = scan->endlevel;
     int outer_push = scan->endpush;
+    int outer_code = env->error.code;
     jmp_buf outer_jmp;
     JoyResult result;
     int err;
@@ -182,6 +182,7 @@ static JoyResult run_input(JoyContext* ctx, int mode, int pushed_from,
     scan->endlevel = scan->ilevel;
     scan->endpush = pushed_from;
     scan->sym = '.'; /* input that ends after a '.' ends cleanly */
+    env->error.code = JOY_OK;
     err = setjmp(env->error_jmp);
     if (!err) {
         if (include_path && include(env, (char*)include_path))
@@ -189,15 +190,16 @@ static JoyResult run_input(JoyContext* ctx, int mode, int pushed_from,
         else
             repl(env); /* returns only from a bytecode run */
     }
+    /* A syntax error does not stop the input; a runtime error does */
     switch (err) {
     case 0:
-        result = JOY_OK;
+        result = env->error.code;
         break;
     case -1:
         result = JOY_ERROR_IO;
         break;
     case ABORT_EOI:
-        result = JOY_OK;
+        result = env->error.code;
         if (scan->sym != '.') {
             joy_report_error(env, JOY_ERROR_SYNTAX, "syntax error: input ends before '.'\n");
             result = JOY_ERROR_SYNTAX;
@@ -207,7 +209,7 @@ static JoyResult run_input(JoyContext* ctx, int mode, int pushed_from,
         result = JOY_ERROR_QUIT;
         break;
     default:
-        result = JOY_ERROR_ABORT;
+        result = env->error.code ? env->error.code : JOY_ERROR_ABORT;
         break;
     }
     while (scan->ilevel > scan->endlevel) {
@@ -220,7 +222,7 @@ static JoyResult run_input(JoyContext* ctx, int mode, int pushed_from,
         vec_setsize(env->pushback, scan->endpush);
     /* The stack is unspecified after an error; the dumps must be empty. A
      * nested eval leaves them: the outer statement is still running. */
-    if (result != JOY_OK && ctx->eval_depth == 1)
+    if (result != JOY_OK && ctx->env.scanner.eval_depth == 1)
         env->conts = env->dump = env->dump1 = env->dump2 = env->dump3 =
             env->dump4 = env->dump5 = 0;
     scan->endmode = outer_mode;
@@ -228,6 +230,7 @@ static JoyResult run_input(JoyContext* ctx, int mode, int pushed_from,
     scan->endlevel = outer_level;
     scan->endpush = outer_push;
     memcpy(env->error_jmp, outer_jmp, sizeof(jmp_buf));
+    env->error.code = outer_code;
     ctx->last_result = result;
     return result;
 }
@@ -301,7 +304,7 @@ static JoyResult load_stdlib(JoyContext* ctx, const char* lib_path)
  */
 static void enter_eval(JoyContext* ctx, char* frame)
 {
-    if (ctx->eval_depth++ == 0) {
+    if (ctx->env.scanner.eval_depth++ == 0) {
         bottom_of_stack = frame; /* read by GC_gcollect */
         gc_ctx_set_stack_bottom(gc_get_default_context(), frame);
     }
@@ -309,7 +312,7 @@ static void enter_eval(JoyContext* ctx, char* frame)
 
 static void leave_eval(JoyContext* ctx)
 {
-    if (--ctx->eval_depth == 0) {
+    if (--ctx->env.scanner.eval_depth == 0) {
         bottom_of_stack = NULL;
         gc_ctx_set_stack_bottom(gc_get_default_context(), NULL);
     }

@@ -248,7 +248,7 @@ void fputch_(pEnv env)
     ch = nodevalue(env->stck).num;
     POP(env->stck);
     ISFILE("fputch");
-    putc(ch, nodevalue(env->stck).fil);
+    joy_putc(env, ch, nodevalue(env->stck).fil);
 }
 
 /**
@@ -267,7 +267,7 @@ void fputchars_(pEnv env) /* suggested by Heiko Kuhrt, as "fputstring_" */
     POP(env->stck);
     ISFILE("fputchars");
     fp = nodevalue(env->stck).fil;
-    fputs(str, fp);
+    joy_fputs(env, str, fp);
 }
 
 /**
@@ -396,7 +396,7 @@ void fwrite_(pEnv env)
         buf[i] = (unsigned char)nodevalue(n).num;
     POP(env->stck);
     ISFILE("fwrite");
-    fwrite(buf, i, 1, nodevalue(env->stck).fil);
+    joy_fwrite(env, (char*)buf, i, nodevalue(env->stck).fil);
 #ifdef NOBDW
     free(buf);
 #endif
@@ -428,14 +428,14 @@ Q0  IGNORE_POP  3090  putch  :  N  ->
 [IMPURE] N : numeric, writes character whose ASCII is N.
 */
 USETOP(putch_, "putch", NUMERICTYPE,
-       printf("%c", (int)nodevalue(env->stck).num))
+       joy_putchar(env, (int)nodevalue(env->stck).num))
 
 /**
 Q0  IGNORE_POP  3100  putchars  :  "abc.."  ->
 [IMPURE] Writes abc.. (without quotes)
 */
 USETOP(putchars_, "putchars", STRING,
-       printf("%s", (char*)&nodevalue(env->stck)))
+       joy_puts(env, (char*)&nodevalue(env->stck)))
 
 /**
 Q0  IMMEDIATE  1190  stderr  :  ->  S

@@ -6,13 +6,11 @@
 
 ## Medium
 
-- [ ] **Output bypasses I/O callbacks** - `putchars` and about 60 other writes in `src/builtin/{internal,io,session,profiler}.c` call `printf`/`putchar` directly, so an embedder's `write_char`/`write_string` never see them. `put` goes through `src/iolib.c`.
+- [ ] **include in joy_eval_string** - An included file is read after the rest of the string: the string is in the pushback, which `getch` reads first. Documented in `joy.h`; `joy_load_stdlib` and `joy_eval_file` are not affected.
 
-- [ ] **include in joy_eval_string** - An included file is read after the rest of the string: the string is in the pushback, which `getch` reads first. `joy_load_stdlib` and `joy_eval_file` are not affected.
+- [ ] **Warnings bypass on_error** - `warning: overwriting inbuilt` and `warning: empty compound definition` (`symbol.c:133, 198`), the shell-command warning (`scan.c:97`) and `exec_term`'s bad-node message (`interp.c:349`) write to stderr directly.
 
-- [ ] **Nested eval with DEFINE** - A definition in an eval run from an I/O callback calls `inimem1(env, 1)`, which resets the node heap under the outer statement that is still running.
-
-- [ ] **Result codes** - A runtime error returns `JOY_ERROR_ABORT`; `JOY_ERROR_RUNTIME`, `JOY_ERROR_TYPE` and `JOY_ERROR_STACK_UNDERFLOW` are never returned.
+- [ ] **Binary output through write_string** - `write_string` takes a C string, so `fwrite` to `stdout` under a callback stops at the first NUL byte (`iolib.c` `joy_fwrite`). A length-taking callback would fix it; it changes `JoyIO`.
 
 - [ ] **LSP positions** - Columns are bytes, sent and received unchanged (`diagnostics.c:29`, `document.c:131, 242`). There is no `positionEncoding` negotiation, so non-ASCII lines are off.
 

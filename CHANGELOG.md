@@ -22,6 +22,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **The embedding API runs strings like the interpreter.** With the default config, autoput prints and pops the top after each statement, a definition resets the stack, and the stack is unspecified after an error. Input that ends inside a statement returns `JOY_ERROR_SYNTAX`. See the `joy_eval_string` fixes below.
 
+- **Embedded errors return their class (breaking).** A runtime error returns `JOY_ERROR_TYPE`, `JOY_ERROR_STACK_UNDERFLOW`, `JOY_ERROR_OUT_OF_MEMORY` or `JOY_ERROR_RUNTIME`; before, all returned `JOY_ERROR_ABORT`, which now comes only from `abort`. A syntax error reaches `on_error` and the eval returns `JOY_ERROR_SYNTAX`; before, it went to stderr and the eval returned `JOY_OK`. The class comes from the check macro that raised it, over parsing the free-text message.
+
+- **A nested eval cannot define.** A definition from an I/O callback, during another eval, returns `JOY_ERROR_RUNTIME`. It used to reset the node heap under the statement still running.
+
 - `gc.h`: `gc_ctx_add_root_fn` and `gc_ctx_remove_root_fn` replace `gc_ctx_set_root_fn`, so one heap can hold a root per context.
 
 - `ci-success` fails when the Windows build fails.
@@ -54,6 +58,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   It now runs `repl()`, and the scanner ends the eval where its own input ends.
 
 - **`joy_eval_file` crashed at end of file** as a context's first eval: it closed the caller's `FILE` and read `infile[-2]`. Later, it returned `JOY_ERROR_QUIT`. **`joy_load_stdlib` read nothing**: it only queued the file, which the next eval then read in the middle of its own input. Both now read to the end and return.
+
+- **`on_error` received `JOY_ERROR_SYNTAX` for every runtime error.** `execerror` passed `ABORT_RETRY`, an `Abort` value equal to 1.
+
+- **Output builtins bypassed the I/O callbacks**: `putch`, `putchars`, `fputch`, `fputchars` and `fwrite` on `stdout`, `help`, `helpdetail`, `manual`, the profile report, session messages, GC trace and debugger display all wrote to stdout directly.
 
 - **The file tests shared one file named `test`**: `fput`, `fwrite`, `frename` and 5 others wrote, read and deleted it, so under `ctest -j` one could read or delete another's file. Each now uses `<name>.tmp`.
 

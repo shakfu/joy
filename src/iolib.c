@@ -229,4 +229,5 @@ void joy_report_error(pEnv env, int code, const char* msg)
     env->error.line = env->scanner.linenum;
     env->error.column = env->scanner.linepos;
     env->error.count++;
+    env->error.code = code;
 }

@@ -154,20 +154,25 @@ static int stderr_printf_count(const char *fmt, ...)
     return needed;
 }
 
+/*
+ * error - report a syntax error under the current input line.
+ */
 void error(pEnv env, char* str)
 {
-    int leng;
+    EnvScanner* scan = &env->scanner;
+    const char* fmt = "%s:%d:%.*s\n%*s^\n%*s%s\n";
+    int leng = snprintf(NULL, 0, "%s:%d:%.*s", scan->srcfilename,
+                        scan->linenum, scan->linepos, scan->linebuf) - 1;
+    int size = snprintf(NULL, 0, fmt, scan->srcfilename, scan->linenum,
+                        scan->linepos, scan->linebuf, leng, "", leng, "", str);
+    char* msg = malloc(size + 1);
 
-    env->error.count++;
-    fflush(stdout);
-    leng = stderr_printf_count("%s:%d:", env->scanner.srcfilename, env->scanner.linenum);
-    leng += stderr_printf_count("%.*s", env->scanner.linepos, env->scanner.linebuf);
-    if (leng > 0) {
-        stderr_printf_count("\n%*s^", --leng, "");
-        stderr_printf_count("\n%*s%s\n", leng, "", str);
-    } else {
-        stderr_printf_count("\n^\n%s\n", str);
-    }
+    if (!msg)
+        fatal("out of memory");
+    snprintf(msg, size + 1, fmt, scan->srcfilename, scan->linenum,
+             scan->linepos, scan->linebuf, leng, "", leng, "", str);
+    joy_report_error(env, JOY_ERROR_SYNTAX, msg);
+    free(msg);
 }
 
 /*

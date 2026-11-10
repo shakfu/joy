@@ -13,6 +13,8 @@
 
 /* #define USE_KHASHL */
 
+#include "joy/joy.h" /* JoyResult */
+
 #include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
@@ -362,6 +364,7 @@ typedef struct EnvError {
     int line;           /* line number of error */
     int column;         /* column of error */
     int count;          /* errors reported so far */
+    int code;           /* JoyResult of the last reported error */
 } EnvError;
 
 /* EnvStats - Runtime statistics */
@@ -432,6 +435,7 @@ typedef struct EnvScanner {
     unsigned char endmode;
     int endlevel;
     int endpush;
+    int eval_depth; /* nested evals, from I/O callbacks */
 } EnvScanner;
 
 enum { EVAL_NONE, EVAL_STRING, EVAL_FILE };
@@ -634,6 +638,7 @@ void *check_malloc(size_t leng);
 #endif
 /* error.c */
 void execerror(pEnv env, char* message, char* op);
+void raise_error(pEnv env, JoyResult code, char* message, char* op);
 /* factor.c */
 int readfactor(pEnv env, int ch, int* rv); /* read a JOY factor */
 int readterm(pEnv env, int ch);

@@ -18,9 +18,9 @@ static void writedump(pEnv env, Index n, FILE* fp)
         writefactor(env, n, fp);
         POP(n);
         if (n)
-            putc(' ', fp);
+            joy_putc(env, ' ', fp);
     }
-    putc('\n', fp);
+    joy_putc(env, '\n', fp);
 }
 #endif
 
@@ -29,7 +29,7 @@ static void writedump(pEnv env, Index n, FILE* fp)
  */
 #define DUMP_CHECK(D, NAME)                                                   \
     if (D) {                                                                  \
-        printf("->  %s is not empty:\n", NAME);                               \
+        joy_printf(env, "->  %s is not empty:\n", NAME);                      \
         writedump(env, D, stdout);                                            \
     }
 
@@ -46,6 +46,10 @@ void repl(pEnv env)
         ch = getsym(env, ch);
         if (env->scanner.sym == LIBRA || env->scanner.sym == HIDE || env->scanner.sym == MODULE_
             || env->scanner.sym == CONST_) {
+            /* inimem1 would free the nodes of the statement still running */
+            if (env->scanner.eval_depth > 1)
+                raise_error(env, JOY_ERROR_RUNTIME, "outermost eval",
+                            "definition");
 #ifdef NOBDW
             inimem1(env, 1); /* also resets the stack to initial */
 #endif
@@ -76,7 +80,7 @@ void repl(pEnv env)
 #ifdef NOBDW
             if (env->conts || env->dump || env->dump1 || env->dump2
                 || env->dump3 || env->dump4 || env->dump5) {
-                printf("the dumps are not empty\n");
+                joy_printf(env, "the dumps are not empty\n");
                 DUMP_CHECK(env->conts, "conts");
                 DUMP_CHECK(env->dump, "dump");
                 DUMP_CHECK(env->dump1, "dump1");

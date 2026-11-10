@@ -25,7 +25,8 @@ extern "C" {
 #define JOY_VERSION_STRING "1.0.0"
 
 /*
- * Result codes returned by Joy API functions.
+ * Result codes returned by Joy API functions, and passed to on_error.
+ * JOY_ERROR_ABORT comes from the `abort` builtin.
  */
 typedef enum JoyResult {
     JOY_OK = 0,                    /* Success */
@@ -98,12 +99,18 @@ void joy_destroy(JoyContext* ctx);
 
 /*
  * Evaluate a string of Joy code: every statement in it, in order. A
- * definition resets the stack, as in the interpreter. After an error the
- * rest of the string is dropped and the stack is unspecified.
+ * definition resets the stack, as in the interpreter. A syntax error is
+ * reported and evaluation goes on. After a runtime error the rest of the
+ * string is dropped and the stack is unspecified.
+ *
+ * A call from an I/O callback, during another eval, cannot define: that
+ * would reset the statement still running. A file named by `include` is read
+ * after the rest of the string; use joy_eval_file to read it in place.
  *
  * @param ctx  Interpreter context
  * @param source  Joy source code (must end with '.' terminator)
- * @return Result code; JOY_ERROR_SYNTAX if the source ends inside a statement
+ * @return Result code of the last error, or JOY_OK; JOY_ERROR_SYNTAX if the
+ *         source ends inside a statement
  */
 JoyResult joy_eval_string(JoyContext* ctx, const char* source);
 

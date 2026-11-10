@@ -99,124 +99,124 @@
 /* Stack depth checks - verify minimum items on stack */
 #define ONEPARAM(NAME)                                                        \
     if (!env->stck) {                                                         \
-        execerror(env, "one parameter", NAME);                                \
+        raise_error(env, JOY_ERROR_STACK_UNDERFLOW, "one parameter", NAME);   \
         return;                                                               \
     }
 #define TWOPARAMS(NAME)                                                       \
     if (!env->stck || !nextnode1(env->stck)) {                                \
-        execerror(env, "two parameters", NAME);                               \
+        raise_error(env, JOY_ERROR_STACK_UNDERFLOW, "two parameters", NAME);  \
         return;                                                               \
     }
 #define THREEPARAMS(NAME)                                                     \
     if (!env->stck || !nextnode1(env->stck) || !nextnode2(env->stck)) {       \
-        execerror(env, "three parameters", NAME);                             \
+        raise_error(env, JOY_ERROR_STACK_UNDERFLOW, "three parameters", NAME); \
         return;                                                               \
     }
 #define FOURPARAMS(NAME)                                                      \
     if (!env->stck || !nextnode1(env->stck) || !nextnode2(env->stck)          \
         || !nextnode3(env->stck)) {                                           \
-        execerror(env, "four parameters", NAME);                              \
+        raise_error(env, JOY_ERROR_STACK_UNDERFLOW, "four parameters", NAME); \
         return;                                                               \
     }
 #define FIVEPARAMS(NAME)                                                      \
     if (!env->stck || !nextnode1(env->stck) || !nextnode2(env->stck)          \
         || !nextnode3(env->stck) || !nextnode4(env->stck)) {                  \
-        execerror(env, "five parameters", NAME);                              \
+        raise_error(env, JOY_ERROR_STACK_UNDERFLOW, "five parameters", NAME); \
         return;                                                               \
     }
 
 /* Type checks - verify stack items are expected types */
 #define ONEQUOTE(NAME)                                                        \
     if (nodetype(env->stck) != LIST_) {                                       \
-        execerror(env, "quotation as top parameter", NAME);                   \
+        raise_error(env, JOY_ERROR_TYPE, "quotation as top parameter", NAME); \
         return;                                                               \
     }
 #define TWOQUOTES(NAME)                                                       \
     ONEQUOTE(NAME);                                                           \
     if (nodetype(nextnode1(env->stck)) != LIST_) {                            \
-        execerror(env, "quotation as second parameter", NAME);                \
+        raise_error(env, JOY_ERROR_TYPE, "quotation as second parameter", NAME); \
         return;                                                               \
     }
 #define THREEQUOTES(NAME)                                                     \
     TWOQUOTES(NAME);                                                          \
     if (nodetype(nextnode2(env->stck)) != LIST_) {                            \
-        execerror(env, "quotation as third parameter", NAME);                 \
+        raise_error(env, JOY_ERROR_TYPE, "quotation as third parameter", NAME); \
         return;                                                               \
     }
 #define FOURQUOTES(NAME)                                                      \
     THREEQUOTES(NAME);                                                        \
     if (nodetype(nextnode3(env->stck)) != LIST_) {                            \
-        execerror(env, "quotation as fourth parameter", NAME);                \
+        raise_error(env, JOY_ERROR_TYPE, "quotation as fourth parameter", NAME); \
         return;                                                               \
     }
 #define SAME2TYPES(NAME)                                                      \
     if (nodetype(env->stck) != nodetype(nextnode1(env->stck))) {              \
-        execerror(env, "two parameters of the same type", NAME);              \
+        raise_error(env, JOY_ERROR_TYPE, "two parameters of the same type", NAME); \
         return;                                                               \
     }
 #define STRING(NAME)                                                          \
     if (nodetype(env->stck) != STRING_) {                                     \
-        execerror(env, "string", NAME);                                       \
+        raise_error(env, JOY_ERROR_TYPE, "string", NAME);                     \
         return;                                                               \
     }
 #define STRING2(NAME)                                                         \
     if (nodetype(nextnode1(env->stck)) != STRING_) {                          \
-        execerror(env, "string as second parameter", NAME);                   \
+        raise_error(env, JOY_ERROR_TYPE, "string as second parameter", NAME); \
         return;                                                               \
     }
 #define INTEGER(NAME)                                                         \
     if (nodetype(env->stck) != INTEGER_) {                                    \
-        execerror(env, "integer", NAME);                                      \
+        raise_error(env, JOY_ERROR_TYPE, "integer", NAME);                    \
         return;                                                               \
     }
 #define INTEGER2(NAME)                                                        \
     if (nodetype(nextnode1(env->stck)) != INTEGER_) {                         \
-        execerror(env, "integer as second parameter", NAME);                  \
+        raise_error(env, JOY_ERROR_TYPE, "integer as second parameter", NAME); \
         return;                                                               \
     }
 #define CHARACTER(NAME)                                                       \
     if (nodetype(env->stck) != CHAR_) {                                       \
-        execerror(env, "character", NAME);                                    \
+        raise_error(env, JOY_ERROR_TYPE, "character", NAME);                  \
         return;                                                               \
     }
 #define INTEGERS2(NAME)                                                       \
     if (nodetype(env->stck) != INTEGER_                                       \
         || nodetype(nextnode1(env->stck)) != INTEGER_) {                      \
-        execerror(env, "two integers", NAME);                                 \
+        raise_error(env, JOY_ERROR_TYPE, "two integers", NAME);               \
         return;                                                               \
     }
 #define NUMERICTYPE(NAME)                                                     \
     if (nodetype(env->stck) != INTEGER_ && nodetype(env->stck) != CHAR_       \
         && nodetype(env->stck) != BOOLEAN_) {                                 \
-        execerror(env, "numeric", NAME);                                      \
+        raise_error(env, JOY_ERROR_TYPE, "numeric", NAME);                    \
         return;                                                               \
     }
 #define NUMERIC2(NAME)                                                        \
     if (nodetype(nextnode1(env->stck)) != INTEGER_                            \
         && nodetype(nextnode1(env->stck)) != CHAR_) {                         \
-        execerror(env, "numeric second parameter", NAME);                     \
+        raise_error(env, JOY_ERROR_TYPE, "numeric second parameter", NAME);   \
         return;                                                               \
     }
 #define CHECKNUMERIC(NODE, NAME)                                              \
     if (nodetype(NODE) != INTEGER_) {                                         \
-        execerror(env, "numeric list", NAME);                                 \
+        raise_error(env, JOY_ERROR_TYPE, "numeric list", NAME);               \
         return;                                                               \
     }
 #define FLOAT(NAME)                                                           \
     if (!FLOATABLE) {                                                         \
-        execerror(env, "float or integer", NAME);                             \
+        raise_error(env, JOY_ERROR_TYPE, "float or integer", NAME);           \
         return;                                                               \
     }
 #define FLOAT2(NAME)                                                          \
     if (!(FLOATABLE2                                                          \
           || (nodetype(env->stck) == INTEGER_                                 \
               && nodetype(nextnode1(env->stck)) == INTEGER_))) {              \
-        execerror(env, "two floats or integers", NAME);                       \
+        raise_error(env, JOY_ERROR_TYPE, "two floats or integers", NAME);     \
         return;                                                               \
     }
 #define ISFILE(NAME)                                                          \
     if (nodetype(env->stck) != FILE_ || !nodevalue(env->stck).fil) {          \
-        execerror(env, "file", NAME);                                         \
+        raise_error(env, JOY_ERROR_TYPE, "file", NAME);                       \
         return;                                                               \
     }
 #define CHECKZERO(NAME)                                                       \
@@ -233,38 +233,38 @@
     }
 #define LIST(NAME)                                                            \
     if (nodetype(env->stck) != LIST_) {                                       \
-        execerror(env, "list", NAME);                                         \
+        raise_error(env, JOY_ERROR_TYPE, "list", NAME);                       \
         return;                                                               \
     }
 #define LIST2(NAME)                                                           \
     if (nodetype(nextnode1(env->stck)) != LIST_) {                            \
-        execerror(env, "list as second parameter", NAME);                     \
+        raise_error(env, JOY_ERROR_TYPE, "list as second parameter", NAME);   \
         return;                                                               \
     }
 #define USERDEF(NAME)                                                         \
     if (nodetype(env->stck) != USR_) {                                        \
-        execerror(env, "user defined symbol", NAME);                          \
+        raise_error(env, JOY_ERROR_TYPE, "user defined symbol", NAME);        \
         return;                                                               \
     }
 #define USERDEF2(NODE, NAME)                                                  \
     if (nodetype(NODE) != USR_) {                                             \
-        execerror(env, "user defined symbol", NAME);                          \
+        raise_error(env, JOY_ERROR_TYPE, "user defined symbol", NAME);        \
         return;                                                               \
     }
 #define CHECKLIST(OPR, NAME)                                                  \
     if (OPR != LIST_) {                                                       \
-        execerror(env, "internal list", NAME);                                \
+        raise_error(env, JOY_ERROR_TYPE, "internal list", NAME);              \
         return;                                                               \
     }
 #define CHECKSETMEMBER(NODE, NAME)                                            \
     if ((nodetype(NODE) != INTEGER_ && nodetype(NODE) != CHAR_)               \
         || nodevalue(NODE).num < 0 || nodevalue(NODE).num >= SETSIZE) {       \
-        execerror(env, "small numeric", NAME);                                \
+        raise_error(env, JOY_ERROR_TYPE, "small numeric", NAME);              \
         return;                                                               \
     }
 #define CHECKCHARACTER(NODE, NAME)                                            \
     if (nodetype(NODE) != CHAR_) {                                            \
-        execerror(env, "character", NAME);                                    \
+        raise_error(env, JOY_ERROR_TYPE, "character", NAME);                  \
         return;                                                               \
     }
 #define CHECKEMPTYSET(SET, NAME)                                              \
@@ -284,12 +284,12 @@
     }
 #define CHECKSTACK(NAME)                                                      \
     if (!env->stck) {                                                         \
-        execerror(env, "non-empty stack", NAME);                              \
+        raise_error(env, JOY_ERROR_STACK_UNDERFLOW, "non-empty stack", NAME); \
         return;                                                               \
     }
 #define CHECKVALUE(NAME)                                                      \
     if (!env->stck) {                                                         \
-        execerror(env, "value to push", NAME);                                \
+        raise_error(env, JOY_ERROR_STACK_UNDERFLOW, "value to push", NAME);   \
         return;                                                               \
     }
 #define CHECKNAME(STRING, NAME)                                               \
@@ -322,12 +322,12 @@
     }
 #define BADAGGREGATE(NAME)                                                    \
     {                                                                         \
-        execerror(env, "aggregate parameter", NAME);                          \
+        raise_error(env, JOY_ERROR_TYPE, "aggregate parameter", NAME);        \
         return;                                                               \
     }
 #define BADDATA(NAME)                                                         \
     {                                                                         \
-        execerror(env, "different type", NAME);                               \
+        raise_error(env, JOY_ERROR_TYPE, "different type", NAME);             \
         return;                                                               \
     }
 #else

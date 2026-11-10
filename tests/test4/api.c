@@ -263,13 +263,15 @@ TEST(load_stdlib)
 
 /* An eval from an output callback reads only its own input */
 static JoyContext* nested_ctx;
+static const char* nested_source;
+static JoyResult nested_result;
 static int nested_done;
 
 static void nested_eval_once(void)
 {
     if (!nested_done) {
         nested_done = 1;
-        ASSERT_EQ(joy_eval_string(nested_ctx, "3 put."), JOY_OK);
+        nested_result = joy_eval_string(nested_ctx, nested_source);
     }
 }
 
@@ -293,12 +295,49 @@ TEST(nested_eval)
     output_buffer[0] = '\0';
     output_pos = 0;
     nested_done = 0;
+    nested_source = "3 put.";
     nested_ctx = joy_create(&config);
     ASSERT(nested_ctx != NULL);
     ASSERT_EQ(joy_eval_string(nested_ctx, "1 put. 2 put."), JOY_OK);
+    ASSERT_EQ(nested_result, JOY_OK);
     ASSERT_STR_EQ(output_buffer, "132");
     /* The outer error handler is restored after the nested eval */
     ASSERT_NE(joy_eval_string(nested_ctx, "+ ."), JOY_OK);
+
+    joy_destroy(nested_ctx);
+}
+
+/* A nested eval rejects a definition: it would reset the outer statement */
+static void ignore_error(void* user_data, JoyResult result, const char* message,
+                         const char* file, int line, int column)
+{
+    (void)user_data;
+    (void)result;
+    (void)message;
+    (void)file;
+    (void)line;
+    (void)column;
+}
+
+TEST(nested_define)
+{
+    JoyIO io = { .write_char = nested_write_char,
+                 .write_string = nested_write_string,
+                 .on_error = ignore_error };
+    JoyConfig config = { .io = &io, .enable_autoput = 0 };
+
+    output_buffer[0] = '\0';
+    output_pos = 0;
+    nested_done = 0;
+    nested_source = "DEFINE f == 4. 5 put.";
+    nested_ctx = joy_create(&config);
+    ASSERT(nested_ctx != NULL);
+    ASSERT_EQ(joy_eval_string(nested_ctx, "10 [1 2 3] [put] step 20 put."), JOY_OK);
+    ASSERT_EQ(nested_result, JOY_ERROR_RUNTIME);
+    ASSERT_STR_EQ(output_buffer, "12320");
+    ASSERT_EQ(joy_stack_depth(nested_ctx), 1);
+    /* Definitions still work at the outermost level */
+    ASSERT_EQ(joy_eval_string(nested_ctx, "DEFINE f == 4. f put."), JOY_OK);
 
     joy_destroy(nested_ctx);
 }
@@ -469,6 +508,60 @@ TEST(custom_io)
     joy_destroy(ctx);
 }
 
+/* Character and string output builtins go through the callbacks */
+TEST(output_builtins)
+{
+    JoyContext* ctx = capture_create();
+    ASSERT(ctx != NULL);
+
+    ASSERT_STR_EQ(eval_output(ctx, "\"ab\" putchars 'c putch."), "abc");
+    ASSERT_STR_EQ(eval_output(ctx, "stdout \"de\" fputchars 'f fputch pop."),
+                  "def");
+    ASSERT_STR_EQ(eval_output(ctx, "stdout \"gh\" fputstring pop."), "gh");
+    ASSERT_STR_EQ(eval_output(ctx, "[dup] helpdetail."),
+                  "\ndup\t:  X  ->  X X.\nPushes an extra copy of X onto stack.\n");
+
+    joy_destroy(ctx);
+}
+
+/* Each error class has its own result code, also passed to on_error */
+static JoyResult reported;
+
+static void record_error(void* user_data, JoyResult result, const char* message,
+                         const char* file, int line, int column)
+{
+    (void)user_data;
+    (void)message;
+    (void)file;
+    (void)line;
+    (void)column;
+    reported = result;
+}
+
+TEST(result_codes)
+{
+    JoyIO io = { .on_error = record_error };
+    JoyConfig config = { .io = &io };
+    JoyContext* ctx = joy_create(&config);
+    ASSERT(ctx != NULL);
+
+    ASSERT_EQ(joy_eval_string(ctx, "+ ."), JOY_ERROR_STACK_UNDERFLOW);
+    ASSERT_EQ(reported, JOY_ERROR_STACK_UNDERFLOW);
+    ASSERT_EQ(joy_eval_string(ctx, "\"a\" 1 + ."), JOY_ERROR_TYPE);
+    ASSERT_EQ(reported, JOY_ERROR_TYPE);
+    ASSERT_EQ(joy_eval_string(ctx, "1 0 / ."), JOY_ERROR_RUNTIME);
+    ASSERT_EQ(reported, JOY_ERROR_RUNTIME);
+    ASSERT_EQ(joy_eval_string(ctx, "abort ."), JOY_ERROR_ABORT);
+    joy_stack_clear(ctx);
+    /* A syntax error is reported and the rest of the input still runs */
+    ASSERT_EQ(joy_eval_string(ctx, "[1 2 . 3 ."), JOY_ERROR_SYNTAX);
+    ASSERT_EQ(reported, JOY_ERROR_SYNTAX);
+    ASSERT_EQ(joy_stack_depth(ctx), 2);
+    ASSERT_EQ(joy_eval_string(ctx, "3 ."), JOY_OK);
+
+    joy_destroy(ctx);
+}
+
 int main(void)
 {
     printf("Joy API Tests\n");
@@ -485,6 +578,7 @@ int main(void)
     RUN_TEST(eval_error_drops_rest);
     RUN_TEST(stack_ops);
     RUN_TEST(errors);
+    RUN_TEST(result_codes);
     RUN_TEST(autoput);
     RUN_TEST(echo);
     RUN_TEST(memory_stats);
@@ -495,7 +589,9 @@ int main(void)
     RUN_TEST(eval_file);
     RUN_TEST(load_stdlib);
     RUN_TEST(nested_eval);
+    RUN_TEST(nested_define);
     RUN_TEST(custom_io);
+    RUN_TEST(output_builtins);
 
     printf("\n%d/%d tests passed\n", tests_passed, tests_run);
     return tests_passed == tests_run ? 0 : 1;

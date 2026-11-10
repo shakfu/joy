@@ -17,25 +17,25 @@
 #define LATEX (style == 2)
 #define HEADER(N, NAME, HEAD)                                                 \
     if (strcmp(N, NAME) == 0) {                                               \
-        printf("\n\n");                                                       \
+        joy_printf(env, "\n\n");                                              \
         if (HTML)                                                             \
-            printf("<DT><BR><B>");                                            \
+            joy_printf(env, "<DT><BR><B>");                                   \
         if (LATEX)                                                            \
-            printf("\\item[--- \\BX{");                                       \
-        printf("%s", HEAD);                                                   \
+            joy_printf(env, "\\item[--- \\BX{");                              \
+        joy_printf(env, "%s", HEAD);                                          \
         if (LATEX)                                                            \
-            printf("} ---] \\verb# #");                                       \
+            joy_printf(env, "} ---] \\verb# #");                              \
         if (HTML)                                                             \
-            printf("</B><BR><BR>");                                           \
-        printf("\n\n");                                                       \
+            joy_printf(env, "</B><BR><BR>");                                  \
+        joy_printf(env, "\n\n");                                              \
     }
 
-static void make_manual(int style) /* 0=plain, 1=HTML, 2=Latex */
+static void make_manual(pEnv env, int style) /* 0=plain, 1=HTML, 2=Latex */
 {
     char* n;
     int i, j;
     if (HTML)
-        printf("<HTML>\n<DL>\n");
+        joy_printf(env, "<HTML>\n<DL>\n");
     j = sizeof(optable) / sizeof(optable[0]);
     for (i = BOOLEAN_; i < j; i++) {
         n = optable[i].name;
@@ -53,43 +53,43 @@ static void make_manual(int style) /* 0=plain, 1=HTML, 2=Latex */
 #if 0
 	if (n[0] != '_') {
 #endif
-            if (HTML) printf("\n<DT>");
+            if (HTML) joy_printf(env, "\n<DT>");
         else if (LATEX)
         {
             if (n[0] == ' ') {
                 n++;
-                printf("\\item[\\BX{");
+                joy_printf(env, "\\item[\\BX{");
             } else
-                printf("\\item[\\JX{");
+                joy_printf(env, "\\item[\\JX{");
         }
         if (HTML && strcmp(n, "<=") == 0)
-            printf("&lt;=");
+            joy_printf(env, "&lt;=");
         else
-            printf("%s", n);
+            joy_printf(env, "%s", n);
         if (LATEX)
-            printf("}]  \\verb#");
+            joy_printf(env, "}]  \\verb#");
         if (HTML)
-            printf("<CODE>&nbsp;&nbsp;:&nbsp;&nbsp;</CODE>");
+            joy_printf(env, "<CODE>&nbsp;&nbsp;:&nbsp;&nbsp;</CODE>");
         /* the above line does produce the spaces around ":" */
         else
-            printf("  :  ");
-        printf("%s", optable[i].messg1);
+            joy_printf(env, "  :  ");
+        joy_printf(env, "%s", optable[i].messg1);
         if (HTML)
-            printf("\n<DD>");
+            joy_printf(env, "\n<DD>");
         else if (LATEX)
-            printf("# \\\\ \n {\\small\\verb#");
+            joy_printf(env, "# \\\\ \n {\\small\\verb#");
         else
-            printf("\n");
-        printf("%s", optable[i].messg2);
+            joy_printf(env, "\n");
+        joy_printf(env, "%s", optable[i].messg2);
         if (LATEX)
-            printf("#}");
-        printf("\n\n");
+            joy_printf(env, "#}");
+        joy_printf(env, "\n\n");
 #if 0
 	}
 #endif
     }
     if (HTML)
-        printf("\n</DL>\n</HTML>\n");
+        joy_printf(env, "\n</DL>\n</HTML>\n");
 }
 
 /* Internal operations */
@@ -103,14 +103,14 @@ PUSH(__dump_, INTEGER_NEWNODE, 0) /* variables */
 Q0  IGNORE_OK  2940  __html_manual  :  ->
 [IMPURE] Writes this manual of all Joy primitives to output file in HTML style.
 */
-void __html_manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(1); }
+void __html_manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(env, 1); }
 
 /**
 Q0  IGNORE_OK  2950  __latex_manual  :  ->
 [IMPURE] Writes this manual of all Joy primitives to output file in Latex style
 but without the head and tail.
 */
-void __latex_manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(2); }
+void __latex_manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(env, 2); }
 
 /**
 Q0  OK  2960  __manual_list  :  ->  L
@@ -217,14 +217,14 @@ void helpdetail_(pEnv env)
 
     ONEPARAM("HELP");
     LIST("HELP");
-    printf("\n");
+    joy_printf(env, "\n");
     for (n = nodevalue(env->stck).lis; n; n = nextnode1(n)) {
         switch (op = nodetype(n)) {
         case USR_:
             ent = vec_at(env->symtab, nodevalue(n).ent);
-            printf("%s  ==\n    ", ent.name);
+            joy_printf(env, "%s  ==\n    ", ent.name);
             writeterm(env, ent.u.body, stdout);
-            printf("\n\n");
+            joy_printf(env, "\n\n");
             continue;
 
         case ANON_FUNCT_:
@@ -250,10 +250,10 @@ void helpdetail_(pEnv env)
                 op = operindex(env, stderr_);
             break;
         }
-        printf("%s\t:  %s.\n%s\n", optable[op].name, optable[op].messg1,
+        joy_printf(env, "%s\t:  %s.\n%s\n", optable[op].name, optable[op].messg1,
                optable[op].messg2);
         if (op <= BIGNUM_)
-            printf("\n");
+            joy_printf(env, "\n");
     }
     POP(env->stck);
 }
@@ -262,5 +262,5 @@ void helpdetail_(pEnv env)
 Q0  IGNORE_OK  2930  manual  :  ->
 [IMPURE] Writes this manual of all Joy primitives to output file.
 */
-void manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(0); }
+void manual_(pEnv env) { PARALLEL_UNSAFE(env); make_manual(env, 0); }
 

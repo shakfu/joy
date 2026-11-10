@@ -186,7 +186,7 @@ static void writestack(pEnv env, Index n)
     if (n) {
         writestack(env, nextnode1(n));
         if (nextnode1(n))
-            putchar(' ');
+            joy_putchar(env, ' ');
         writefactor(env, n, stdout);
     }
 }
@@ -295,7 +295,7 @@ start:
 #endif
 #ifdef TRACEGC
         if (env->config.tracegc > 5) {
-            printf("exec_term1: ");
+            joy_printf(env, "exec_term1: ");
             printnode(env, n);
         }
 #endif
@@ -324,14 +324,14 @@ start:
             /* Display state if debugging, stepping, or hit breakpoint */
             if (env->config.debugging || env->config.stepping || hit_breakpoint) {
                 writestack(env, env->stck);
-                printf(" : ");
+                joy_printf(env, " : ");
                 writeterm(env, p, stdout);
-                putchar('\n');
+                joy_putchar(env, '\n');
                 fflush(stdout);
 
                 if (hit_breakpoint) {
                     Entry ent = vec_at(env->symtab, nodevalue(p).ent);
-                    printf("[break: %s]\n", ent.name);
+                    joy_printf(env, "[break: %s]\n", ent.name);
                     env->config.stepping = 1;
                 }
 
@@ -506,7 +506,7 @@ start:
         }
 #ifdef TRACEGC
         if (env->config.tracegc > 5) {
-            printf("exec_term2: ");
+            joy_printf(env, "exec_term2: ");
             printnode(env, p);
         }
 #endif

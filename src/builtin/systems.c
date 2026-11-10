@@ -29,7 +29,12 @@ static int joy_random(void)
 Q0  IGNORE_OK  3120  abort  :  ->
 [IMPURE] Aborts execution of current Joy program, returns to Joy main cycle.
 */
-void abort_(pEnv env) { PARALLEL_UNSAFE(env); abortexecution_(env, ABORT_RETRY); } /* LCOV_EXCL_LINE */
+void abort_(pEnv env)
+{
+    PARALLEL_UNSAFE(env);
+    env->error.code = JOY_ERROR_ABORT;
+    abortexecution_(env, ABORT_RETRY);
+} /* LCOV_EXCL_LINE */
 
 /**
 Q0  OK  3050  argc  :  ->  I

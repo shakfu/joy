@@ -477,14 +477,14 @@ static void decode_time(pEnv env, struct tm* t)
             if (strchr("#0123456789_", ent.name[0]) REL 0) {                  \
                 name_length = strlen(ent.name) + 1;                           \
                 if (column + name_length > HELPLINEMAX) {                     \
-                    printf("\n");                                             \
+                    joy_printf(env, "\n");                                    \
                     column = 0;                                               \
                 }                                                             \
-                printf("%s ", ent.name);                                      \
+                joy_printf(env, "%s ", ent.name);                             \
                 column += name_length;                                        \
             }                                                                 \
         }                                                                     \
-        printf("\n");                                                         \
+        joy_printf(env, "\n");                                                \
     }
 
 /* ======== if_type.h ======== */

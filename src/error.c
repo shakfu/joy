@@ -27,10 +27,19 @@ void abortexecution_(pEnv env, int num)
 }
 
 /*
- * print a runtime error to stderr and abort the execution of current program.
- * Uses I/O abstraction for error output when callbacks are set.
+ * execerror - report "MESSAGE needed for OP" and abort the current program.
  */
 void execerror(pEnv env, char* message, char* op)
+{
+    raise_error(env, strcmp(message, "memory") ? JOY_ERROR_RUNTIME
+                                               : JOY_ERROR_OUT_OF_MEMORY,
+                message, op);
+}
+
+/*
+ * raise_error - execerror with the result code an embedder receives.
+ */
+void raise_error(pEnv env, JoyResult code, char* message, char* op)
 {
     int leng = 0;
     char *ptr, *str;
@@ -70,7 +79,7 @@ void execerror(pEnv env, char* message, char* op)
                      "run time error: %s needed for %.*s\n", message, leng,
                      ptr);
             /* Use I/O abstraction for error reporting */
-            joy_report_error(env, ABORT_RETRY, buffer);
+            joy_report_error(env, code, buffer);
             free(buffer);
         }
     }

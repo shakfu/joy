@@ -55,7 +55,7 @@ static void profiler_report(pEnv env)
     int64_t total_time = 0;
 
     if (!prof->entries || vec_size(prof->entries) == 0) {
-        printf("No profiling data collected.\n");
+        joy_printf(env, "No profiling data collected.\n");
         return;
     }
 
@@ -71,14 +71,14 @@ static void profiler_report(pEnv env)
     }
 
     if (count == 0) {
-        printf("No profiling data collected.\n");
+        joy_printf(env, "No profiling data collected.\n");
         return;
     }
 
     /* Build sortable array */
     sorted = malloc(count * sizeof(ProfileSortEntry));
     if (!sorted) {
-        printf("Memory allocation failed.\n");
+        joy_printf(env, "Memory allocation failed.\n");
         return;
     }
 
@@ -98,14 +98,14 @@ static void profiler_report(pEnv env)
     qsort(sorted, count, sizeof(ProfileSortEntry), profile_cmp_self_time);
 
     /* Print report */
-    printf("=== Profile Report ===\n");
-    printf("Total: %.2f ms\n\n", total_time / 1000000.0);
-    printf("%20s   %8s   %10s   %10s\n", "Symbol", "Calls", "Total(ms)", "Self(ms)");
-    printf("------------------------------------------------------------\n");
+    joy_printf(env, "=== Profile Report ===\n");
+    joy_printf(env, "Total: %.2f ms\n\n", total_time / 1000000.0);
+    joy_printf(env, "%20s   %8s   %10s   %10s\n", "Symbol", "Calls", "Total(ms)", "Self(ms)");
+    joy_printf(env, "------------------------------------------------------------\n");
 
     for (i = 0; i < count; i++) {
         Entry ent = vec_at(env->symtab, sorted[i].sym_idx);
-        printf("%20s   %8" PRId64 "   %10.2f   %10.2f\n",
+        joy_printf(env, "%20s   %8" PRId64 "   %10.2f   %10.2f\n",
                ent.name,
                sorted[i].call_count,
                sorted[i].total_time_ns / 1000000.0,

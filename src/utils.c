@@ -140,9 +140,9 @@ void inimem2(pEnv env)
     env->flibrary_busy = 0; /* enable garbage collection */
 #ifdef TRACEGC
     if (env->config.tracegc > 1) {
-        printf("mem_low = %u\n", env->mem_low);
-        printf("memoryindex = %u\n", env->memoryindex);
-        printf("top of mem = %zu\n", env->memorymax);
+        joy_printf(env, "mem_low = %u\n", env->mem_low);
+        joy_printf(env, "memoryindex = %u\n", env->memoryindex);
+        joy_printf(env, "top of mem = %zu\n", env->memorymax);
     }
 #endif
 }
@@ -159,7 +159,7 @@ void printnode(pEnv env, Index p)
         str = nickname(operindex(env, nodevalue(p).proc));
     else
         str = opername(op);
-    printf("%d: %s %" PRId64 " %d\n", p, str, nodevalue(p).num, nextnode1(p));
+    joy_printf(env, "%d: %s %" PRId64 " %d\n", p, str, nodevalue(p).num, nextnode1(p));
 }
 #endif
 
@@ -301,7 +301,7 @@ static Index copy_one(pEnv env, Index n)
 #ifdef TRACEGC
     nodesinspected++;
     if (env->config.tracegc > 4)
-        printf("copy .. (%d)\n", n);
+        joy_printf(env, "copy .. (%d)\n", n);
 #endif
     /*
      * If n is 0 or in the space reserved for definitions, it is returned
@@ -485,14 +485,14 @@ static void gc1(pEnv env, Index *l, Index *r)
     env->gc_start_clock = clock(); /* statistics */
 #ifdef TRACEGC
     if (env->config.tracegc > 1)
-        printf("begin garbage collection\n");
+        joy_printf(env, "begin garbage collection\n");
     nodesinspected = nodescopied = 0;
 #define COP1(X, NAME)                                                         \
     if (X) {                                                                  \
         if (env->config.tracegc > 2) {                                               \
-            printf("\nold %s = ", NAME);                                      \
+            joy_printf(env, "\nold %s = ", NAME);                             \
             writeterm(env, X, stdout);                                        \
-            putchar('\n');                                                    \
+            joy_putchar(env, '\n');                                           \
         }                                                                     \
     }
     COP1(env->stck, "stack");
@@ -530,9 +530,9 @@ static void gc1(pEnv env, Index *l, Index *r)
     if (X) {                                                                  \
         X = copy(env, X);                                                     \
         if (env->config.tracegc > 2) {                                               \
-            printf("\nnew %s = ", NAME);                                      \
+            joy_printf(env, "\nnew %s = ", NAME);                             \
             writeterm(env, X, stdout);                                        \
-            putchar('\n');                                                    \
+            joy_putchar(env, '\n');                                           \
         }                                                                     \
     }
 #else
@@ -606,10 +606,10 @@ static void gc2(pEnv env, size_t num)
     env->stats.collect++;
 #ifdef TRACEGC
     if (env->config.tracegc > 0)
-        printf("gc - %d nodes inspected, %d nodes copied, clock: %ld\n",
+        joy_printf(env, "gc - %d nodes inspected, %d nodes copied, clock: %ld\n",
                nodesinspected, nodescopied, this_gc_clock);
     if (env->config.tracegc > 1)
-        printf("end garbage collection\n");
+        joy_printf(env, "end garbage collection\n");
 #endif
 }
 

@@ -421,7 +421,7 @@ void session_(pEnv env)
     /* Load existing definitions */
     load_symbols_from_db(env);
 
-    printf("session: opened '%s'\n", name);
+    joy_printf(env, "session: opened '%s'\n", name);
 }
 
 /**
@@ -433,11 +433,11 @@ void session_close_(pEnv env)
 {
     PARALLEL_UNSAFE(env);
     if (!env->session) {
-        printf("session: no active session\n");
+        joy_printf(env, "session: no active session\n");
         return;
     }
 
-    printf("session: closed '%s'\n", env->session->name);
+    joy_printf(env, "session: closed '%s'\n", env->session->name);
     session_close_internal(env);
 }
 
@@ -529,7 +529,7 @@ void snapshot_(pEnv env)
     if (rc != SQLITE_OK)
         raise_sql(env, s->db, "ROLLBACK", "snapshot");
 
-    printf("session: snapshot '%s' created\n", name);
+    joy_printf(env, "session: snapshot '%s' created\n", name);
 }
 
 /**
@@ -594,7 +594,7 @@ void restore_(pEnv env)
     s->cache_size = 0;
     load_symbols_from_db(env);
 
-    printf("session: restored to '%s'\n", name);
+    joy_printf(env, "session: restored to '%s'\n", name);
 }
 
 /**
@@ -696,11 +696,11 @@ void session_merge_(pEnv env)
 
     if (conflict_count > 0) {
         /* Report conflicts, return false */
-        printf("session-merge: conflicts on:");
+        joy_printf(env, "session-merge: conflicts on:");
         for (Index p = conflicts; p; p = nextnode1(p)) {
-            printf(" %s", GETSTRING(p));
+            joy_printf(env, " %s", GETSTRING(p));
         }
-        printf("\n");
+        joy_printf(env, "\n");
         sqlite3_exec(target->db, "DETACH DATABASE source", NULL, NULL, NULL);
         NULLARY(BOOLEAN_NEWNODE, 0);
         return;
@@ -720,7 +720,7 @@ void session_merge_(pEnv env)
     /* Reload symbols */
     load_symbols_from_db(env);
 
-    printf("session-merge: merged '%s' successfully\n", source_name);
+    joy_printf(env, "session-merge: merged '%s' successfully\n", source_name);
     NULLARY(BOOLEAN_NEWNODE, 1);
 }
 
@@ -895,7 +895,7 @@ void session_take_(pEnv env)
     }
     finish_sql(env, current->db, stmt, rc, NULL, "session-take");
 
-    printf("session-take: took '%s' from '%s'\n", symbol_name, source_name);
+    joy_printf(env, "session-take: took '%s' from '%s'\n", symbol_name, source_name);
 }
 
 /**
